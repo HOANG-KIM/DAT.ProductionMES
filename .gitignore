@@ -1,0 +1,50 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebug[Pp]ublic/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Local secrets / per-environment config (giữ lại appsettings.json mẫu, loại trừ bản có secret thật)
+appsettings.*.local.json
+appsettings.Development.json
+**/secrets.json
+*.pfx
+
+# SQLite local queue (dữ liệu cục bộ tại trạm, không commit)
+*.db
+*.db-shm
+*.db-wal
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Claude Code local settings (nếu phát sinh sau này)
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store
