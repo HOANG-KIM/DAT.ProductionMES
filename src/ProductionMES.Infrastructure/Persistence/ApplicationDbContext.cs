@@ -1,15 +1,37 @@
 using Microsoft.EntityFrameworkCore;
+using ProductionMES.Domain.Entities;
 
 namespace ProductionMES.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext chính của hệ thống (EF Core, MySQL qua Pomelo).
-/// Chưa khai báo DbSet cụ thể nào ở bước scaffold này — sẽ bổ sung khi có thiết kế entity chi tiết.
+/// EF Core Migrations là nguồn schema duy nhất của toàn hệ thống (kể cả bảng chỉ dùng Dapper để query).
 /// </summary>
 public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
+    }
+
+    public DbSet<Line> Lines => Set<Line>();
+
+    public DbSet<Stage> Stages => Set<Stage>();
+
+    public DbSet<WorkStation> WorkStations => Set<WorkStation>();
+
+    public DbSet<ProductionPlan> ProductionPlans => Set<ProductionPlan>();
+
+    public DbSet<ProductionPlanStage> ProductionPlanStages => Set<ProductionPlanStage>();
+
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
     }
 }

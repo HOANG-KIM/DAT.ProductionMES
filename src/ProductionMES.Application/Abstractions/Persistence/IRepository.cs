@@ -1,10 +1,11 @@
 using System.Linq.Expressions;
 
-namespace ProductionMES.Infrastructure.Repositories;
+namespace ProductionMES.Application.Abstractions.Persistence;
 
 /// <summary>
 /// Interface repository generic làm mẫu cho pattern Repository + Unit of Work.
-/// Các repository cụ thể theo từng entity sẽ kế thừa/implement khi có thiết kế entity chi tiết.
+/// Đặt tại tầng Application (không phải Infrastructure) để Service có thể phụ thuộc vào abstraction này
+/// mà không cần reference ngược sang Infrastructure — implementation cụ thể (EF Core) nằm ở Infrastructure.
 /// </summary>
 /// <typeparam name="TEntity">Kiểu entity quản lý bởi repository.</typeparam>
 public interface IRepository<TEntity> where TEntity : class
