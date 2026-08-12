@@ -88,6 +88,13 @@ try
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
+            // US-22/ADR-004: TẮT hẳn cơ chế inbound claim type mapping mặc định — nếu không, claim "role"
+            // (ngắn) trong JWT bị tự động đổi tên thành URI dài (ClaimTypes.Role) TRƯỚC khi gắn vào
+            // ClaimsPrincipal, khiến việc chỉ set RoleClaimType = "role" bên dưới KHÔNG đủ để tìm đúng claim
+            // (context.User.FindFirst("role") trả về null dù JWT có claim "role" hợp lệ) — bug thật phát hiện
+            // khi test end-to-end lần đầu (mọi kiểm thử trước đó chỉ là unit test mock, không chạm middleware
+            // xác thực thật), khiến MỌI request bị 403 dù JWT đúng.
+            options.MapInboundClaims = false;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
@@ -98,8 +105,8 @@ try
                 ValidAudience = jwtSection["Audience"],
                 IssuerSigningKey = new SymmetricSecurityKey(
                     Encoding.UTF8.GetBytes(jwtSection["Key"] ?? string.Empty)),
-                // US-22: khớp đúng claim type "role" (ngắn) do JwtTokenGenerator phát hành, không phụ thuộc
-                // cơ chế inbound claim type mapping mặc định — để [Authorize(Roles = "...")] hoạt động đúng.
+                // US-22: khớp đúng claim type "role" (ngắn) do JwtTokenGenerator phát hành — chỉ có hiệu lực
+                // đúng khi đã tắt MapInboundClaims ở trên.
                 RoleClaimType = JwtTokenGenerator.RoleClaimType,
             };
             // ADR-003: đọc access token từ cookie HttpOnly thay vì header Authorization: Bearer.
