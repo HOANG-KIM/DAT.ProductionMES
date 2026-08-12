@@ -40,6 +40,7 @@ export function LoginPage() {
         username: response.username,
         fullName: response.fullName,
         userRole: response.userRole,
+        permissions: response.permissions,
       });
       navigate('/', { replace: true });
     } catch (error) {

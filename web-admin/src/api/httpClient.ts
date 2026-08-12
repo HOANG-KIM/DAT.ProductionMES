@@ -69,6 +69,7 @@ httpClient.interceptors.response.use(
           username: refreshed.username,
           fullName: refreshed.fullName,
           userRole: refreshed.userRole,
+          permissions: refreshed.permissions,
         });
         return httpClient(originalRequest);
       } catch (refreshError) {

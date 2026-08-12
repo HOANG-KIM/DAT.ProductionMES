@@ -21,6 +21,8 @@ export interface LoginResponse {
   username: string;
   fullName: string;
   userRole: UserRole;
+  /** Danh sách permission hiệu lực của `userRole` (ADR-004), dạng `"Resource.Action"` (vd. `"Line.View"`). */
+  permissions: string[];
 }
 
 /** Khớp response `GET /auth/csrf`. */
@@ -33,4 +35,6 @@ export interface AuthUser {
   username: string;
   fullName: string;
   userRole: UserRole;
+  /** Danh sách permission hiệu lực (ADR-004), dạng `"Resource.Action"` — dùng cho `PermissionGuard`. */
+  permissions: string[];
 }

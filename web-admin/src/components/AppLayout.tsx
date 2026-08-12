@@ -1,15 +1,34 @@
-import { Layout, Typography } from 'antd';
-import { Outlet } from 'react-router-dom';
+import { SafetyCertificateOutlined } from '@ant-design/icons';
+import { Layout, Menu, Typography } from 'antd';
+import type { MenuProps } from 'antd';
+import { useMemo } from 'react';
+import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const { Header, Sider, Content } = Layout;
 
 /**
- * Khung layout Ant Design cơ bản (Header/Sider/Content) — chưa dựng menu điều hướng thật
- * (US-01→06 chưa có trang CRUD nào ở web-admin, đây chỉ là khung cho các task sau).
+ * Khung layout Ant Design cơ bản (Header/Sider/Content). Menu điều hướng hiện chỉ có mục "Quản lý
+ * phân quyền" (chỉ hiển thị cho `Admin` — break-glass, ADR-004) — các mục Line/Stage/WorkStation/
+ * ProductionPlan/User thuộc phạm vi task sau.
  */
 export function AppLayout() {
   const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const menuItems: MenuProps['items'] = useMemo(() => {
+    if (user?.userRole !== 'Admin') {
+      return [];
+    }
+    return [
+      {
+        key: '/permissions',
+        icon: <SafetyCertificateOutlined />,
+        label: 'Quản lý phân quyền',
+      },
+    ];
+  }, [user?.userRole]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -21,7 +40,12 @@ export function AppLayout() {
       </Header>
       <Layout>
         <Sider width={220} theme="light">
-          {/* TODO: menu điều hướng Line/Stage/WorkStation/ProductionPlan/User — chưa thuộc phạm vi scaffold này */}
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+          />
         </Sider>
         <Content style={{ padding: 24 }}>
           <Outlet />

@@ -8,12 +8,18 @@ import type { AuthUser } from '../types/auth';
  */
 interface AuthState {
   user: AuthUser | null;
+  /** Permission hiệu lực (ADR-004) của `user.userRole`, dạng `"Resource.Action"`. Mặc định rỗng khi chưa đăng nhập. */
+  permissions: string[];
   setUser: (user: AuthUser) => void;
   clear: () => void;
+  /** Kiểm tra `user` hiện tại có permission `"Resource.Action"` truyền vào hay không. */
+  hasPermission: (permission: string) => boolean;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  setUser: (user) => set({ user }),
-  clear: () => set({ user: null }),
+  permissions: [],
+  setUser: (user) => set({ user, permissions: user.permissions }),
+  clear: () => set({ user: null, permissions: [] }),
+  hasPermission: (permission) => get().permissions.includes(permission),
 }));
