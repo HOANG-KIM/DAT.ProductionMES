@@ -6,13 +6,17 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { HomePage } from '../features/home/HomePage';
 import { LineListPage } from '../features/lines/LineListPage';
 import { PermissionManagementPage } from '../features/permissions/PermissionManagementPage';
+import { StageListPage } from '../features/stages/StageListPage';
+import { UserListPage } from '../features/users/UserListPage';
+import { WorkStationListPage } from '../features/work-stations/WorkStationListPage';
 
 /**
  * Khai báo route toàn app: `/login` public, phần còn lại bọc `RouteGuard` (chặn theo session/role)
- * + `AppLayout` (khung Ant Design). Route `/permissions` bọc thêm `PermissionGuard role="Admin"`
- * (break-glass, ADR-004 — không đi qua permission động). Route `/lines` bọc `PermissionGuard
- * permission="Line.View"` (permission động chuẩn ADR-004). Các trang CRUD Stage/WorkStation/
- * ProductionPlan/User thuộc phạm vi task sau.
+ * + `AppLayout` (khung Ant Design). Route `/permissions` và `/users` bọc `PermissionGuard
+ * role="Admin"` (break-glass, ADR-004 — không đi qua permission động, `UsersController` cũng hardcode
+ * `[Authorize(Roles="Admin")]`). Route `/lines`, `/stages`, `/work-stations` bọc `PermissionGuard
+ * permission="Xxx.View"` (permission động chuẩn ADR-004). Trang CRUD ProductionPlan thuộc phạm vi
+ * task sau (không nằm ở web-admin, xem ADR-002).
  */
 export function AppRoutes() {
   return (
@@ -26,6 +30,30 @@ export function AppRoutes() {
             element={
               <PermissionGuard permission="Line.View">
                 <LineListPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="/stages"
+            element={
+              <PermissionGuard permission="Stage.View">
+                <StageListPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="/work-stations"
+            element={
+              <PermissionGuard permission="WorkStation.View">
+                <WorkStationListPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <PermissionGuard role="Admin">
+                <UserListPage />
               </PermissionGuard>
             }
           />
