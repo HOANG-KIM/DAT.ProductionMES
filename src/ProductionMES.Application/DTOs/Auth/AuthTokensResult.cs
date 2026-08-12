@@ -22,4 +22,11 @@ public class AuthTokensResult
     public string FullName { get; set; } = string.Empty;
 
     public UserRole UserRole { get; set; }
+
+    /// <summary>
+    /// Danh sách permission hiệu lực của <see cref="UserRole"/> tại thời điểm đăng nhập/refresh (ADR-004), dạng
+    /// <c>"Resource.Action"</c> (vd. <c>"Line.View"</c>). Role không có permission nào (vd. <c>Operator</c>,
+    /// <c>Manager</c> với dữ liệu seed hiện tại) trả về mảng rỗng, không lỗi.
+    /// </summary>
+    public IReadOnlyList<string> Permissions { get; set; } = Array.Empty<string>();
 }

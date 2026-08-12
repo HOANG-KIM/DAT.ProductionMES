@@ -25,6 +25,9 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : class
     public async Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _dbSet.ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<TEntity>> GetAllAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> queryModifier, CancellationToken cancellationToken = default)
+        => await queryModifier(_dbSet).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<TEntity>> FindAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
         => await _dbSet.Where(predicate).ToListAsync(cancellationToken);
 

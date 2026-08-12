@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using ProductionMES.Application.Abstractions.Auth;
+using ProductionMES.Application.Abstractions.Authorization;
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.Auth;
 using ProductionMES.Application.Options;
@@ -12,24 +13,29 @@ namespace ProductionMES.Application.Services.Auth;
 /// Implementation IAuthService (US-22, ADR-003). Băm/kiểm tra mật khẩu bằng
 /// <see cref="IPasswordHasher{TUser}"/> (Microsoft.Extensions.Identity.Core — không cần cả hệ thống
 /// ASP.NET Core Identity đầy đủ). Phát hành access token (JWT) + refresh token (opaque, lưu hash server-side để
-/// thu hồi được) qua <see cref="IJwtTokenGenerator"/> (implementation ở Infrastructure).
+/// thu hồi được) qua <see cref="IJwtTokenGenerator"/> (implementation ở Infrastructure). ADR-004: kèm theo
+/// danh sách permission hiệu lực của role qua <see cref="IRolePermissionCache"/> (abstraction ở Application,
+/// implementation cache ở Infrastructure — giữ đúng luật layer Application không reference Infrastructure).
 /// </summary>
 public class AuthService : IAuthService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly IRolePermissionCache _rolePermissionCache;
     private readonly JwtOptions _jwtOptions;
 
     public AuthService(
         IUnitOfWork unitOfWork,
         IPasswordHasher<User> passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
+        IRolePermissionCache rolePermissionCache,
         IOptions<JwtOptions> jwtOptions)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _rolePermissionCache = rolePermissionCache;
         _jwtOptions = jwtOptions.Value;
     }
 
@@ -143,6 +149,10 @@ public class AuthService : IAuthService
         await _unitOfWork.Repository<RefreshToken>().AddAsync(refreshToken, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // ADR-004: danh sách permission hiệu lực của role tại thời điểm phát hành token — client dùng để chặn
+        // UI (RouteGuard), không thay thế check permission ở backend.
+        var permissions = await _rolePermissionCache.GetPermissionsAsync(user.UserRole, cancellationToken);
+
         return new AuthTokensResult
         {
             AccessToken = accessToken,
@@ -152,6 +162,7 @@ public class AuthService : IAuthService
             Username = user.Username,
             FullName = user.FullName,
             UserRole = user.UserRole,
+            Permissions = permissions,
         };
     }
 }

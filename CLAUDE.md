@@ -12,6 +12,7 @@ Trước khi implement bất kỳ tính năng nào liên quan đến business ru
 - `Documents/ADR-002-lua-chon-react-cho-web-admin.md` — quyết định dùng React (Vite + TypeScript) cho Web Admin (màn hình quản lý danh mục của Admin/Tổ trưởng/Ban quản lý).
 - `Documents/API-Conventions.md` — quy ước hợp đồng API (route, HTTP method/status, format lỗi, JWT, phân trang, DateTime/Enum) áp dụng cho `ProductionMES.Api` và mọi client gọi qua HTTP. Đọc trước khi thêm/sửa Controller hoặc DTO.
 - `Documents/ADR-003-httponly-cookie-refresh-token.md` — quyết định dùng HttpOnly Cookie + Refresh Token (thay Bearer token thuần) cho auth, vì hệ thống sẽ mở ra public internet.
+- `Documents/ADR-004-role-permission-dong.md` — quyết định chuyển phân quyền từ `[Authorize(Roles=...)]` hardcode sang permission `Resource.Action` lưu DB, Admin quản lý runtime qua UI. Đọc trước khi thêm Controller/action mới hoặc đổi phân quyền.
 
 ## Commands
 

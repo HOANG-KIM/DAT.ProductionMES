@@ -119,5 +119,6 @@ public class AuthController : ControllerBase
         Username = tokens.Username,
         FullName = tokens.FullName,
         UserRole = tokens.UserRole,
+        Permissions = tokens.Permissions,
     };
 }

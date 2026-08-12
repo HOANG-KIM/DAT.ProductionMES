@@ -19,7 +19,7 @@ Tài liệu này thống nhất hợp đồng (contract) giữa `ProductionMES.A
 | `GET` | Lấy danh sách/chi tiết, không side-effect | `GET /lines`, `GET /lines/{id}` |
 | `POST` | Tạo mới, hoặc hành động không idempotent (login, deactivate) | `POST /lines`, `POST /lines/{id}/deactivate`, `POST /auth/login` |
 | `PUT` | Cập nhật — Service quyết định field nào được sửa (có thể chỉ 1 phần field của entity, xem `LineService.UpdateAsync` chỉ sửa Name/Description), không bắt buộc gửi đủ toàn bộ entity như REST PUT thuần | `PUT /lines/{id}`, `PUT /users/{id}/role` |
-| `DELETE` | **Không dùng.** Mọi "xóa" trong hệ thống là soft-delete (đổi cờ `IsActive`) qua `POST {id}/deactivate`, không có hard-delete qua API (giữ nguyên dữ liệu lịch sử scan/kế hoạch đã tham chiếu) | — |
+| `DELETE` | Xóa cứng — **chỉ** dùng cho bản ghi thuần liên kết/cấu hình, không có ý nghĩa lịch sử độc lập (vd. gỡ 1 Stage khỏi ProductionPlan). Với entity chính có dữ liệu lịch sử tham chiếu (Line/Stage/WorkStation/User/ProductionPlan), "xóa" luôn là soft-delete qua `POST {id}/deactivate`, không dùng `DELETE` | `DELETE /production-plans/{id}/stages/{stageId}`, `DELETE /roles/{role}/permissions/{permissionId}` |
 | `PATCH` | Không dùng hiện tại — `PUT` theo nghĩa "cập nhật field được phép sửa" đã đủ dùng cho quy mô CRUD hiện có | — |
 
 ## 3. JSON naming
@@ -100,10 +100,14 @@ Quy ước phía `web-admin`: viết 1 hàm chuẩn hóa lỗi dùng chung trong
 
 ## 8. Authorization/Role
 
-- Backend chặn theo role ở mức Controller: `[Authorize(Roles = "Admin")]` (hiện toàn bộ Controller quản lý danh mục yêu cầu `Admin`, khớp US-22/AC1).
-- 4 role hệ thống: `Operator`, `Supervisor`, `Admin`, `Manager` (enum `UserRole`, nay serialize dạng chuỗi — xem mục 10).
-- `web-admin` chỉ phục vụ `Supervisor`/`Admin`/`Manager` (không phục vụ `Operator` — vai trò đó thao tác ở `Station.Wpf`). Route guard phía React đọc role từ `LoginResponse`/token, chặn UI không đúng quyền — **đây chỉ là UX**, không thay thế `[Authorize]` ở backend; mọi endpoint vẫn phải tự chặn đúng ở server vì client có thể bị bypass.
-- Khi backend mở thêm role khác nhau cho từng endpoint (không phải toàn `Admin` như hiện tại), cập nhật route guard tương ứng phía React theo đúng role đã khai báo ở Controller — không suy đoán.
+**Đổi sang permission động lưu DB kể từ ADR-004** (xem `Documents/ADR-004-role-permission-dong.md`) — không còn 1 danh sách role hardcode chung cho cả Controller.
+
+- 4 role hệ thống: `Operator`, `Supervisor`, `Admin`, `Manager` (enum `UserRole`, serialize dạng chuỗi — xem mục 10).
+- Permission mô hình theo cặp **`Resource.Action`** (vd. `"Line.View"`, `"ProductionPlan.Activate"`), lưu ở bảng `Permission`/`RolePermission` — role nào được làm gì tra cứu từ DB (qua cache), Admin chỉnh qua UI runtime, **không cần deploy lại**.
+- **Ngoại lệ break-glass**: API quản lý `User` (`UsersController`) và API quản lý `Permission`/`RolePermission` vẫn hardcode `[Authorize(Roles = "Admin")]`, KHÔNG đi qua permission động — đây là đường quản trị luôn hoạt động được, không thể bị khóa qua chính UI phân quyền.
+- `web-admin` chỉ phục vụ role có ít nhất 1 permission hiệu lực (`Operator` luôn bị chặn — vai trò đó thao tác ở `Station.Wpf`, không có permission nào cả). `RouteGuard` phía React kiểm tra theo permission (không phải role tĩnh) — đọc danh sách permission trả về trong response `login`/`refresh`, chặn UI không đúng quyền — **đây chỉ là UX**, không thay thế check permission ở backend; mọi endpoint vẫn tự chặn đúng ở server vì client có thể bị bypass.
+- Đổi permission của 1 role có hiệu lực với client **tối đa sau ~15 phút** (chu kỳ access token refresh) — không có cơ chế đẩy (push) thông báo đổi quyền tức thời tới client đang mở phiên.
+- `GET api/v1/permissions` (catalog toàn bộ Resource+Action hợp lệ), `GET api/v1/role-permissions` (ma trận hiện tại), `POST`/`DELETE api/v1/roles/{role}/permissions/{permissionId}` (cấp/thu hồi) — toàn bộ nhóm này hardcode `Admin` (break-glass).
 
 ## 9. Pagination/filter/sort
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — web-admin
 
-Hướng dẫn khi làm việc trong `web-admin/` — ứng dụng React quản lý danh mục cho Admin/Tổ trưởng/Ban quản lý. Xem `Documents/ADR-002-lua-chon-react-cho-web-admin.md` để biết lý do chọn stack, `Documents/ADR-003-httponly-cookie-refresh-token.md` để biết cơ chế auth (HttpOnly Cookie + Refresh Token, đổi vì hệ thống sẽ mở ra public internet), và **`Documents/API-Conventions.md`** để biết hợp đồng API (route, status code, format lỗi, JWT, DateTime/Enum...) — đọc trước khi viết bất kỳ module nào trong `api/`. File `CLAUDE.md` ở gốc repo vẫn áp dụng cho phần business rule chung (SRS, backlog); file này chỉ bổ sung quy ước kỹ thuật riêng cho project React.
+Hướng dẫn khi làm việc trong `web-admin/` — ứng dụng React quản lý danh mục cho Admin/Tổ trưởng/Ban quản lý. Xem `Documents/ADR-002-lua-chon-react-cho-web-admin.md` để biết lý do chọn stack, `Documents/ADR-003-httponly-cookie-refresh-token.md` để biết cơ chế auth (HttpOnly Cookie + Refresh Token, đổi vì hệ thống sẽ mở ra public internet), `Documents/ADR-004-role-permission-dong.md` để biết mô hình phân quyền (permission `Resource.Action` lưu DB, Admin chỉnh runtime — không còn role tĩnh), và **`Documents/API-Conventions.md`** để biết hợp đồng API (route, status code, format lỗi, JWT, permission, DateTime/Enum...) — đọc trước khi viết bất kỳ module nào trong `api/`. File `CLAUDE.md` ở gốc repo vẫn áp dụng cho phần business rule chung (SRS, backlog); file này chỉ bổ sung quy ước kỹ thuật riêng cho project React.
 
 ## Stack
 
@@ -53,7 +53,8 @@ Chi tiết đầy đủ (format request/response, thứ tự gọi, xử lý 401
 - Axios instance ở `api/` phải cấu hình `withCredentials: true` để cookie tự gửi kèm.
 - Gọi `GET api/v1/auth/csrf` **trước** request đổi dữ liệu đầu tiên (vd. lúc app khởi động), lưu `csrfToken` trả về, gắn vào header `X-CSRF-TOKEN` cho mọi `POST`/`PUT` (interceptor request của Axios, không gắn thủ công từng lời gọi).
 - Interceptor response: khi gặp `401` (không phải từ chính `/auth/login`/`/auth/refresh`) → gọi `POST /auth/refresh` đúng 1 lần → nếu thành công, thử lại request gốc; nếu refresh cũng `401` → xóa session ở `store/`, điều hướng login. Tuyệt đối tránh vòng lặp refresh vô hạn khi backend lỗi khác gây 401 dai dẳng.
-- Route guard chặn theo role (`Supervisor`/`Admin`/`Manager`, không phục vụ `Operator`) — chỉ là UX, backend luôn là nguồn chặn quyền cuối cùng.
+- **Route guard chặn theo permission động (ADR-004), KHÔNG hardcode danh sách role.** Response `login`/`refresh` kèm danh sách permission hiệu lực (`"Resource.Action"`, vd. `"Line.View"`) của role hiện tại — lưu vào `authStore`, mỗi route/feature tự khai báo permission cần có (khớp đúng permission mà backend endpoint tương ứng yêu cầu, xem `API-Conventions.md` mục 8), `RouteGuard` so khớp với danh sách đó. Không suy đoán hay gộp chung nhiều role vào 1 rule — mỗi resource có permission riêng, role nào cũng có thể thiếu quyền ở 1 vài resource dù đủ quyền ở resource khác.
+- Đổi permission qua UI quản lý (Admin) có hiệu lực với phiên đang mở của client khác **tối đa sau ~15 phút** (chu kỳ access token refresh) — không có cơ chế đẩy tức thời.
 
 ## Form & validate
 

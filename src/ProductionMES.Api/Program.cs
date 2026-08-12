@@ -4,11 +4,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authorization;
+using ProductionMES.Api.Authorization;
 using ProductionMES.Api.ExceptionHandling;
 using ProductionMES.Api.Filters;
 using ProductionMES.Api.Hubs;
 using ProductionMES.Application.DependencyInjection;
 using ProductionMES.Domain.Entities;
+using ProductionMES.Domain.Enums;
 using ProductionMES.Infrastructure.DependencyInjection;
 using ProductionMES.Infrastructure.Persistence;
 using ProductionMES.Infrastructure.Security;
@@ -113,7 +116,41 @@ try
                 },
             };
         });
-    builder.Services.AddAuthorization();
+    // ADR-004: permission động (Resource, Action) lưu DB thay cho [Authorize(Roles=...)] hardcode mức Controller
+    // — mỗi policy dưới đây tương ứng đúng 1 hành động thật đang tồn tại ở Controller (không phải tích chéo đầy
+    // đủ Resource x Action), khớp catalog seed ở DbSeeder.SeedPermissionsAsync.
+    builder.Services.AddAuthorization(options =>
+    {
+        void AddPermissionPolicy(string policyName, PermissionResource resource, PermissionAction action)
+            => options.AddPolicy(policyName, policy => policy.Requirements.Add(new PermissionRequirement(resource, action)));
+
+        AddPermissionPolicy(PermissionPolicies.LineView, PermissionResource.Line, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.LineCreate, PermissionResource.Line, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.LineUpdate, PermissionResource.Line, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.LineDeactivate, PermissionResource.Line, PermissionAction.Deactivate);
+
+        AddPermissionPolicy(PermissionPolicies.StageView, PermissionResource.Stage, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.StageCreate, PermissionResource.Stage, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.StageUpdate, PermissionResource.Stage, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.StageDeactivate, PermissionResource.Stage, PermissionAction.Deactivate);
+
+        AddPermissionPolicy(PermissionPolicies.WorkStationView, PermissionResource.WorkStation, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.WorkStationCreate, PermissionResource.WorkStation, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.WorkStationUpdate, PermissionResource.WorkStation, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.WorkStationDeactivate, PermissionResource.WorkStation, PermissionAction.Deactivate);
+
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanView, PermissionResource.ProductionPlan, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanCreate, PermissionResource.ProductionPlan, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanUpdate, PermissionResource.ProductionPlan, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanActivate, PermissionResource.ProductionPlan, PermissionAction.Activate);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanDeactivate, PermissionResource.ProductionPlan, PermissionAction.Deactivate);
+
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageView, PermissionResource.ProductionPlanStage, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageCreate, PermissionResource.ProductionPlanStage, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageUpdate, PermissionResource.ProductionPlanStage, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageDelete, PermissionResource.ProductionPlanStage, PermissionAction.Delete);
+    });
+    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
     // SignalR (real-time)
     builder.Services.AddSignalR();
@@ -159,6 +196,18 @@ try
         catch (Exception ex)
         {
             Log.Warning(ex, "Không seed được tài khoản Admin mặc định (có thể do chưa kết nối được MySQL).");
+        }
+
+        // ADR-004: seed catalog Permission + RolePermission ban đầu — cùng lý do bọc try/catch như seed Admin
+        // ở trên (không chặn khởi động app khi DB chưa sẵn sàng).
+        try
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await DbSeeder.SeedPermissionsAsync(dbContext);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Không seed được Permission/RolePermission mặc định (có thể do chưa kết nối được MySQL).");
         }
     }
 

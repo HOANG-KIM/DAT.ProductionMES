@@ -14,6 +14,13 @@ public interface IRepository<TEntity> where TEntity : class
 
     Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lấy toàn bộ bản ghi, cho phép tùy biến query (vd. <c>Include</c> navigation property) qua
+    /// <paramref name="queryModifier"/> — bổ sung cho <see cref="GetAllAsync(CancellationToken)"/> khi Service
+    /// cần nạp kèm dữ liệu liên quan (vd. <c>RolePermission.Permission</c>) mà không phải lazy-load thêm request.
+    /// </summary>
+    Task<IReadOnlyList<TEntity>> GetAllAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> queryModifier, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TEntity>> FindAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
 
     Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Moq;
 using ProductionMES.Application.Abstractions.Auth;
+using ProductionMES.Application.Abstractions.Authorization;
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.Auth;
 using ProductionMES.Application.Options;
@@ -12,7 +13,7 @@ using ProductionMES.Domain.Enums;
 
 namespace ProductionMES.Application.Tests.Services;
 
-/// <summary>Unit test cho AuthService (US-22 — đăng nhập; ADR-003 — refresh/logout token).</summary>
+/// <summary>Unit test cho AuthService (US-22 — đăng nhập; ADR-003 — refresh/logout token; ADR-004 — permission).</summary>
 public class AuthServiceTests
 {
     private readonly Mock<IRepository<User>> _userRepositoryMock = new();
@@ -20,6 +21,7 @@ public class AuthServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IPasswordHasher<User>> _passwordHasherMock = new();
     private readonly Mock<IJwtTokenGenerator> _jwtTokenGeneratorMock = new();
+    private readonly Mock<IRolePermissionCache> _rolePermissionCacheMock = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
@@ -28,10 +30,16 @@ public class AuthServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<RefreshToken>()).Returns(_refreshTokenRepositoryMock.Object);
 
         var jwtOptions = Microsoft.Extensions.Options.Options.Create(new JwtOptions { AccessTokenExpiryMinutes = 15, RefreshTokenExpiryDays = 7 });
-        _sut = new AuthService(_unitOfWorkMock.Object, _passwordHasherMock.Object, _jwtTokenGeneratorMock.Object, jwtOptions);
+        _sut = new AuthService(_unitOfWorkMock.Object, _passwordHasherMock.Object, _jwtTokenGeneratorMock.Object, _rolePermissionCacheMock.Object, jwtOptions);
 
         // Mặc định: hash trả về chuỗi cố định theo giá trị thô, đủ dùng để so khớp trong test (không cần SHA-256 thật).
         _jwtTokenGeneratorMock.Setup(g => g.HashToken(It.IsAny<string>())).Returns((string raw) => $"hash-{raw}");
+
+        // Mặc định: role Admin có 2 permission mẫu — đủ dùng để test AuthService gán đúng Permissions vào kết
+        // quả, không cần test lại logic tra cứu permission thật (đã có PermissionServiceTests/RolePermissionCache).
+        _rolePermissionCacheMock
+            .Setup(c => c.GetPermissionsAsync(It.IsAny<UserRole>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<string> { "Line.View", "Line.Create" });
     }
 
     private void SetupUserFindAsync(IReadOnlyList<User> users)
@@ -104,6 +112,7 @@ public class AuthServiceTests
         Assert.Equal("fake-refresh-token", result.RefreshToken);
         Assert.Equal(UserRole.Admin, result.UserRole);
         Assert.Equal("admin", result.Username);
+        Assert.Equal(new[] { "Line.View", "Line.Create" }, result.Permissions);
         _refreshTokenRepositoryMock.Verify(
             r => r.AddAsync(It.Is<RefreshToken>(t => t.UserId == user.Id && t.TokenHash == "hash-fake-refresh-token"), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -133,6 +142,7 @@ public class AuthServiceTests
         Assert.NotNull(result);
         Assert.Equal("new-access-token", result!.AccessToken);
         Assert.Equal("new-refresh-token", result.RefreshToken);
+        Assert.Equal(new[] { "Line.View", "Line.Create" }, result.Permissions);
         Assert.NotNull(existingToken.RevokedAtUtc);
         Assert.Equal("hash-new-refresh-token", existingToken.ReplacedByTokenHash);
         _refreshTokenRepositoryMock.Verify(

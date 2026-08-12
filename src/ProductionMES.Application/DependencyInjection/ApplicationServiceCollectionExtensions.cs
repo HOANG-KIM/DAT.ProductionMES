@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Application.Options;
 using ProductionMES.Application.Services.Auth;
+using ProductionMES.Application.Services.Permissions;
 using ProductionMES.Application.Services.Stages;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.ProductionPlans;
@@ -36,6 +37,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IPermissionService, PermissionService>();
 
         return services;
     }

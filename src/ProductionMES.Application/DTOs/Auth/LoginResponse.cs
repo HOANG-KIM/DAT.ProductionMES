@@ -15,4 +15,11 @@ public class LoginResponse
     public string FullName { get; set; } = string.Empty;
 
     public UserRole UserRole { get; set; }
+
+    /// <summary>
+    /// Danh sách permission hiệu lực của <see cref="UserRole"/> (ADR-004), dạng <c>"Resource.Action"</c>
+    /// (vd. <c>"Line.View"</c>) — <c>web-admin</c> dùng để chặn UI theo permission (RouteGuard), không thay thế
+    /// check permission ở backend.
+    /// </summary>
+    public IReadOnlyList<string> Permissions { get; set; } = Array.Empty<string>();
 }
