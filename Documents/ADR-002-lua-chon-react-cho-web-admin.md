@@ -11,10 +11,18 @@
 US-01 → US-06 và US-22 đã hoàn thành ở tầng backend (Controller → Service → Repository) cho các danh mục Line, Stage, WorkStation, ProductionPlan, ProductionPlanStage, User + JWT auth. Backlog (US-01 AC1, AC4) mô tả Admin thao tác qua "màn hình quản lý danh mục"/"giao diện cấu hình", nhưng chưa từng chốt nền tảng UI cho việc này. Hiện tại cách duy nhất để gọi các API trên là Swagger UI — công cụ dev/test, không phải công cụ vận hành hàng ngày cho Admin/Tổ trưởng/Ban quản lý.
 
 Đây là bài toán khác với ADR-001 (client trạm WPF):
-- Người dùng là Admin/Tổ trưởng/Ban quản lý, thao tác từ máy văn phòng, không phải công nhân vận hành tại kiosk xưởng.
-- Nhu cầu chính là CRUD danh mục (Line/Stage/WorkStation/ProductionPlan/User), sắp xếp trình tự công đoạn (US-03, cần kéo-thả), và về sau là báo cáo/xuất Excel (Giai đoạn 6 của backlog) — không có yêu cầu real-time dày đặc hay nhiều trạng thái động như màn hình scan tại trạm.
+- Người dùng là Admin/Ban quản lý, thao tác từ máy văn phòng — KHÔNG bao gồm Tổ trưởng (xem "Cập nhật phạm vi" bên dưới).
+- Nhu cầu chính là CRUD danh mục (Line/Stage/WorkStation/User), quản lý permission (ADR-004), và về sau là báo cáo/xuất Excel (Giai đoạn 6 của backlog) — không có yêu cầu real-time dày đặc hay nhiều trạng thái động như màn hình scan tại trạm.
 - Không có ràng buộc tiến trình/thiết bị vật lý (scan/Arduino) như trạm làm việc.
 - Truy cập qua trình duyệt từ nhiều máy văn phòng khác nhau, không cần cài đặt riêng từng máy như ứng dụng desktop.
+
+### Cập nhật phạm vi (12/08/2026)
+
+Bối cảnh gốc phía trên liệt kê `ProductionPlan`/`ProductionPlanStage` (kế hoạch sản xuất + trình tự công đoạn, US-03/US-05) là 1 phần CRUD của `web-admin` — **sai**. Đối chiếu lại SRS mục 2.2 và các FR khác của Tổ trưởng (FR-12 xác nhận NG do timeout, FR-19 mở khóa rework) cho thấy Tổ trưởng luôn thao tác các việc này **ngay tại màn hình trạm** ("cần đăng nhập/xác thực riêng bằng tài khoản Tổ trưởng tại trạm" — không phải từ xa qua trình duyệt). Cấu hình kế hoạch sản xuất cũng thuộc về Tổ trưởng và cần thiết lập ngay đầu ca trên chính Line đó, nên hợp lý hơn khi đặt cùng ngữ cảnh đó thay vì tách sang 1 công cụ văn phòng riêng.
+
+**Quyết định lại**: màn hình cấu hình `ProductionPlan`/`ProductionPlanStage` thuộc **`Station.Wpf`** (thêm 1 chế độ/màn hình dành cho Tổ trưởng đăng nhập nâng quyền tại trạm, cùng project với ADR-001, không tách app riêng), KHÔNG thuộc `web-admin`. `web-admin` từ nay chỉ còn phạm vi: `Line`/`Stage`/`WorkStation`/`User` (Admin-only) + quản lý permission (ADR-004, Admin-only) + báo cáo/Excel (Ban quản lý, giai đoạn sau). API backend (`ProductionPlansController`/`ProductionPlanStagesController`) không đổi — vẫn phân quyền `Supervisor,Admin` qua permission động (ADR-004), chỉ đổi client nào gọi tới.
+
+**Vấn đề còn bỏ ngỏ**: `Station.Wpf` gọi các API này cần xác thực, nhưng ADR-003 (HttpOnly Cookie) thiết kế riêng cho ngữ cảnh trình duyệt (chống XSS, CORS credentials) — không áp dụng tự nhiên cho ứng dụng desktop. Cần quyết định cơ chế xác thực riêng cho `Station.Wpf` (vd. Bearer token lưu an toàn phía client desktop) trước khi triển khai màn hình Tổ trưởng này — chưa chốt, để lại cho ADR riêng khi bắt đầu implement.
 
 Ràng buộc đã biết: người phát triển đã có kinh nghiệm JavaScript và xác nhận có thể tự tin dùng kiến trúc SPA (Single Page Application) thay vì cần một giải pháp thuần C# (Blazor/Razor Pages) để tránh học công nghệ mới — khác bối cảnh ADR-001, nơi giảm thiểu đường học là lý do chính chọn WPF.
 

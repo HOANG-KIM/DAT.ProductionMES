@@ -96,6 +96,7 @@
 **Nguồn FR:** FR-03
 **Phụ thuộc:** US-02 (danh mục công đoạn master), US-05 (kế hoạch sản xuất phải tồn tại trước khi cấu hình công đoạn cho kế hoạch đó)
 **Cờ cảnh báo mục 8.2:** Không trực tiếp, nhưng phụ thuộc gián tiếp vào danh sách công đoạn thực tế từng Line (điểm mở #1).
+**UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026).
 
 ---
 
@@ -148,6 +149,7 @@
 **Nguồn FR:** FR-05
 **Phụ thuộc:** US-01 (Line)
 **Cờ cảnh báo mục 8.2:** Không trực tiếp.
+**UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026).
 
 ---
 

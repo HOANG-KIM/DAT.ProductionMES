@@ -46,7 +46,9 @@ src/
   ProductionMES.Domain/           Entity, Enum, business exception — không có project reference
   ProductionMES.Infrastructure/   DbContext (EF Core), Repository, UnitOfWork, Dapper query
   ProductionMES.Shared/           Constant, helper dùng chung nhiều layer
-  ProductionMES.Station.Wpf/      Client WPF tại trạm làm việc (MVVM) — KHÔNG reference project backend nào, chỉ gọi qua HTTP/SignalR
+  ProductionMES.Station.Wpf/      Client WPF tại trạm làm việc (MVVM) — KHÔNG reference project backend nào, chỉ gọi qua HTTP/SignalR.
+                                    Ngoài màn hình scan, còn có chế độ Tổ trưởng đăng nhập nâng quyền tại trạm để cấu hình
+                                    ProductionPlan/ProductionPlanStage (xem ADR-002 mục "Cập nhật phạm vi") — KHÔNG nằm ở web-admin.
 tests/
   ProductionMES.Application.Tests/  xUnit + Moq, chỉ reference Application
 web-admin/                         Client React (Vite + TypeScript) cho Admin/Tổ trưởng/Ban quản lý — KHÔNG nằm trong ProductionMES.sln,

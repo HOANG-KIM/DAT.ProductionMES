@@ -1,6 +1,6 @@
 # CLAUDE.md — web-admin
 
-Hướng dẫn khi làm việc trong `web-admin/` — ứng dụng React quản lý danh mục cho Admin/Tổ trưởng/Ban quản lý. Xem `Documents/ADR-002-lua-chon-react-cho-web-admin.md` để biết lý do chọn stack, `Documents/ADR-003-httponly-cookie-refresh-token.md` để biết cơ chế auth (HttpOnly Cookie + Refresh Token, đổi vì hệ thống sẽ mở ra public internet), `Documents/ADR-004-role-permission-dong.md` để biết mô hình phân quyền (permission `Resource.Action` lưu DB, Admin chỉnh runtime — không còn role tĩnh), và **`Documents/API-Conventions.md`** để biết hợp đồng API (route, status code, format lỗi, JWT, permission, DateTime/Enum...) — đọc trước khi viết bất kỳ module nào trong `api/`. File `CLAUDE.md` ở gốc repo vẫn áp dụng cho phần business rule chung (SRS, backlog); file này chỉ bổ sung quy ước kỹ thuật riêng cho project React.
+Hướng dẫn khi làm việc trong `web-admin/` — ứng dụng React quản lý danh mục cho **Admin/Ban quản lý** (KHÔNG phục vụ Tổ trưởng — màn hình cấu hình ProductionPlan/ProductionPlanStage của Tổ trưởng thuộc `Station.Wpf`, xem mục "Cập nhật phạm vi" ở ADR-002). Xem `Documents/ADR-002-lua-chon-react-cho-web-admin.md` để biết lý do chọn stack, `Documents/ADR-003-httponly-cookie-refresh-token.md` để biết cơ chế auth (HttpOnly Cookie + Refresh Token, đổi vì hệ thống sẽ mở ra public internet), `Documents/ADR-004-role-permission-dong.md` để biết mô hình phân quyền (permission `Resource.Action` lưu DB, Admin chỉnh runtime — không còn role tĩnh), và **`Documents/API-Conventions.md`** để biết hợp đồng API (route, status code, format lỗi, JWT, permission, DateTime/Enum...) — đọc trước khi viết bất kỳ module nào trong `api/`. File `CLAUDE.md` ở gốc repo vẫn áp dụng cho phần business rule chung (SRS, backlog); file này chỉ bổ sung quy ước kỹ thuật riêng cho project React.
 
 ## Stack
 
@@ -23,9 +23,10 @@ Project này **không** nằm trong `ProductionMES.sln`, không dùng `dotnet bu
 web-admin/
   src/
     api/            HTTP client (Axios instance, interceptor JWT) + 1 module gọi API cho mỗi resource
-                     (linesApi.ts, stagesApi.ts, workStationsApi.ts, productionPlansApi.ts, usersApi.ts...)
-    features/        1 thư mục con cho mỗi domain resource (lines/, stages/, work-stations/, production-plans/, users/)
+                     (linesApi.ts, stagesApi.ts, workStationsApi.ts, usersApi.ts, permissionsApi.ts...)
+    features/        1 thư mục con cho mỗi domain resource (lines/, stages/, work-stations/, users/, permissions/)
                      — mỗi feature gồm: page (màn hình danh sách/form), hook TanStack Query riêng (useLines.ts...), component con dùng riêng cho feature đó
+                     — KHÔNG có production-plans/ ở đây (thuộc Station.Wpf, xem ADR-002)
     components/      Component dùng chung nhiều feature (layout, route guard, table wrapper...)
     routes/           Khai báo React Router, route-based code splitting (React.lazy) theo feature
     store/            State chỉ tồn tại phía client (auth session, UI toggle) — KHÔNG dùng để cache dữ liệu từ server
