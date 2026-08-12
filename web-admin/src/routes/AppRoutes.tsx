@@ -4,13 +4,15 @@ import { PermissionGuard } from '../components/PermissionGuard';
 import { RouteGuard } from '../components/RouteGuard';
 import { LoginPage } from '../features/auth/LoginPage';
 import { HomePage } from '../features/home/HomePage';
+import { LineListPage } from '../features/lines/LineListPage';
 import { PermissionManagementPage } from '../features/permissions/PermissionManagementPage';
 
 /**
  * Khai báo route toàn app: `/login` public, phần còn lại bọc `RouteGuard` (chặn theo session/role)
  * + `AppLayout` (khung Ant Design). Route `/permissions` bọc thêm `PermissionGuard role="Admin"`
- * (break-glass, ADR-004 — không đi qua permission động). Các trang CRUD
- * Line/Stage/WorkStation/ProductionPlan/User thuộc phạm vi task sau.
+ * (break-glass, ADR-004 — không đi qua permission động). Route `/lines` bọc `PermissionGuard
+ * permission="Line.View"` (permission động chuẩn ADR-004). Các trang CRUD Stage/WorkStation/
+ * ProductionPlan/User thuộc phạm vi task sau.
  */
 export function AppRoutes() {
   return (
@@ -19,6 +21,14 @@ export function AppRoutes() {
       <Route element={<RouteGuard />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route
+            path="/lines"
+            element={
+              <PermissionGuard permission="Line.View">
+                <LineListPage />
+              </PermissionGuard>
+            }
+          />
           <Route
             path="/permissions"
             element={

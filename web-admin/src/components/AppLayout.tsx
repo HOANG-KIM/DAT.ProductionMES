@@ -1,4 +1,4 @@
-import { SafetyCertificateOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { Layout, Menu, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useMemo } from 'react';
@@ -8,27 +8,37 @@ import { useAuthStore } from '../store/authStore';
 const { Header, Sider, Content } = Layout;
 
 /**
- * Khung layout Ant Design cơ bản (Header/Sider/Content). Menu điều hướng hiện chỉ có mục "Quản lý
- * phân quyền" (chỉ hiển thị cho `Admin` — break-glass, ADR-004) — các mục Line/Stage/WorkStation/
- * ProductionPlan/User thuộc phạm vi task sau.
+ * Khung layout Ant Design cơ bản (Header/Sider/Content). Menu điều hướng lọc theo permission động
+ * (ADR-004) qua `hasPermission`, riêng "Quản lý phân quyền" vẫn hardcode `Admin` (break-glass,
+ * không đi qua permission động). Các mục Stage/WorkStation/ProductionPlan/User thuộc phạm vi task sau.
  */
 export function AppLayout() {
   const user = useAuthStore((state) => state.user);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
   const navigate = useNavigate();
   const location = useLocation();
 
   const menuItems: MenuProps['items'] = useMemo(() => {
-    if (user?.userRole !== 'Admin') {
-      return [];
+    const items: MenuProps['items'] = [];
+
+    if (hasPermission('Line.View')) {
+      items.push({
+        key: '/lines',
+        icon: <ApartmentOutlined />,
+        label: 'Quản lý Line',
+      });
     }
-    return [
-      {
+
+    if (user?.userRole === 'Admin') {
+      items.push({
         key: '/permissions',
         icon: <SafetyCertificateOutlined />,
         label: 'Quản lý phân quyền',
-      },
-    ];
-  }, [user?.userRole]);
+      });
+    }
+
+    return items;
+  }, [user?.userRole, hasPermission]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
