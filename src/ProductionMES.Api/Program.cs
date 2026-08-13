@@ -11,6 +11,8 @@ using ProductionMES.Api.Authorization;
 using ProductionMES.Api.ExceptionHandling;
 using ProductionMES.Api.Filters;
 using ProductionMES.Api.Hubs;
+using ProductionMES.Api.Realtime;
+using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DependencyInjection;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
@@ -178,6 +180,8 @@ try
 
     // SignalR (real-time)
     builder.Services.AddSignalR();
+    // US-07/US-08: implementation IScanNotifier dùng IHubContext<ScanHub> — đặt ở Api vì ScanHub chỉ tồn tại ở đây.
+    builder.Services.AddScoped<IScanNotifier, ScanHubNotifier>();
 
     // Health checks (kèm check MySQL)
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;

@@ -10,6 +10,7 @@ using ProductionMES.Application.Services.Stages;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.ProductionPlans;
 using ProductionMES.Application.Services.Lines;
+using ProductionMES.Application.Services.Scans;
 using ProductionMES.Application.Services.StationApiKeys;
 using ProductionMES.Application.Services.Users;
 using ProductionMES.Application.Services.WorkStations;
@@ -35,6 +36,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IStationApiKeyService, StationApiKeyService>();
         services.AddScoped<IProductionPlanService, ProductionPlanService>();
         services.AddScoped<IProductionPlanStageService, ProductionPlanStageService>();
+        services.AddScoped<IScanService, ScanService>();
 
         // US-22: PasswordHasher<TUser> (Microsoft.Extensions.Identity.Core) — không cần cả hệ thống
         // ASP.NET Core Identity đầy đủ, chỉ dùng đúng phần băm/kiểm tra mật khẩu.
