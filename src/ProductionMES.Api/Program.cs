@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authorization;
+using ProductionMES.Api.Authentication;
 using ProductionMES.Api.Authorization;
 using ProductionMES.Api.ExceptionHandling;
 using ProductionMES.Api.Filters;
@@ -122,7 +124,12 @@ try
                     return Task.CompletedTask;
                 },
             };
-        });
+        })
+        // US-04a/ADR-005: scheme riêng cho Station.Wpf (luồng scan thường, trạm là đơn vị xác thực, Operator
+        // không đăng nhập cá nhân) — chạy song song với "Bearer" ở trên, KHÔNG đổi default scheme (vẫn là
+        // JwtBearerDefaults.AuthenticationScheme, dùng cho web-admin/Supervisor).
+        .AddScheme<AuthenticationSchemeOptions, StationApiKeyAuthenticationHandler>(
+            StationApiKeyDefaults.AuthenticationScheme, options => { });
     // ADR-004: permission động (Resource, Action) lưu DB thay cho [Authorize(Roles=...)] hardcode mức Controller
     // — mỗi policy dưới đây tương ứng đúng 1 hành động thật đang tồn tại ở Controller (không phải tích chéo đầy
     // đủ Resource x Action), khớp catalog seed ở DbSeeder.SeedPermissionsAsync.
@@ -135,6 +142,16 @@ try
         AddPermissionPolicy(PermissionPolicies.LineCreate, PermissionResource.Line, PermissionAction.Create);
         AddPermissionPolicy(PermissionPolicies.LineUpdate, PermissionResource.Line, PermissionAction.Update);
         AddPermissionPolicy(PermissionPolicies.LineDeactivate, PermissionResource.Line, PermissionAction.Deactivate);
+
+        AddPermissionPolicy(PermissionPolicies.BreakWindowView, PermissionResource.BreakWindow, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.BreakWindowCreate, PermissionResource.BreakWindow, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.BreakWindowUpdate, PermissionResource.BreakWindow, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.BreakWindowDelete, PermissionResource.BreakWindow, PermissionAction.Delete);
+
+        AddPermissionPolicy(PermissionPolicies.StationApiKeyView, PermissionResource.StationApiKey, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.StationApiKeyCreate, PermissionResource.StationApiKey, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.StationApiKeyUpdate, PermissionResource.StationApiKey, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.StationApiKeyDeactivate, PermissionResource.StationApiKey, PermissionAction.Deactivate);
 
         AddPermissionPolicy(PermissionPolicies.StageView, PermissionResource.Stage, PermissionAction.View);
         AddPermissionPolicy(PermissionPolicies.StageCreate, PermissionResource.Stage, PermissionAction.Create);

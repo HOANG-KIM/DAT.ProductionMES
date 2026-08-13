@@ -2,6 +2,7 @@
 
 **Nguồn căn cứ:** `Documents/SRS-he-thong-quan-ly-ke-hoach-san-xuat.md` (FR-01 → FR-23, mục 6 quy tắc chốt, mục 7 AC, mục 8.2 điểm còn mở), `Documents/ADR-001-lua-chon-wpf-hay-winforms.md`.
 **Ngày lập:** 11/08/2026
+**Cập nhật:** 13/08/2026 — (1) bổ sung AC cho US-09 để đồng bộ với FR-09a (khung giờ nghỉ theo Line) được thêm vào SRS ngày 13/08/2026, sau thời điểm backlog được lập lần đầu; (2) tách 2 khoảng trống phát sinh sau khi story gốc đã code xong thành story riêng — **US-01a** (khung giờ nghỉ theo Line, do FR-01/FR-09a bổ sung sau khi US-01 code xong) và **US-04a** (API Key theo trạm, do ADR-005 chốt sau khi US-04 code xong) — cả 2 đều là điều kiện tiên quyết bắt buộc trước khi triển khai US-07/US-08/US-09, đã cập nhật vào lộ trình triển khai đề xuất.
 **Ghi chú chung:** Solution hiện chỉ có khung 7 project, chưa có entity/business logic — backlog này là đầu vào để dev bắt đầu implement dần theo thứ tự đề xuất ở cuối tài liệu.
 
 ---
@@ -34,6 +35,41 @@
 **Nguồn FR:** FR-01
 **Phụ thuộc:** Không có (story nền tảng, làm đầu tiên)
 **Cờ cảnh báo mục 8.2:** Có — số lượng Line thực tế chưa xác định, nhưng không ảnh hưởng thiết kế chức năng (hệ thống thiết kế cấu hình được).
+**Ghi chú:** US-01 đã code xong (commit `d4dd6ab`) trước khi FR-01/FR-09a (khung giờ nghỉ) được bổ sung vào SRS ngày 13/08/2026 — phần khung giờ nghỉ tách thành story riêng **US-01a** ngay bên dưới, không gộp ngược vào US-01 để tránh nhầm là còn nằm trong scope chưa code.
+
+---
+
+### US-01a: Cấu hình khung giờ nghỉ theo Line
+**Là** Quản trị hệ thống (Admin)
+**Tôi muốn** cấu hình 0 hoặc nhiều khung giờ nghỉ (giờ bắt đầu, giờ kết thúc, ghi chú) cho từng Line
+**Để** hệ thống có cơ sở trừ đúng thời gian nghỉ khi tính sản lượng kế hoạch lũy kế hiển thị tại màn hình trạm (FR-09a)
+
+**Acceptance Criteria**
+- **AC1 — Thêm khung giờ nghỉ cho Line**
+  - Given tôi là Admin đang cấu hình 1 Line đã tồn tại (US-01)
+  - When tôi thêm 1 khung giờ nghỉ (giờ bắt đầu, giờ kết thúc, ghi chú — vd nghỉ trưa 12:00–13:00, nghỉ giữa giờ 15:00–15:15) và lưu
+  - Then khung giờ nghỉ được lưu, áp dụng chung cho **mọi kế hoạch sản xuất chạy trên Line đó** (không cấu hình riêng theo từng kế hoạch)
+- **AC2 — Line có thể có nhiều khung giờ nghỉ**
+  - Given Line đã có 1 khung giờ nghỉ (vd nghỉ trưa)
+  - When Admin thêm thêm khung giờ nghỉ khác (vd nghỉ giữa giờ)
+  - Then cả 2 khung đều được lưu và áp dụng đồng thời khi tính sản lượng kế hoạch lũy kế
+- **AC3 — Sửa/xóa khung giờ nghỉ**
+  - Given khung giờ nghỉ đã tồn tại
+  - When Admin sửa giờ bắt đầu/kết thúc/ghi chú, hoặc xóa khung giờ nghỉ đó
+  - Then thay đổi có hiệu lực ngay cho các lần tính sản lượng kế hoạch lũy kế tiếp theo, không ảnh hưởng số liệu lịch sử đã tính trước đó
+- **AC4 — Line không cấu hình khung giờ nghỉ nào vẫn hoạt động bình thường**
+  - Given 1 Line không có khung giờ nghỉ nào được cấu hình (0 khung giờ nghỉ)
+  - When hệ thống tính sản lượng kế hoạch lũy kế cho Line đó (FR-09a)
+  - Then tính liên tục theo thời gian làm việc thực tế đã trôi qua, không có phần trừ giờ nghỉ nào
+- **AC5 — Từ chối khung giờ nghỉ không hợp lệ**
+  - Given Admin đang thêm/sửa khung giờ nghỉ
+  - When giờ kết thúc không lớn hơn giờ bắt đầu, hoặc khung giờ nghỉ mới chồng lấn 1 khung giờ nghỉ khác đã có của cùng Line
+  - Then hệ thống từ chối lưu, báo lỗi rõ ràng
+
+**Nguồn FR:** FR-01, FR-09a, mục 6 quy tắc 11
+**Phụ thuộc:** US-01 (Line phải tồn tại trước). Là điều kiện tiên quyết để US-09 AC5/AC6 (trừ giờ nghỉ khi tính PLAN lũy kế tại màn hình trạm) tính đúng — nếu chưa có story này, US-09 chỉ thỏa được trường hợp "0 khung giờ nghỉ".
+**Cờ cảnh báo mục 8.2:** Không.
+**Ghi chú:** Story tách ra vì FR-01/FR-09a (khung giờ nghỉ) được bổ sung vào SRS **sau** khi US-01 đã code xong (13/08/2026 so với commit US-01 trước đó) — `Line.cs` hiện chưa có field nào cho khung giờ nghỉ.
 
 ---
 
@@ -125,6 +161,44 @@
 
 ---
 
+### US-04a: Quản lý API Key theo trạm
+**Là** Quản trị hệ thống (Admin)
+**Tôi muốn** cấp, xem trạng thái, thu hồi và cấp lại API Key riêng cho từng trạm làm việc
+**Để** `Station.Wpf` xác thực được vào luồng scan thường (`StationApiKey` scheme, ADR-005) mà Operator không phải đăng nhập cá nhân
+
+**Acceptance Criteria**
+- **AC1 — Cấp API Key cho trạm**
+  - Given trạm đã tồn tại (US-04)
+  - When Admin chọn "Cấp API Key" cho trạm đó
+  - Then hệ thống sinh 1 key ngẫu nhiên đủ dài, hiển thị giá trị thô **đúng 1 lần duy nhất** ngay sau khi cấp để Admin sao chép vào file cấu hình cục bộ của trạm (`appsettings.json`); server chỉ lưu **hash** của key, không lưu giá trị thô (cùng nguyên tắc `RefreshToken.TokenHash` — ADR-003/ADR-005)
+- **AC2 — Không xem lại được giá trị thô sau khi rời màn hình**
+  - Given API Key đã được cấp và Admin đã đóng màn hình xác nhận
+  - When Admin quay lại xem thông tin trạm sau đó
+  - Then chỉ thấy metadata (ngày cấp, trạng thái Active/Revoked), không hiển thị lại được giá trị thô
+- **AC3 — Thu hồi API Key**
+  - Given trạm đang có 1 API Key ở trạng thái Active
+  - When Admin chọn "Thu hồi"
+  - Then key chuyển trạng thái Revoked (ghi nhận thời điểm thu hồi), mọi request `StationApiKey` dùng key đó bị từ chối ngay từ lần gọi kế tiếp
+- **AC4 — Xoay vòng: cấp lại key mới cho trạm đã có key**
+  - Given trạm nghi ngờ lộ key hoặc thay thiết bị, đang có 1 key Active
+  - When Admin cấp lại key mới cho trạm đó
+  - Then key cũ tự động chuyển Revoked, key mới có hiệu lực; lịch sử key cũ vẫn được giữ lại (không xóa bản ghi) để truy vết theo đúng thiết kế `StationApiKey` tách riêng khỏi `WorkStation` (ADR-005)
+- **AC5 — Từ chối request không có/sai API Key**
+  - Given request gọi endpoint dùng scheme `StationApiKey` (vd `POST api/v1/scans`) thiếu header `X-Station-Api-Key` hoặc giá trị không khớp hash đã lưu
+  - When server xác thực
+  - Then trả về 401, không xử lý request
+- **AC6 — Từ chối khi key hợp lệ nhưng sai trạm**
+  - Given API Key hợp lệ (hash khớp) nhưng thuộc về `WorkStationId` khác với `WorkStationId` gửi trong request body
+  - When server xác thực
+  - Then từ chối request — chống trạm A dùng key của mình gọi giả danh trạm B (ADR-005)
+
+**Nguồn FR:** Không có FR tương ứng trực tiếp trong SRS — đây là yêu cầu kỹ thuật phát sinh từ `Documents/ADR-005-auth-station-wpf.md` (mục "Hệ quả/Tiêu cực", dòng 76: *"web-admin chưa có UI cho việc này, cần bổ sung vào US-04 hoặc 1 story riêng trước/song song khi code US-07/08"*), cần thiết để `Station.Wpf` xác thực được vào luồng scan.
+**Phụ thuộc:** US-04 (trạm phải tồn tại trước khi cấp key). **Là điều kiện tiên quyết bắt buộc của US-07/US-08** — nếu chưa có story này, `Station.Wpf` không có cách nào lấy được API Key hợp lệ để gọi `POST api/v1/scans`.
+**Cờ cảnh báo mục 8.2:** Không.
+**UI:** `web-admin` (Admin) — gắn liền màn hình quản lý trạm (US-04), không phải `Station.Wpf`.
+
+---
+
 ## 3.2 Nhóm chức năng: Kế hoạch sản xuất
 
 ### US-05: Tạo/cập nhật kế hoạch sản xuất
@@ -208,7 +282,7 @@
   - Then thông báo hiển thị ở góc màn hình/dạng banner nhỏ, không đè lên vùng hiển thị số lượng/chỉ số +/-
 
 **Nguồn FR:** FR-07
-**Phụ thuộc:** US-04 (trạm làm việc), US-05 (kế hoạch active), US-08 (business rule kiểm tra hợp lệ — thực thi song song vì FR-07 mô tả UI/UX, FR-08 mô tả rule; nên triển khai cùng đợt)
+**Phụ thuộc:** US-04 (trạm làm việc), US-04a (API Key theo trạm — bắt buộc để `Station.Wpf` xác thực được, xem ADR-005), US-05 (kế hoạch active), US-08 (business rule kiểm tra hợp lệ — thực thi song song vì FR-07 mô tả UI/UX, FR-08 mô tả rule; nên triển khai cùng đợt)
 **Cờ cảnh báo mục 8.2:** Có — phụ thuộc model máy scan Zebra DS2208 (điểm mở #3) cho phần giao tiếp HID thực tế tại trạm.
 
 ---
@@ -268,9 +342,17 @@
   - Given có lượt scan mới hợp lệ
   - When hệ thống ghi nhận xong
   - Then giá trị trên màn hình trạm cập nhật ngay (qua SignalR, độ trễ ≤ 1 giây theo NFR), không cần thao tác làm mới
+- **AC5 — Trừ thời gian nghỉ khi tính sản lượng kế hoạch lũy kế** *(bổ sung SRS 13/08/2026, FR-09a)*
+  - Given Line của trạm đang trong 1 khung giờ nghỉ đã cấu hình (US-01a)
+  - When hệ thống tính sản lượng kế hoạch lũy kế để hiển thị tại màn hình trạm
+  - Then giá trị PLAN lũy kế **dừng tăng**, giữ nguyên bằng giá trị tại thời điểm bắt đầu khung giờ nghỉ; sau khi hết nghỉ, tính tiếp bình thường theo thời gian làm việc thực tế đã trôi qua — không thay đổi công thức sản lượng chuẩn/giờ gốc (FR-06)
+- **AC6 — Bảng theo dõi sản lượng theo mốc giờ hiển thị đúng trong lúc nghỉ**
+  - Given màn hình trạm có bảng theo dõi sản lượng theo từng mốc giờ trong ca
+  - When 1 mốc giờ hiển thị trên bảng rơi vào khung giờ nghỉ đã cấu hình cho Line
+  - Then mốc giờ đó **vẫn hiển thị** trên bảng, nhưng cột PLAN lũy kế giữ nguyên giá trị tại thời điểm bắt đầu nghỉ (không cộng thêm cho tới khi hết khung giờ nghỉ)
 
-**Nguồn FR:** FR-09, mục 6 quy tắc 5
-**Phụ thuộc:** US-07, US-08 (cần luồng scan và kết quả OK để tính số liệu)
+**Nguồn FR:** FR-09, FR-09a, mục 6 quy tắc 5, quy tắc 11
+**Phụ thuộc:** US-07, US-08 (cần luồng scan và kết quả OK để tính số liệu), US-01a (khung giờ nghỉ theo Line — bắt buộc để AC5/AC6 ở trên tính đúng; nếu chưa có US-01a, US-09 chỉ triển khai được đúng trường hợp "0 khung giờ nghỉ")
 **Cờ cảnh báo mục 8.2:** Không.
 
 ---
@@ -693,48 +775,50 @@
 
 **Giai đoạn 1 — Dữ liệu nền tảng (danh mục & cấu hình)**
 1. US-01 (Line)
-2. US-02 (Công đoạn master)
-3. US-04 (Trạm làm việc) — cần Line + Công đoạn xong trước
-4. US-05 (Kế hoạch sản xuất)
-5. US-03 (Cấu hình trình tự công đoạn theo kế hoạch)
-6. US-06 (Tính sản lượng chuẩn theo giờ)
-7. US-22 (Quản lý người dùng & phân quyền)
+2. US-01a (Khung giờ nghỉ theo Line) — cần US-01 xong trước; là điều kiện tiên quyết cho US-09 AC5/AC6
+3. US-02 (Công đoạn master)
+4. US-04 (Trạm làm việc) — cần Line + Công đoạn xong trước
+5. US-04a (API Key theo trạm) — cần US-04 xong trước; là điều kiện tiên quyết bắt buộc cho US-07/US-08 (`Station.Wpf` không xác thực được nếu thiếu story này)
+6. US-05 (Kế hoạch sản xuất)
+7. US-03 (Cấu hình trình tự công đoạn theo kế hoạch)
+8. US-06 (Tính sản lượng chuẩn theo giờ)
+9. US-22 (Quản lý người dùng & phân quyền)
 
-*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-12 (xác nhận Arduino) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
+*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. US-01a và US-04a được chèn ngay sau story gốc của chúng (US-01/US-04) vì đây là 2 khoảng trống phát sinh sau khi US-01/US-04 đã code xong (FR-01/FR-09a bổ sung sau; ADR-005 chốt sau) — bắt buộc phải xong trước khi bước vào Giai đoạn 2, nếu không US-07/US-08/US-09 sẽ bị chặn giữa chừng. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-12 (xác nhận Arduino) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
 
 **Giai đoạn 2 — Luồng scan lõi (happy path)**
-8. US-07 (Scan tem tại trạm)
-9. US-08 (Kiểm tra hợp lệ khi scan — chống trùng tem, công đoạn liền trước)
-10. US-09 (Hiển thị số lượng & chỉ số +/-)
-11. US-10 (Lưu & tra cứu lịch sử scan)
-12. US-15 (Khôi phục trạng thái phiên khi mở lại bình thường)
+10. US-07 (Scan tem tại trạm)
+11. US-08 (Kiểm tra hợp lệ khi scan — chống trùng tem, công đoạn liền trước)
+12. US-09 (Hiển thị số lượng & chỉ số +/-)
+13. US-10 (Lưu & tra cứu lịch sử scan)
+14. US-15 (Khôi phục trạng thái phiên khi mở lại bình thường)
 
 *Lý do*: Đây là lõi nghiệp vụ trung tâm của toàn hệ thống (scan → kiểm tra → cập nhật số liệu → lưu lịch sử). Cần hoàn thiện và ổn định trước khi thêm các nhánh phức tạp hơn (Arduino, offline, NG) vì các nhánh đó đều là biến thể/mở rộng của luồng scan cơ bản này.
 
 **Giai đoạn 3 — Chống mất dữ liệu (offline/crash)**
-13. US-16 (Hàng đợi cục bộ chống mất lượt scan)
-14. US-17 (Hiển thị trạng thái đồng bộ trên UI)
+15. US-16 (Hàng đợi cục bộ chống mất lượt scan)
+16. US-17 (Hiển thị trạng thái đồng bộ trên UI)
 
 *Lý do*: Đây là lớp bọc thêm quanh luồng scan lõi (ghi trước vào local queue, retry, idempotency) — cần scan lõi hoạt động ổn định trước, sau đó mới bọc thêm cơ chế an toàn dữ liệu này vì nó thay đổi cách trạm gửi/nhận kết quả scan.
 
 **Giai đoạn 4 — Nhánh phụ: Scan NG & Rework**
-15. US-18 (Scan xác nhận sản phẩm NG)
-16. US-19 (Quy trình Rework — mở khóa & scan lại)
-17. US-20 (Báo cáo tỷ lệ lỗi & nguyên nhân)
+17. US-18 (Scan xác nhận sản phẩm NG)
+18. US-19 (Quy trình Rework — mở khóa & scan lại)
+19. US-20 (Báo cáo tỷ lệ lỗi & nguyên nhân)
 
 *Lý do*: NG là nhánh rẽ có điều kiện của luồng scan (không phải mọi lượt scan đều NG), và có ràng buộc dữ liệu phức tạp hơn (nhiều bản ghi tại cùng công đoạn, thay đổi ràng buộc unique) nên làm sau khi luồng OK cơ bản đã vững. Báo cáo tỷ lệ lỗi (US-20) đặt cuối nhóm này vì cần có dữ liệu NG/OK thực tế để thống kê.
 
 **Giai đoạn 5 — Nhánh phụ: Arduino**
-18. US-11 (Cấu hình bật/tắt Arduino theo trạm)
-19. US-14 (Kết nối & phục hồi cổng COM)
-20. US-13 (Timeout xác định kết quả kiểm tra)
-21. US-12 (Luồng scan-chờ-Arduino đầy đủ, bao gồm nhánh xác nhận NG bởi Tổ trưởng)
+20. US-11 (Cấu hình bật/tắt Arduino theo trạm)
+21. US-14 (Kết nối & phục hồi cổng COM)
+22. US-13 (Timeout xác định kết quả kiểm tra)
+23. US-12 (Luồng scan-chờ-Arduino đầy đủ, bao gồm nhánh xác nhận NG bởi Tổ trưởng)
 
 *Lý do*: Arduino là nhánh phụ thuộc phần cứng đặc thù, chỉ áp dụng cho một số trạm/công đoạn nhất định (chưa xác định rõ theo mục 8.2). Đặt sau NG/Rework vì US-12 (bước 5) tái sử dụng trực tiếp cơ chế xác nhận NG + khóa/mở khóa rework đã xây ở Giai đoạn 4. Nên làm US-11/US-14 (cấu hình, kết nối) trước US-12/US-13 (logic state machine đầy đủ) vì đây là điều kiện kỹ thuật cần có trước khi build luồng nghiệp vụ chờ kết quả.
 
 **Giai đoạn 6 — Báo cáo tổng hợp & xuất Excel**
-22. US-21 (Báo cáo tổng hợp theo Line)
-23. US-23 (Xuất báo cáo Excel)
+24. US-21 (Báo cáo tổng hợp theo Line)
+25. US-23 (Xuất báo cáo Excel)
 
 *Lý do*: Báo cáo phụ thuộc vào dữ liệu đã tích lũy đầy đủ từ tất cả các luồng trước (scan OK, chỉ số +/-, trạng thái đồng bộ, dữ liệu NG). Xuất Excel (US-23) làm cuối cùng vì còn phụ thuộc thêm vào việc xác nhận nội dung/mẫu báo cáo cụ thể (điểm mở #4 mục 8.2 — cần hỏi lại stakeholder trước khi code phần này).
 

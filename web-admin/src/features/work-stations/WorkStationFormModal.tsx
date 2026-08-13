@@ -1,12 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Form, Input, InputNumber, Modal, Select, Switch } from 'antd';
+import { Alert, Divider, Form, Input, InputNumber, Modal, Select, Switch } from 'antd';
 import type { AxiosError } from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { StationApiKeySection } from './StationApiKeySection';
 import { useCreateWorkStation, useUpdateWorkStation } from './useWorkStations';
 import { useLines } from '../lines/useLines';
 import { useStages } from '../stages/useStages';
+import { useAuthStore } from '../../store/authStore';
 import type { WorkStation } from '../../types/workStation';
 
 /**
@@ -69,6 +71,7 @@ interface WorkStationFormModalProps {
 /** Modal tạo mới/sửa WorkStation (US-04) — dùng chung 1 form cho cả 2 chế độ, phân biệt qua `editingWorkStation`. */
 export function WorkStationFormModal({ open, editingWorkStation, onClose }: WorkStationFormModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
   const linesQuery = useLines();
   const stagesQuery = useStages();
   const createMutation = useCreateWorkStation();
@@ -248,6 +251,14 @@ export function WorkStationFormModal({ open, editingWorkStation, onClose }: Work
           </>
         )}
       </Form>
+
+      {/* US-04a: API Key chỉ cấp được khi trạm đã tồn tại (cần workStationId) — không hiển thị lúc tạo mới. */}
+      {editingWorkStation && hasPermission('StationApiKey.View') && (
+        <>
+          <Divider />
+          <StationApiKeySection workStationId={editingWorkStation.id} />
+        </>
+      )}
     </Modal>
   );
 }

@@ -43,23 +43,29 @@ public static class DbSeeder
     /// tồn tại ở từng Controller — xem ADR-004) và <see cref="RolePermission"/> ban đầu, khớp chính xác hành vi
     /// hardcode <c>[Authorize(Roles = "...")]</c> trước khi có ADR-004 (không đổi behavior khi migrate):
     /// <c>Admin</c> được toàn bộ permission; <c>Supervisor</c> được toàn bộ permission của <c>ProductionPlan</c>
-    /// + <c>ProductionPlanStage</c>; <c>Operator</c>/<c>Manager</c> không có permission nào. Idempotent — chỉ
-    /// chạy nếu bảng <see cref="ApplicationDbContext.Permissions"/> đang rỗng.
+    /// + <c>ProductionPlanStage</c>; <c>Operator</c>/<c>Manager</c> không có permission nào. Idempotent theo
+    /// từng cặp (Resource, Action) — chỉ chèn phần chưa tồn tại, để lần chạy sau khi bổ sung entry mới vào
+    /// <c>catalog</c> (vd US-01a/US-04a) vẫn seed đúng trên 1 DB đã seed từ trước, thay vì bị chặn hoàn toàn
+    /// vì bảng <see cref="ApplicationDbContext.Permissions"/> không còn rỗng.
     /// </summary>
     public static async Task SeedPermissionsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken = default)
     {
-        var hasAnyPermission = await dbContext.Permissions.AnyAsync(cancellationToken);
-        if (hasAnyPermission)
-        {
-            return;
-        }
-
         var catalog = new[]
         {
             (PermissionResource.Line, PermissionAction.View),
             (PermissionResource.Line, PermissionAction.Create),
             (PermissionResource.Line, PermissionAction.Update),
             (PermissionResource.Line, PermissionAction.Deactivate),
+
+            (PermissionResource.BreakWindow, PermissionAction.View),
+            (PermissionResource.BreakWindow, PermissionAction.Create),
+            (PermissionResource.BreakWindow, PermissionAction.Update),
+            (PermissionResource.BreakWindow, PermissionAction.Delete),
+
+            (PermissionResource.StationApiKey, PermissionAction.View),
+            (PermissionResource.StationApiKey, PermissionAction.Create),
+            (PermissionResource.StationApiKey, PermissionAction.Update),
+            (PermissionResource.StationApiKey, PermissionAction.Deactivate),
 
             (PermissionResource.Stage, PermissionAction.View),
             (PermissionResource.Stage, PermissionAction.Create),
@@ -83,24 +89,37 @@ public static class DbSeeder
             (PermissionResource.ProductionPlanStage, PermissionAction.Delete),
         };
 
-        var permissions = catalog
+        var existingPairs = (await dbContext.Permissions
+                .Select(p => new { p.Resource, p.Action })
+                .ToListAsync(cancellationToken))
+            .Select(p => (p.Resource, p.Action))
+            .ToHashSet();
+
+        var newPermissions = catalog
+            .Where(c => !existingPairs.Contains((c.Item1, c.Item2)))
             .Select(c => new Permission { Resource = c.Item1, Action = c.Item2 })
             .ToList();
 
-        dbContext.Permissions.AddRange(permissions);
+        if (newPermissions.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.Permissions.AddRange(newPermissions);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var rolePermissions = new List<RolePermission>();
 
-        // Admin: toàn bộ permission ở trên (khớp hardcode Admin cũ ở LinesController/StagesController/
-        // WorkStationsController/ProductionPlansController/ProductionPlanStagesController).
-        rolePermissions.AddRange(permissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
+        // Admin: toàn bộ permission MỚI (khớp hardcode Admin cũ ở LinesController/StagesController/
+        // WorkStationsController/ProductionPlansController/ProductionPlanStagesController). Permission đã tồn
+        // tại từ trước giữ nguyên RolePermission đã gán, không tạo trùng.
+        rolePermissions.AddRange(newPermissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
 
-        // Supervisor: toàn bộ permission của ProductionPlan + ProductionPlanStage (khớp hardcode
-        // "Supervisor,Admin" cũ ở 2 Controller đó).
-        var supervisorPermissions = permissions.Where(p =>
+        // Supervisor: phần MỚI của ProductionPlan + ProductionPlanStage (khớp hardcode "Supervisor,Admin" cũ
+        // ở 2 Controller đó).
+        var newSupervisorPermissions = newPermissions.Where(p =>
             p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage);
-        rolePermissions.AddRange(supervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
+        rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
         // Operator/Manager: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép 2 role này).
 

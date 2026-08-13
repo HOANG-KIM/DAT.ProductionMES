@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Application.Abstractions.Auth;
 using ProductionMES.Application.Abstractions.Authorization;
 using ProductionMES.Application.Abstractions.Persistence;
+using ProductionMES.Application.Abstractions.Security;
 using ProductionMES.Infrastructure.Persistence;
 using ProductionMES.Infrastructure.Security;
 
@@ -26,6 +27,10 @@ public static class InfrastructureServiceCollectionExtensions
         // US-22: implementation cụ thể (System.IdentityModel.Tokens.Jwt) đặt ở Infrastructure, interface ở
         // Application — cùng pattern với IRepository/IUnitOfWork.
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        // US-04a/ADR-005: sinh/hash API Key theo trạm — cùng pattern IJwtTokenGenerator (interface ở
+        // Application, implementation cụ thể ở Infrastructure).
+        services.AddScoped<IApiKeyGenerator, ApiKeyGenerator>();
 
         // ADR-004: cache in-memory tra cứu RolePermission — dùng ở PermissionAuthorizationHandler (mỗi request)
         // và AuthService (danh sách permission trong response đăng nhập/refresh). AddMemoryCache là idempotent

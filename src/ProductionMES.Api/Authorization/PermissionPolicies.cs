@@ -4,7 +4,8 @@ namespace ProductionMES.Api.Authorization;
 /// Hằng số tên policy dạng <c>"{Resource}.{Action}"</c> (ADR-004) — tránh magic string rải rác ở Controller,
 /// và tránh gõ sai tên không khớp giữa policy đăng ký ở <c>Program.cs</c> và attribute
 /// <c>[Authorize(Policy = ...)]</c> dùng ở Controller. Khớp chính xác catalog seed ở <c>DbSeeder.SeedPermissionsAsync</c>
-/// (tổng 21 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 5, ProductionPlanStage 4).
+/// (tổng 29 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 5, ProductionPlanStage 4,
+/// BreakWindow 4, StationApiKey 4).
 /// </summary>
 public static class PermissionPolicies
 {
@@ -12,6 +13,17 @@ public static class PermissionPolicies
     public const string LineCreate = "Line.Create";
     public const string LineUpdate = "Line.Update";
     public const string LineDeactivate = "Line.Deactivate";
+
+    public const string BreakWindowView = "BreakWindow.View";
+    public const string BreakWindowCreate = "BreakWindow.Create";
+    public const string BreakWindowUpdate = "BreakWindow.Update";
+    public const string BreakWindowDelete = "BreakWindow.Delete";
+
+    // US-04a: View = GetCurrent (AC2), Create = Issue (AC1), Update = Reissue (AC4), Deactivate = Revoke (AC3).
+    public const string StationApiKeyView = "StationApiKey.View";
+    public const string StationApiKeyCreate = "StationApiKey.Create";
+    public const string StationApiKeyUpdate = "StationApiKey.Update";
+    public const string StationApiKeyDeactivate = "StationApiKey.Deactivate";
 
     public const string StageView = "Stage.View";
     public const string StageCreate = "Stage.Create";

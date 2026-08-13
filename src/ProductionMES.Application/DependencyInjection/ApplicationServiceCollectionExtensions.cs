@@ -4,11 +4,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Application.Options;
 using ProductionMES.Application.Services.Auth;
+using ProductionMES.Application.Services.BreakWindows;
 using ProductionMES.Application.Services.Permissions;
 using ProductionMES.Application.Services.Stages;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.ProductionPlans;
 using ProductionMES.Application.Services.Lines;
+using ProductionMES.Application.Services.StationApiKeys;
 using ProductionMES.Application.Services.Users;
 using ProductionMES.Application.Services.WorkStations;
 using ProductionMES.Domain.Entities;
@@ -27,8 +29,10 @@ public static class ApplicationServiceCollectionExtensions
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
         services.AddScoped<ILineService, LineService>();
+        services.AddScoped<IBreakWindowService, BreakWindowService>();
         services.AddScoped<IStageService, StageService>();
         services.AddScoped<IWorkStationService, WorkStationService>();
+        services.AddScoped<IStationApiKeyService, StationApiKeyService>();
         services.AddScoped<IProductionPlanService, ProductionPlanService>();
         services.AddScoped<IProductionPlanStageService, ProductionPlanStageService>();
 

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProductionMES.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using ProductionMES.Infrastructure.Persistence;
 namespace ProductionMES.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260813034019_AddBreakWindow")]
+    partial class AddBreakWindow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -272,38 +275,6 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.ToTable("Stage", (string)null);
                 });
 
-            modelBuilder.Entity("ProductionMES.Domain.Entities.StationApiKey", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("KeyHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTime?>("RevokedAtUtc")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("WorkStationId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("KeyHash")
-                        .IsUnique();
-
-                    b.HasIndex("WorkStationId");
-
-                    b.ToTable("StationApiKey", (string)null);
-                });
-
             modelBuilder.Entity("ProductionMES.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -447,15 +418,6 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Permission");
-                });
-
-            modelBuilder.Entity("ProductionMES.Domain.Entities.StationApiKey", b =>
-                {
-                    b.HasOne("ProductionMES.Domain.Entities.WorkStation", null)
-                        .WithMany()
-                        .HasForeignKey("WorkStationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("ProductionMES.Domain.Entities.WorkStation", b =>

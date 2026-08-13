@@ -16,9 +16,13 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Line> Lines => Set<Line>();
 
+    public DbSet<BreakWindow> BreakWindows => Set<BreakWindow>();
+
     public DbSet<Stage> Stages => Set<Stage>();
 
     public DbSet<WorkStation> WorkStations => Set<WorkStation>();
+
+    public DbSet<StationApiKey> StationApiKeys => Set<StationApiKey>();
 
     public DbSet<ProductionPlan> ProductionPlans => Set<ProductionPlan>();
 

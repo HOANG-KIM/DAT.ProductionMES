@@ -1,10 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Form, Input, Modal } from 'antd';
+import { Alert, Divider, Form, Input, Modal } from 'antd';
 import type { AxiosError } from 'axios';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { BreakWindowSection } from './BreakWindowSection';
 import { useCreateLine, useUpdateLine } from './useLines';
+import { useAuthStore } from '../../store/authStore';
 import type { Line } from '../../types/line';
 
 /** Đối chiếu FluentValidation `CreateLineRequestValidator`/`UpdateLineRequestValidator` (backend). */
@@ -25,6 +27,7 @@ interface LineFormModalProps {
 /** Modal tạo mới/sửa Line (AC1/AC2) — dùng chung 1 form cho cả 2 chế độ, phân biệt qua `editingLine`. */
 export function LineFormModal({ open, editingLine, onClose }: LineFormModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
   const createMutation = useCreateLine();
   const updateMutation = useUpdateLine();
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -83,6 +86,14 @@ export function LineFormModal({ open, editingLine, onClose }: LineFormModalProps
           />
         </Form.Item>
       </Form>
+
+      {/* US-01a: khung giờ nghỉ chỉ cấu hình được khi Line đã tồn tại (cần lineId) — không hiển thị lúc tạo mới. */}
+      {editingLine && hasPermission('BreakWindow.View') && (
+        <>
+          <Divider />
+          <BreakWindowSection lineId={editingLine.id} />
+        </>
+      )}
     </Modal>
   );
 }
