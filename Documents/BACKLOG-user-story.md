@@ -21,14 +21,14 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | US-03 | Cấu hình trình tự công đoạn theo kế hoạch | 🟡 Một phần | Backend xong (`a42c9f2`); UI thuộc `Station.Wpf` — project này chưa được khởi tạo/build | 2026-08-14 |
 | US-04 | Quản lý trạm làm việc | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
 | US-04a | Quản lý API Key theo trạm | ✅ Xong | `4f0a3ed` | 2026-08-14 |
-| US-05 | Tạo/cập nhật kế hoạch sản xuất | 🟡 Một phần | Backend xong, cập nhật theo FR-05 mới (`0c5b944`); UI (`Station.Wpf`, màn "Cài đặt kế hoạch") chưa làm. **14/08**: AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) đã code + test pass ở `ProductionPlanService.UpdateAsync` — chưa commit | 2026-08-14 |
+| US-05 | Tạo/cập nhật kế hoạch sản xuất | 🟡 Một phần | Backend xong, cập nhật theo FR-05 mới (`0c5b944`); UI (`Station.Wpf`, màn "Cài đặt kế hoạch") chưa làm. **14/08**: AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) đã code + test pass ở `ProductionPlanService.UpdateAsync` (`9f0e299`) | 2026-08-14 |
 | US-05a | Vòng đời trạng thái kế hoạch theo công đoạn | 🟡 Một phần | Backend xong (`0c5b944`); UI `Station.Wpf` chưa làm | 2026-08-14 |
 | US-05b | Chọn & áp dụng kế hoạch tại trạm | ⬜ Chưa làm | | 2026-08-14 |
 | US-06 | Tính sản lượng chuẩn theo giờ | ✅ Xong | Xác nhận có sẵn từ US-05, không cần code thêm (ghi chú trong `4f0a3ed`) | 2026-08-14 |
 | US-07 | Scan tem tại trạm (luồng cơ bản) | 🟡 Một phần | Backend xong (`ceb0ee1`); UI hiển thị tại trạm (AC2–AC5) chưa làm | 2026-08-14 |
 | US-08 | Kiểm tra hợp lệ khi scan | ✅ Xong | `ceb0ee1` — rule backend, không có UI riêng | 2026-08-14 |
 | US-09 | Hiển thị số lượng & chỉ số +/- tại trạm | ⬜ Chưa làm | | 2026-08-14 |
-| US-10 | Lưu & tra cứu lịch sử scan | 🟡 Một phần | Lưu lịch sử đã có từ US-07/US-08; tra cứu theo tem/trạm/Line/thời gian chưa làm. **14/08**: AC1/AC4 (snapshot 6 field Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds vào `Scan`) đã code + migration `AddScanSnapshotFields` + test pass — chưa commit | 2026-08-14 |
+| US-10 | Lưu & tra cứu lịch sử scan | 🟡 Một phần | Lưu lịch sử đã có từ US-07/US-08; tra cứu theo tem/trạm/Line/thời gian chưa làm. **14/08**: AC1/AC4 (snapshot 6 field Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds vào `Scan`) đã code + migration `AddScanSnapshotFields` + test pass (`9f0e299`) | 2026-08-14 |
 | US-11 | Bật/tắt Arduino theo trạm | ⬜ Chưa làm | | 2026-08-14 |
 | US-12 | Luồng scan chờ Arduino | ⬜ Chưa làm | | 2026-08-14 |
 | US-13 | Timeout xác định kết quả Arduino | ⬜ Chưa làm | | 2026-08-14 |
