@@ -15,6 +15,4 @@ public class RolePermission
     public UserRole Role { get; set; }
 
     public int PermissionId { get; set; }
-
-    public Permission? Permission { get; set; }
 }

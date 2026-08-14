@@ -37,10 +37,7 @@ public class ProductionPlanConfiguration : IEntityTypeConfiguration<ProductionPl
             .IsRequired()
             .HasColumnType("decimal(10,2)");
 
-        builder.HasOne<Line>()
-            .WithMany()
-            .HasForeignKey(k => k.LineId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Không dùng khoá ngoại ở DB — LineId là cột tham chiếu thuần, toàn vẹn xử lý ở Service.
 
         // Hỗ trợ tra cứu nhanh "các kế hoạch của 1 Line" (màn hình Chọn kế hoạch — US-05b).
         builder.HasIndex(k => k.LineId);

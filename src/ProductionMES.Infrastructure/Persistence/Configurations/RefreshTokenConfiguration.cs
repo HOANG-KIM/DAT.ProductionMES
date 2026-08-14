@@ -23,12 +23,8 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.Property(k => k.ReplacedByTokenHash)
             .HasMaxLength(128);
 
-        // RefreshToken là bản ghi phụ thuộc (owned-like) của User, không phải danh mục dùng chung như
-        // Line/Stage — xóa User thì các RefreshToken gắn theo cũng không còn ý nghĩa, nên Cascade (khác với
-        // Restrict dùng cho FK trỏ tới danh mục master data ở các Configuration khác trong project).
-        builder.HasOne(k => k.User)
-            .WithMany()
-            .HasForeignKey(k => k.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Không dùng khoá ngoại ở DB — UserId là cột tham chiếu thuần. Tra cứu nhanh "các refresh token đang
+        // hoạt động của 1 User" khi phát hiện reuse token đã revoke (AuthService.RefreshAsync).
+        builder.HasIndex(k => k.UserId);
     }
 }

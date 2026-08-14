@@ -25,11 +25,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
         // buộc này (cấp lại permission đã có -> không tạo thêm bản ghi, không lỗi).
         builder.HasIndex(rp => new { rp.Role, rp.PermissionId }).IsUnique();
 
-        // Permission catalog thực tế không có API xóa, nhưng vẫn khai báo Cascade đúng theo ADR-004: xóa
-        // Permission (nếu có, vd thao tác tay trên DB) thì xóa luôn RolePermission gắn theo, tránh orphan record.
-        builder.HasOne(rp => rp.Permission)
-            .WithMany()
-            .HasForeignKey(rp => rp.PermissionId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Không dùng khoá ngoại ở DB — PermissionId là cột tham chiếu thuần. Permission catalog không có API
+        // xóa nên không phát sinh bản ghi RolePermission mồ côi trong luồng nghiệp vụ hiện có.
     }
 }

@@ -17,20 +17,8 @@ public class ProductionPlanStageConfiguration : IEntityTypeConfiguration<Product
 
         builder.HasKey(k => k.Id);
 
-        builder.HasOne<ProductionPlan>()
-            .WithMany()
-            .HasForeignKey(k => k.ProductionPlanId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne<Stage>()
-            .WithMany()
-            .HasForeignKey(k => k.StageId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<Line>()
-            .WithMany()
-            .HasForeignKey(k => k.LineId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Không dùng khoá ngoại ở DB (ProductionPlanId/StageId/LineId là cột tham chiếu thuần) — toàn vẹn quan
+        // hệ (AC5 không tạo vòng lặp, "tối đa 1 kế hoạch Running" ở PlanStatus) xử lý ở Service.
 
         // Lưu PlanStatus dạng chuỗi — cùng nguyên tắc đã áp dụng cho Scan.Result/User.UserRole (dễ đọc/truy vấn
         // trực tiếp trên DB, ổn định khi thêm giá trị enum mới ở giữa).

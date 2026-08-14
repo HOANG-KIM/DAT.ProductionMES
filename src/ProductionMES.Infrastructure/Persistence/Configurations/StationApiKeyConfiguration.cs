@@ -27,12 +27,6 @@ public class StationApiKeyConfiguration : IEntityTypeConfiguration<StationApiKey
         // Tra cứu nhanh "key hiện tại/lịch sử key" theo trạm (GetCurrentAsync, AC2/AC4).
         builder.HasIndex(k => k.WorkStationId);
 
-        // FK thuần (không navigation 2 chiều — cùng pattern WorkStation.LineId/StageId). Restrict: WorkStation
-        // chỉ soft-delete (Deactivate), không có API xóa cứng nên ràng buộc Restrict không bao giờ bị vi phạm
-        // trong luồng nghiệp vụ hiện có.
-        builder.HasOne<WorkStation>()
-            .WithMany()
-            .HasForeignKey(k => k.WorkStationId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Không dùng khoá ngoại ở DB — WorkStationId là cột tham chiếu thuần.
     }
 }

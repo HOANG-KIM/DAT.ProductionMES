@@ -74,6 +74,8 @@ Luật layer bắt buộc: Controller chỉ gọi Service; Service chứa busine
 
 Quy ước đã chốt: EF Core Migrations là nguồn schema duy nhất (kể cả cho bảng chỉ dùng Dapper để query) — không dùng công cụ migration thứ hai. Dùng EF Core cho CRUD/query đơn giản, Dapper cho query phức tạp/báo cáo.
 
+Database **không dùng khoá ngoại** (foreign key constraint) ở tầng DB. Quan hệ giữa các bảng chỉ thể hiện qua cột Id tham chiếu (vd. `StageId`, `ProductionPlanId`) và được đảm bảo tính toàn vẹn ở tầng Application/Service, không dựa vào constraint của MySQL.
+
 `Pomelo.EntityFrameworkCore.MySql` và `Microsoft.EntityFrameworkCore.Design` **phải luôn cùng version** (hiện pin ở `8.0.2`) — MySQL server thật là **5.7.16**, nên `MySqlServerVersion` trong `InfrastructureServiceCollectionExtensions.cs` phải khớp đúng bản này (không dùng `ServerVersion.AutoDetect`, vì cần biết version ngay cả khi chưa kết nối được DB).
 
 ### Business rule cốt lõi cần nhớ khi implement Service (xem SRS để biết chi tiết/số FR)

@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using ProductionMES.Application.Abstractions.Authorization;
 using ProductionMES.Application.Abstractions.Persistence;
@@ -9,8 +8,9 @@ namespace ProductionMES.Infrastructure.Security;
 
 /// <summary>
 /// Implementation <see cref="IRolePermissionCache"/> (ADR-004) dựa trên <see cref="IMemoryCache"/>. Nạp toàn bộ
-/// <see cref="RolePermission"/> (kèm <see cref="Permission"/> qua Include) từ DB qua <see cref="IUnitOfWork"/>,
-/// gom thành <c>Dictionary&lt;UserRole, HashSet&lt;string&gt;&gt;</c> (key permission dạng
+/// <see cref="RolePermission"/> và <see cref="Permission"/> từ DB qua <see cref="IUnitOfWork"/> rồi join trong
+/// bộ nhớ theo <see cref="RolePermission.PermissionId"/> (không dùng EF Include — DB không có khoá ngoại giữa
+/// 2 bảng này), gom thành <c>Dictionary&lt;UserRole, HashSet&lt;string&gt;&gt;</c> (key permission dạng
 /// <c>"{Resource}.{Action}"</c>, khớp đúng format trả về ở <c>LoginResponse.Permissions</c>). 1 cache key cố
 /// định, TTL dài (1 giờ) chỉ làm lưới an toàn — chủ yếu dựa vào <see cref="Invalidate"/> được gọi tường minh
 /// ngay sau khi API cấp/thu hồi permission ghi DB thành công (xem <c>PermissionService</c>).
@@ -50,13 +50,14 @@ public class RolePermissionCache : IRolePermissionCache
             return cached;
         }
 
-        var rolePermissions = await _unitOfWork.Repository<RolePermission>()
-            .GetAllAsync(query => query.Include(rp => rp.Permission), cancellationToken);
+        var rolePermissions = await _unitOfWork.Repository<RolePermission>().GetAllAsync(cancellationToken);
+        var permissionsById = (await _unitOfWork.Repository<Permission>().GetAllAsync(cancellationToken))
+            .ToDictionary(p => p.Id);
 
         var map = new Dictionary<UserRole, HashSet<string>>();
         foreach (var rolePermission in rolePermissions)
         {
-            if (rolePermission.Permission is null)
+            if (!permissionsById.TryGetValue(rolePermission.PermissionId, out var permission))
             {
                 continue;
             }
@@ -67,7 +68,7 @@ public class RolePermissionCache : IRolePermissionCache
                 map[rolePermission.Role] = permissions;
             }
 
-            permissions.Add(FormatKey(rolePermission.Permission.Resource, rolePermission.Permission.Action));
+            permissions.Add(FormatKey(permission.Resource, permission.Action));
         }
 
         _memoryCache.Set(CacheKey, map, CacheTtl);

@@ -15,8 +15,6 @@ public class RefreshToken
 
     public int UserId { get; set; }
 
-    public User? User { get; set; }
-
     /// <summary>SHA-256 (hex) của refresh token thô — dùng để tìm/so khớp khi refresh/logout.</summary>
     public string TokenHash { get; set; } = string.Empty;
 

@@ -31,16 +31,7 @@ public class WorkStationConfiguration : IEntityTypeConfiguration<WorkStation>
             .IsRequired()
             .HasDefaultValue(true);
 
-        // FK thuần (không cấu hình navigation property 2 chiều ở giai đoạn này vì chưa cần truy vấn liên bảng
-        // qua EF Include — Line/Stage tra cứu độc lập qua repository generic tương ứng khi cần).
-        builder.HasOne<Line>()
-            .WithMany()
-            .HasForeignKey(t => t.LineId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<Stage>()
-            .WithMany()
-            .HasForeignKey(t => t.StageId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Không dùng khoá ngoại ở DB — LineId/StageId là cột tham chiếu thuần; Line/Stage tra cứu độc lập qua
+        // repository generic tương ứng khi cần.
     }
 }

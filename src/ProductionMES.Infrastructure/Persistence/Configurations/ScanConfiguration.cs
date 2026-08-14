@@ -32,30 +32,16 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
             .HasConversion<string>()
             .HasMaxLength(30);
 
-        builder.HasOne<Stage>()
-            .WithMany()
-            .HasForeignKey(s => s.StageId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<Line>()
-            .WithMany()
-            .HasForeignKey(s => s.LineId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<WorkStation>()
-            .WithMany()
-            .HasForeignKey(s => s.WorkStationId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<ProductionPlan>()
-            .WithMany()
-            .HasForeignKey(s => s.ProductionPlanId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // Không dùng khoá ngoại ở DB — StageId/LineId/WorkStationId/ProductionPlanId là cột tham chiếu thuần,
+        // toàn vẹn xử lý ở ScanService.
 
         // Không unique — chỉ tăng tốc truy vấn chống trùng tem/kiểm tra công đoạn liền trước (FR-08, tra cứu
         // toàn hệ thống theo StageId, không lọc theo Line/kế hoạch).
         builder.HasIndex(s => new { s.TagCode, s.StageId });
 
         builder.HasIndex(s => s.ScannedAtUtc);
+
+        // Tăng tốc truy vấn "đã Ok ở công đoạn này trong kế hoạch đang active chưa" (ScanService).
+        builder.HasIndex(s => new { s.ProductionPlanId, s.StageId });
     }
 }
