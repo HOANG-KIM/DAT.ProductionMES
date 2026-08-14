@@ -2,8 +2,46 @@
 
 **Nguồn căn cứ:** `Documents/SRS-he-thong-quan-ly-ke-hoach-san-xuat.md` (FR-01 → FR-23, mục 6 quy tắc chốt, mục 7 AC, mục 8.2 điểm còn mở), `Documents/ADR-001-lua-chon-wpf-hay-winforms.md`.
 **Ngày lập:** 11/08/2026
-**Cập nhật:** 13/08/2026 — (1) bổ sung AC cho US-09 để đồng bộ với FR-09a (khung giờ nghỉ theo Line) được thêm vào SRS ngày 13/08/2026, sau thời điểm backlog được lập lần đầu; (2) tách 2 khoảng trống phát sinh sau khi story gốc đã code xong thành story riêng — **US-01a** (khung giờ nghỉ theo Line, do FR-01/FR-09a bổ sung sau khi US-01 code xong) và **US-04a** (API Key theo trạm, do ADR-005 chốt sau khi US-04 code xong) — cả 2 đều là điều kiện tiên quyết bắt buộc trước khi triển khai US-07/US-08/US-09, đã cập nhật vào lộ trình triển khai đề xuất; (3) cập nhật **US-05** theo FR-05 mới (Khách hàng/Model/Lot/Revision, bỏ ca làm việc) và bổ sung 2 story mới — **US-05a** (vòng đời trạng thái kế hoạch `Draft/Running/Paused/Completed/Cancelled` theo từng cặp (Line, Công đoạn), tạm dừng/chạy lại/đóng độc lập, tính tiến độ động — FR-05a) và **US-05b** (màn hình "Chọn kế hoạch": chọn Công đoạn + Kế hoạch, hiển thị tiến độ, Áp dụng) — phát sinh từ phân tích UI kế hoạch sản xuất ngày 13/08/2026, đã cập nhật vào lộ trình triển khai đề xuất.
-**Ghi chú chung:** Solution hiện chỉ có khung 7 project, chưa có entity/business logic — backlog này là đầu vào để dev bắt đầu implement dần theo thứ tự đề xuất ở cuối tài liệu.
+**Cập nhật:** 13/08/2026 — (1) bổ sung AC cho US-09 để đồng bộ với FR-09a (khung giờ nghỉ theo Line) được thêm vào SRS ngày 13/08/2026, sau thời điểm backlog được lập lần đầu; (2) tách 2 khoảng trống phát sinh sau khi story gốc đã code xong thành story riêng — **US-01a** (khung giờ nghỉ theo Line, do FR-01/FR-09a bổ sung sau khi US-01 code xong) và **US-04a** (API Key theo trạm, do ADR-005 chốt sau khi US-04 code xong) — cả 2 đều là điều kiện tiên quyết bắt buộc trước khi triển khai US-07/US-08/US-09, đã cập nhật vào lộ trình triển khai đề xuất; (3) cập nhật **US-05** theo FR-05 mới (Khách hàng/Model/Lot/Revision, bỏ ca làm việc) và bổ sung 2 story mới — **US-05a** (vòng đời trạng thái kế hoạch `Draft/Running/Paused/Completed/Cancelled` theo từng cặp (Line, Công đoạn), tạm dừng/chạy lại/đóng độc lập, tính tiến độ động — FR-05a) và **US-05b** (màn hình "Chọn kế hoạch": chọn Công đoạn + Kế hoạch, hiển thị tiến độ, Áp dụng) — phát sinh từ phân tích UI kế hoạch sản xuất ngày 13/08/2026, đã cập nhật vào lộ trình triển khai đề xuất. **Cập nhật 14/08/2026** — (4) bổ sung US-05/AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi kế hoạch đã có scan) và US-10/AC4 (snapshot bất biến 6 field trong lịch sử scan) — xử lý gap phát hiện khi rà soát US-10: sửa kế hoạch sau khi đã scan làm lịch sử scan cũ hiển thị sai nếu chỉ tra cứu qua join động tới `ProductionPlan` hiện tại; đã đồng bộ vào SRS mục 6 quy tắc 14, mục 8.1.
+**Ghi chú chung:** Backlog này là đầu vào để dev implement dần theo thứ tự đề xuất ở cuối tài liệu. Xem tiến độ thực tế ở bảng "TRẠNG THÁI TRIỂN KHAI" ngay bên dưới.
+
+---
+
+## TRẠNG THÁI TRIỂN KHAI
+
+Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi tiến độ backlog") — agent `ba`/`dev` đọc trước khi làm việc và PHẢI tự cập nhật dòng tương ứng khi xong việc, không chờ người khác cập nhật hộ.
+
+**Chú giải trạng thái:** ⬜ Chưa làm · 🔵 Đang làm · 🟡 Một phần (xem Ghi chú) · ✅ Xong
+
+| US-ID | Tên | Trạng thái | Ghi chú | Cập nhật |
+|---|---|---|---|---|
+| US-01 | Quản lý danh mục Line | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `d4dd6ab`) | 2026-08-14 |
+| US-01a | Khung giờ nghỉ theo Line | ✅ Xong | `4f0a3ed` | 2026-08-14 |
+| US-02 | Quản lý danh mục Công đoạn | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
+| US-03 | Cấu hình trình tự công đoạn theo kế hoạch | 🟡 Một phần | Backend xong (`a42c9f2`); UI thuộc `Station.Wpf` — project này chưa được khởi tạo/build | 2026-08-14 |
+| US-04 | Quản lý trạm làm việc | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
+| US-04a | Quản lý API Key theo trạm | ✅ Xong | `4f0a3ed` | 2026-08-14 |
+| US-05 | Tạo/cập nhật kế hoạch sản xuất | 🟡 Một phần | Backend xong, cập nhật theo FR-05 mới (`0c5b944`); UI (`Station.Wpf`, màn "Cài đặt kế hoạch") chưa làm. **14/08**: AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) đã code + test pass ở `ProductionPlanService.UpdateAsync` — chưa commit | 2026-08-14 |
+| US-05a | Vòng đời trạng thái kế hoạch theo công đoạn | 🟡 Một phần | Backend xong (`0c5b944`); UI `Station.Wpf` chưa làm | 2026-08-14 |
+| US-05b | Chọn & áp dụng kế hoạch tại trạm | ⬜ Chưa làm | | 2026-08-14 |
+| US-06 | Tính sản lượng chuẩn theo giờ | ✅ Xong | Xác nhận có sẵn từ US-05, không cần code thêm (ghi chú trong `4f0a3ed`) | 2026-08-14 |
+| US-07 | Scan tem tại trạm (luồng cơ bản) | 🟡 Một phần | Backend xong (`ceb0ee1`); UI hiển thị tại trạm (AC2–AC5) chưa làm | 2026-08-14 |
+| US-08 | Kiểm tra hợp lệ khi scan | ✅ Xong | `ceb0ee1` — rule backend, không có UI riêng | 2026-08-14 |
+| US-09 | Hiển thị số lượng & chỉ số +/- tại trạm | ⬜ Chưa làm | | 2026-08-14 |
+| US-10 | Lưu & tra cứu lịch sử scan | 🟡 Một phần | Lưu lịch sử đã có từ US-07/US-08; tra cứu theo tem/trạm/Line/thời gian chưa làm. **14/08**: AC1/AC4 (snapshot 6 field Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds vào `Scan`) đã code + migration `AddScanSnapshotFields` + test pass — chưa commit | 2026-08-14 |
+| US-11 | Bật/tắt Arduino theo trạm | ⬜ Chưa làm | | 2026-08-14 |
+| US-12 | Luồng scan chờ Arduino | ⬜ Chưa làm | | 2026-08-14 |
+| US-13 | Timeout xác định kết quả Arduino | ⬜ Chưa làm | | 2026-08-14 |
+| US-14 | Kết nối & phục hồi cổng COM | ⬜ Chưa làm | | 2026-08-14 |
+| US-15 | Khôi phục trạng thái phiên khi mở lại | ⬜ Chưa làm | | 2026-08-14 |
+| US-16 | Hàng đợi cục bộ chống mất lượt scan | ⬜ Chưa làm | | 2026-08-14 |
+| US-17 | Hiển thị trạng thái đồng bộ trên UI | ⬜ Chưa làm | | 2026-08-14 |
+| US-18 | Scan xác nhận sản phẩm NG | ⬜ Chưa làm | | 2026-08-14 |
+| US-19 | Quy trình Rework | ⬜ Chưa làm | | 2026-08-14 |
+| US-20 | Báo cáo tỷ lệ lỗi & nguyên nhân | ⬜ Chưa làm | | 2026-08-14 |
+| US-21 | Báo cáo tổng hợp theo Line | ⬜ Chưa làm | | 2026-08-14 |
+| US-22 | Quản lý người dùng & phân quyền | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
+| US-23 | Xuất báo cáo Excel | ⬜ Chưa làm | | 2026-08-14 |
 
 ---
 
@@ -227,12 +265,17 @@
   - Given kế hoạch đã có ít nhất 1 công đoạn đang `Running` hoặc `Paused` (đã có lượt scan OK, xem US-05a)
   - When Tổ trưởng chỉnh sửa số lượng kế hoạch hoặc takt time
   - Then hệ thống cảnh báo rõ đây là kế hoạch đang chạy dở, xác nhận trước khi lưu — tránh sửa nhầm làm sai lệch cách tính "còn lại" (US-05a AC4) hoặc chỉ số +/- đang hiển thị tại trạm
+  - **Lưu ý phạm vi áp dụng**: AC này **chỉ áp dụng cho Số lượng kế hoạch/Takt time** — Khách hàng/Model/Lot/Revision theo quy tắc khác hẳn (khóa tuyệt đối, không có Confirm), xem AC6 ngay dưới đây; 2 rule không gộp chung điều kiện kích hoạt.
+- **AC6 — Khóa tuyệt đối Khách hàng/Model/Lot/Revision khi kế hoạch đã có scan**
+  - Given kế hoạch đã có **ít nhất 1 bản ghi lượt scan** (bất kể kết quả OK/NG/lỗi, bất kể `PlanStatus` của công đoạn đó là `Running`/`Paused`/`Completed`/`Cancelled` — không giới hạn như AC5 chỉ xét `Running`/`Paused`)
+  - When Tổ trưởng cố sửa Khách hàng, Model, Lot, hoặc Revision (dù có gửi Confirm = true hay không)
+  - Then hệ thống **từ chối tuyệt đối**, không có bất kỳ đường Confirm nào để ghi đè — thông báo rõ lý do (đã có lịch sử scan gắn với các giá trị hiện tại) và gợi ý tạo kế hoạch mới nếu nhập sai
 
-**Nguồn FR:** FR-05
-**Phụ thuộc:** US-01 (Line)
+**Nguồn FR:** FR-05, mục 6 quy tắc 14 (AC6)
+**Phụ thuộc:** US-01 (Line). AC6 (khóa tuyệt đối khi đã có scan) cần entity `Scan` đã tồn tại (US-07/US-08, đã xong — `ceb0ee1`) để kiểm tra "đã có ≥1 bản ghi scan"; nên triển khai AC6 cùng đợt với US-10 AC4 vì cả 2 cùng chạm `ProductionPlanService`/entity `Scan`.
 **Cờ cảnh báo mục 8.2:** Không trực tiếp.
 **UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026).
-**Ghi chú:** Cập nhật 13/08/2026 theo FR-05 mới (bổ sung Khách hàng/Model/Lot/Revision, bỏ "ca làm việc", đổi nghĩa "tên nhân viên" thành người vận hành chứ không phải người đăng nhập thao tác màn hình). Phần ràng buộc "1 kế hoạch active" và vòng đời trạng thái đã tách hẳn sang **US-05a** (trước đây là AC2 của story này) vì trạng thái nay gắn cấp (Kế hoạch, Công đoạn), không phải cấp Kế hoạch.
+**Ghi chú:** Cập nhật 13/08/2026 theo FR-05 mới (bổ sung Khách hàng/Model/Lot/Revision, bỏ "ca làm việc", đổi nghĩa "tên nhân viên" thành người vận hành chứ không phải người đăng nhập thao tác màn hình). Phần ràng buộc "1 kế hoạch active" và vòng đời trạng thái đã tách hẳn sang **US-05a** (trước đây là AC2 của story này) vì trạng thái nay gắn cấp (Kế hoạch, Công đoạn), không phải cấp Kế hoạch. **Cập nhật 14/08/2026**: bổ sung AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) — gap phát hiện khi rà soát US-10 (lịch sử scan tra cứu qua join động, dễ hiển thị sai nếu kế hoạch bị sửa sau khi đã scan). AC6 **nên triển khai cùng đợt** với US-10 AC4 (snapshot 6 field vào `Scan`) vì cả 2 cùng xử lý 1 gap, cùng chạm entity `Scan`/`ProductionPlanService` — xem SRS mục 6 quy tắc 14, mục 8.1.
 
 ---
 
@@ -451,7 +494,7 @@
 - **AC1 — Lưu đầy đủ mọi lượt scan**
   - Given công nhân thực hiện 1 lượt scan (dù kết quả OK, Trùng tem, hay Chưa qua công đoạn trước)
   - When hệ thống xử lý
-  - Then lượt scan được lưu lại với đầy đủ: mã tem, thời gian, trạm, công đoạn, Line, kế hoạch, kết quả, người thao tác
+  - Then lượt scan được lưu lại với đầy đủ: mã tem, thời gian, trạm, công đoạn, Line, kế hoạch, kết quả, người thao tác — kèm **snapshot** Khách hàng/Model/Lot/Revision/Số lượng kế hoạch/Takt time của kế hoạch đó tại đúng thời điểm scan (không phải giá trị hiện tại của kế hoạch, tránh sai lệch nếu kế hoạch bị sửa Số lượng/Takt time sau này — xem US-05 AC6)
 - **AC2 — Tra cứu theo tem**
   - Given có dữ liệu lịch sử scan
   - When người dùng tìm theo mã tem
@@ -460,10 +503,15 @@
   - Given có dữ liệu lịch sử scan
   - When người dùng lọc theo trạm, hoặc theo Line, hoặc theo khoảng thời gian (có thể kết hợp)
   - Then trả về đúng tập kết quả phù hợp bộ lọc
+- **AC4 — Lịch sử scan không đổi theo giá trị hiện tại của kế hoạch (snapshot bất biến)**
+  - Given tem đã được scan tại 1 công đoạn khi kế hoạch có Số lượng = 1000, Takt time = 30s
+  - When sau đó Tổ trưởng sửa Số lượng kế hoạch thành 1200 (có Confirm — US-05 AC5; Khách hàng/Model/Lot/Revision không sửa được vì đã có scan, xem US-05 AC6)
+  - Then khi tra cứu lại lượt scan cũ (AC2/AC3), Số lượng/Takt time hiển thị vẫn là **1000/30s** (giá trị tại thời điểm scan), không tự đổi theo 1200 hiện tại của kế hoạch
 
-**Nguồn FR:** FR-10, mục 6 quy tắc 6
-**Phụ thuộc:** US-07, US-08
+**Nguồn FR:** FR-10, mục 6 quy tắc 6, quy tắc 14
+**Phụ thuộc:** US-07, US-08. AC4 (snapshot bất biến) nên triển khai **cùng đợt** với US-05 AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) — cả 2 cùng xử lý 1 gap phát hiện ngày 14/08/2026, cùng chạm entity `Scan`/`ProductionPlanService`.
 **Cờ cảnh báo mục 8.2:** Không.
+**Ghi chú:** Cập nhật 14/08/2026 — AC1 bổ sung yêu cầu lưu snapshot 6 field (Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds) vào `Scan` tại thời điểm scan; AC4 (mới) khẳng định tính bất biến. **Hiện trạng (`ceb0ee1`)**: entity `Scan` (`src/ProductionMES.Domain/Entities/Scan.cs`) mới chỉ có `ProductionPlanId` tham chiếu, CHƯA có 6 field snapshot — phần "tra cứu theo tem/trạm/Line/thời gian" (AC2/AC3) và phần snapshot (AC1/AC4) đều chưa làm.
 
 ---
 

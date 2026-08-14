@@ -25,6 +25,27 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
         builder.Property(s => s.RejectionReason)
             .HasMaxLength(500);
 
+        // US-10: 6 field snapshot từ ProductionPlan tại thời điểm scan (xem remarks tại entity Scan) — maxlength/kiểu
+        // dữ liệu khớp đúng ProductionPlanConfiguration để giữ nguyên độ dài dữ liệu gốc.
+        builder.Property(s => s.Customer)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(s => s.Model)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(s => s.Lot)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.Property(s => s.Revision)
+            .HasMaxLength(50);
+
+        builder.Property(s => s.TaktTimeSeconds)
+            .IsRequired()
+            .HasColumnType("decimal(10,2)");
+
         // Lưu Result dạng chuỗi — cùng nguyên tắc đã áp dụng cho User.UserRole (dễ đọc/truy vấn trực tiếp trên
         // DB, ổn định khi thêm giá trị enum mới ở giữa, vd US-18 sẽ bổ sung "Ng").
         builder.Property(s => s.Result)

@@ -264,6 +264,62 @@ public class ScanServiceTests
             Times.Once);
     }
 
+    // US-10 AC1 — Lượt scan lưu đúng 6 field snapshot (Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds)
+    // từ ProductionPlan tại thời điểm scan.
+    [Fact]
+    public async Task CreateAsync_ScanThanhCong_LuuDungSnapshot6FieldTuProductionPlan()
+    {
+        _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 1" });
+
+        var runningPlanStage = new ProductionPlanStage
+        {
+            Id = 1, ProductionPlanId = 1, StageId = LapRapStageId, LineId = 1, PlanStatus = PlanStatus.Running,
+        };
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<ProductionPlanStage, bool>> predicate, CancellationToken _) =>
+                new List<ProductionPlanStage> { runningPlanStage }.Where(predicate.Compile()).ToList());
+
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductionPlan
+            {
+                Id = 1,
+                LineId = 1,
+                Customer = "Khách hàng A",
+                Model = "Model X",
+                Lot = "LOT001",
+                Revision = "B",
+                PlannedQuantity = 500,
+                TaktTimeSeconds = 25.5m,
+            });
+
+        _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStageDto>
+            {
+                new() { Id = 1, ProductionPlanId = 1, StageId = LapRapStageId, SequenceNumber = 1, PreviousStageId = null },
+            });
+
+        var result = await _sut.CreateAsync(1, "SNAP1");
+
+        Assert.Equal(ScanResult.Ok, result.Result);
+        Assert.Equal("Khách hàng A", result.Customer);
+        Assert.Equal("Model X", result.Model);
+        Assert.Equal("LOT001", result.Lot);
+        Assert.Equal("B", result.Revision);
+        Assert.Equal(500, result.PlannedQuantity);
+        Assert.Equal(25.5m, result.TaktTimeSeconds);
+
+        _scanRepositoryMock.Verify(r => r.AddAsync(It.Is<Scan>(s =>
+                s.Customer == "Khách hàng A" &&
+                s.Model == "Model X" &&
+                s.Lot == "LOT001" &&
+                s.Revision == "B" &&
+                s.PlannedQuantity == 500 &&
+                s.TaktTimeSeconds == 25.5m),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     // US-05a AC5 (mặt trái) — Scan OK nhưng CHƯA đủ số lượng -> KHÔNG chuyển Completed.
     [Fact]
     public async Task CreateAsync_ScanOkChuaDuSoLuongKeHoach_KhongChuyenCompleted()

@@ -18,6 +18,24 @@ public class ScanResultDto
 
     public int ProductionPlanId { get; set; }
 
+    /// <summary>Snapshot ProductionPlan.Customer tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public string Customer { get; set; } = string.Empty;
+
+    /// <summary>Snapshot ProductionPlan.Model tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Snapshot ProductionPlan.Lot tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>Snapshot ProductionPlan.Revision tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public string? Revision { get; set; }
+
+    /// <summary>Snapshot ProductionPlan.PlannedQuantity tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public int PlannedQuantity { get; set; }
+
+    /// <summary>Snapshot ProductionPlan.TaktTimeSeconds tại thời điểm scan (US-10) — không tra cứu động.</summary>
+    public decimal TaktTimeSeconds { get; set; }
+
     public DateTime ScannedAtUtc { get; set; }
 
     public ScanResult Result { get; set; }

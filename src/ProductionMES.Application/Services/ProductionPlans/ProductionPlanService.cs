@@ -82,6 +82,29 @@ public class ProductionPlanService : IProductionPlanService
             }
         }
 
+        // AC6 (US-05): khóa TUYỆT ĐỐI sửa Customer/Model/Lot/Revision nếu kế hoạch đã có ít nhất 1 bản ghi Scan
+        // — khác hẳn cơ chế Confirm=true ở trên (Quantity/TaktTime), rule này KHÔNG có đường Confirm để bỏ qua,
+        // không lọc theo PlanStatus/Result, vì lịch sử scan cũ đã gắn snapshot (US-10) với đúng giá trị hiện tại,
+        // sửa sẽ làm traceability sai lệch giữa "kế hoạch hiện tại" và "kế hoạch tại thời điểm đã scan".
+        var identityFieldsChanged =
+            request.Customer != productionPlan.Customer ||
+            request.Model != productionPlan.Model ||
+            request.Lot != productionPlan.Lot ||
+            request.Revision != productionPlan.Revision;
+
+        if (identityFieldsChanged)
+        {
+            var existingScans = await _unitOfWork.Repository<Scan>().FindAsync(
+                s => s.ProductionPlanId == id, cancellationToken);
+
+            if (existingScans.Count > 0)
+            {
+                throw new BusinessRuleException(
+                    "Kế hoạch này đã có lịch sử scan gắn với Khách hàng/Model/Lot/Revision hiện tại — không thể " +
+                    "sửa các thông tin này để tránh sai lệch dữ liệu lịch sử. Nếu nhập sai, hãy tạo kế hoạch mới.");
+            }
+        }
+
         // AC4: kế hoạch chưa từng Running ở công đoạn nào (hoặc không đổi Số lượng/Takt time) -> cập nhật tự do.
         productionPlan.Customer = request.Customer;
         productionPlan.Model = request.Model;

@@ -19,6 +19,7 @@ public class ProductionPlanServiceTests
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
     private readonly Mock<IRepository<Line>> _lineRepositoryMock = new();
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
+    private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly ProductionPlanService _sut;
 
@@ -27,6 +28,7 @@ public class ProductionPlanServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Line>()).Returns(_lineRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _sut = new ProductionPlanService(_unitOfWorkMock.Object);
 
         _lineRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
@@ -35,6 +37,20 @@ public class ProductionPlanServiceTests
         _productionPlanStageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStage>());
+
+        // AC6 (US-05): mặc định kế hoạch CHƯA có bản ghi Scan nào — từng test override qua SetupExistingScans khi cần.
+        _scanRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Scan>());
+    }
+
+    /// <summary>Mô phỏng kế hoạch ĐÃ có bản ghi Scan (AC6 — khóa sửa Customer/Model/Lot/Revision).</summary>
+    private void SetupExistingScans(List<Scan> existingScans)
+    {
+        _scanRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((System.Linq.Expressions.Expression<Func<Scan, bool>> predicate, CancellationToken _) =>
+                existingScans.Where(predicate.Compile()).ToList());
     }
 
     private static CreateProductionPlanRequest BuildValidCreateRequest(int lineId = 1) => new()
@@ -211,6 +227,64 @@ public class ProductionPlanServiceTests
         var result = await _sut.UpdateAsync(1, request);
 
         Assert.Equal("Khách hàng mới", result.Customer);
+    }
+
+    // AC6 — Sửa Model của kế hoạch ĐÃ có ít nhất 1 bản ghi Scan -> ném BusinessRuleException, dù có Confirm=true hay không.
+    [Fact]
+    public async Task UpdateAsync_SuaModelKeHoachDaCoScan_NemBusinessRuleException()
+    {
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "Model cũ", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        SetupExistingScans(new List<Scan> { new() { Id = 1, ProductionPlanId = 1, TagCode = "T1", Result = ScanResult.Ok } });
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A",
+            Model = "Model mới", // đổi Model
+            Lot = "L",
+            PlannedQuantity = 1000,
+            TaktTimeSeconds = 30,
+            StartTime = DateTime.Today,
+            OperatorNames = "A",
+            Confirm = true, // Confirm=true KHÔNG override được rule này
+        };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request));
+        _productionPlanRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlan>()), Times.Never);
+    }
+
+    // AC6 (mặt trái) — Sửa Model của kế hoạch CHƯA có bản ghi Scan nào -> thành công bình thường.
+    [Fact]
+    public async Task UpdateAsync_SuaModelKeHoachChuaCoScan_CapNhatThanhCong()
+    {
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "Model cũ", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        // Mặc định constructor: không có Scan nào.
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A",
+            Model = "Model mới",
+            Lot = "L",
+            PlannedQuantity = 1000,
+            TaktTimeSeconds = 30,
+            StartTime = DateTime.Today,
+            OperatorNames = "A",
+            Confirm = false,
+        };
+
+        var result = await _sut.UpdateAsync(1, request);
+
+        Assert.Equal("Model mới", result.Model);
+        _productionPlanRepositoryMock.Verify(r => r.Update(existing), Times.Once);
     }
 
     // US-06/AC1 (AC-04 gốc): takt time = 30 giây -> sản lượng chuẩn = 120 sản phẩm/giờ.
