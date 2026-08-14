@@ -15,6 +15,15 @@ Trước khi implement bất kỳ tính năng nào liên quan đến business ru
 - `Documents/ADR-004-role-permission-dong.md` — quyết định chuyển phân quyền từ `[Authorize(Roles=...)]` hardcode sang permission `Resource.Action` lưu DB, Admin quản lý runtime qua UI. Đọc trước khi thêm Controller/action mới hoặc đổi phân quyền.
 - `Documents/ADR-005-auth-station-wpf.md` — quyết định auth riêng cho `Station.Wpf`: API Key theo từng trạm (scheme `StationApiKey`) cho luồng scan thường (Operator không đăng nhập cá nhân), Bearer + Refresh Token (JSON body, không cookie) cho luồng Supervisor nâng quyền tại trạm. Đọc trước khi implement US-07/US-08 hoặc bất kỳ endpoint nào `Station.Wpf` gọi.
 
+## Theo dõi tiến độ backlog
+
+`Documents/BACKLOG-user-story.md` có bảng "TRẠNG THÁI TRIỂN KHAI" ngay đầu file — đây là nguồn duy nhất để biết user story nào đã xong/đang làm/chưa làm, dùng để báo cáo tiến độ cho người giao việc mà không cần đọc lại toàn bộ backlog.
+
+- Agent `ba`: sau khi thêm/sửa 1 user story (spec, AC, phụ thuộc), cập nhật dòng US-ID tương ứng trong bảng nếu trạng thái thay đổi (vd story mới → ⬜ Chưa làm) và ghi ngắn gọn lý do vào cột Ghi chú.
+- Agent `dev`: sau khi implement xong (dù chỉ 1 phần — vd backend xong nhưng UI chưa, hoặc chỉ xong `web-admin` mà `Station.Wpf` chưa có), PHẢI cập nhật dòng US-ID đó **trước khi báo cáo hoàn thành task**: đổi cột Trạng thái (⬜/🔵/🟡/✅), ghi commit hash liên quan + phần còn thiếu (nếu có) vào Ghi chú, cập nhật ngày ở cột Cập nhật.
+- Không cập nhật bảng này thay cho việc sửa nội dung story/AC ở phần chi tiết bên dưới — 2 việc độc lập nhau.
+- Không tự ý đổi trạng thái sang ✅ Xong nếu chưa build/test pass (xem lệnh ở mục Commands) — dùng 🟡 Một phần nếu còn thiếu bất kỳ phần nào (backend/UI/test).
+
 ## Commands
 
 ```bash
