@@ -7,9 +7,10 @@ using ProductionMES.Application.Services.ProductionPlanStages;
 namespace ProductionMES.Api.Controllers;
 
 /// <summary>
-/// Cấu hình công đoạn áp dụng cho từng kế hoạch sản xuất, kèm trình tự (US-03/FR-03). Phân quyền theo
-/// permission động (ADR-004) — mỗi action tự khai báo policy riêng; <see cref="Remove"/> dùng HTTP DELETE thật
-/// nên gắn permission <c>Delete</c> (khác các resource còn lại dùng <c>Deactivate</c> soft-delete).
+/// Cấu hình công đoạn áp dụng cho từng kế hoạch sản xuất, kèm trình tự (US-03/FR-03) VÀ vòng đời trạng thái
+/// theo cặp (Kế hoạch, Công đoạn) — Áp dụng/Tạm dừng/Đóng (US-05a/FR-05a). Phân quyền theo permission động
+/// (ADR-004) — mỗi action tự khai báo policy riêng; <see cref="Remove"/> dùng HTTP DELETE thật nên gắn
+/// permission <c>Delete</c> (khác các resource còn lại dùng <c>Deactivate</c> soft-delete).
 /// </summary>
 [ApiController]
 [Route("api/v1/production-plans/{productionPlanId:int}/stages")]
@@ -55,6 +56,36 @@ public class ProductionPlanStagesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ProductionPlanStageDto>>> Reorder(int productionPlanId, [FromBody] ReorderProductionPlanStageRequest request, CancellationToken cancellationToken)
     {
         var result = await _productionPlanStageService.ReorderAsync(productionPlanId, request, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Áp dụng kế hoạch cho công đoạn này, chuyển Draft/Paused → Running (US-05a AC1) — từ chối nếu (Line, Công
+    /// đoạn) đang có 1 kế hoạch khác Running (AC1/AC2) hoặc cặp này đã Completed/Cancelled (AC7).
+    /// </summary>
+    [HttpPost("{stageId:int}/apply")]
+    [Authorize(Policy = PermissionPolicies.ProductionPlanStageApply)]
+    public async Task<ActionResult<ProductionPlanStageDto>> Apply(int productionPlanId, int stageId, CancellationToken cancellationToken)
+    {
+        var result = await _productionPlanStageService.ApplyAsync(productionPlanId, stageId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Tạm dừng kế hoạch tại công đoạn này, giữ nguyên tiến độ (US-05a AC3).</summary>
+    [HttpPost("{stageId:int}/pause")]
+    [Authorize(Policy = PermissionPolicies.ProductionPlanStagePause)]
+    public async Task<ActionResult<ProductionPlanStageDto>> Pause(int productionPlanId, int stageId, CancellationToken cancellationToken)
+    {
+        var result = await _productionPlanStageService.PauseAsync(productionPlanId, stageId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Đóng kế hoạch tại công đoạn này, đóng sớm thủ công → Cancelled (US-05a AC6) — yêu cầu Confirm nếu chưa đủ số lượng.</summary>
+    [HttpPost("{stageId:int}/close")]
+    [Authorize(Policy = PermissionPolicies.ProductionPlanStageClose)]
+    public async Task<ActionResult<ProductionPlanStageDto>> Close(int productionPlanId, int stageId, [FromBody] CloseProductionPlanStageRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _productionPlanStageService.CloseAsync(productionPlanId, stageId, request, cancellationToken);
         return Ok(result);
     }
 }

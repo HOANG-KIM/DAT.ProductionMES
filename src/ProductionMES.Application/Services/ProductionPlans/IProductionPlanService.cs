@@ -2,23 +2,23 @@ using ProductionMES.Application.DTOs.ProductionPlans;
 
 namespace ProductionMES.Application.Services.ProductionPlans;
 
-/// <summary>Service quản lý kế hoạch sản xuất (US-05/FR-05, kèm US-06/FR-06 tính sản lượng chuẩn/giờ).</summary>
+/// <summary>
+/// Service quản lý thông tin kế hoạch sản xuất (US-05/FR-05, kèm US-06/FR-06 tính sản lượng chuẩn/giờ).
+/// KHÔNG có action kích hoạt/kết thúc ở đây — vòng đời trạng thái (Draft/Running/Paused/Completed/Cancelled)
+/// gắn theo cặp (Kế hoạch, Công đoạn), xem <see cref="ProductionPlanStages.IProductionPlanStageService.ApplyAsync"/>/
+/// <c>PauseAsync</c>/<c>CloseAsync</c> (US-05a).
+/// </summary>
 public interface IProductionPlanService
 {
-    /// <summary>Tạo mới 1 kế hoạch, luôn ở trạng thái chưa active (AC1).</summary>
+    /// <summary>Tạo mới 1 kế hoạch (AC1) — tự nhiên ở trạng thái "Draft" vì chưa có công đoạn nào được áp dụng.</summary>
     Task<ProductionPlanDto> CreateAsync(CreateProductionPlanRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Cập nhật thông tin 1 kế hoạch đã tồn tại (AC3).</summary>
-    Task<ProductionPlanDto> UpdateAsync(int id, UpdateProductionPlanRequest request, CancellationToken cancellationToken = default);
-
     /// <summary>
-    /// Kích hoạt 1 kế hoạch. Từ chối nếu Line tương ứng đã có 1 kế hoạch khác đang active (AC2) — Tổ trưởng
-    /// cần kết thúc/chuyển trạng thái kế hoạch cũ (<see cref="DeactivateAsync"/>) trước khi kích hoạt kế hoạch mới.
+    /// Cập nhật thông tin 1 kế hoạch đã tồn tại (AC4/AC5). Nếu kế hoạch đã có công đoạn Running/Paused và
+    /// request đổi Số lượng kế hoạch/Takt time mà <see cref="UpdateProductionPlanRequest.Confirm"/> = false,
+    /// từ chối kèm cảnh báo (AC5) — gọi lại với <c>Confirm = true</c> để xác nhận.
     /// </summary>
-    Task<ProductionPlanDto> ActivateAsync(int id, CancellationToken cancellationToken = default);
-
-    /// <summary>Kết thúc (ngưng active) 1 kế hoạch đang active.</summary>
-    Task DeactivateAsync(int id, CancellationToken cancellationToken = default);
+    Task<ProductionPlanDto> UpdateAsync(int id, UpdateProductionPlanRequest request, CancellationToken cancellationToken = default);
 
     Task<ProductionPlanDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 

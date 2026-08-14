@@ -7,13 +7,21 @@ public class UpdateProductionPlanRequestValidator : AbstractValidator<UpdateProd
 {
     public UpdateProductionPlanRequestValidator()
     {
-        RuleFor(x => x.ProductCode)
-            .NotEmpty().WithMessage("Mã sản phẩm không được để trống.")
-            .MaximumLength(100).WithMessage("Mã sản phẩm tối đa 100 ký tự.");
+        RuleFor(x => x.Customer)
+            .NotEmpty().WithMessage("Khách hàng không được để trống.")
+            .MaximumLength(200).WithMessage("Khách hàng tối đa 200 ký tự.");
 
-        RuleFor(x => x.ProductName)
-            .NotEmpty().WithMessage("Tên sản phẩm không được để trống.")
-            .MaximumLength(200).WithMessage("Tên sản phẩm tối đa 200 ký tự.");
+        RuleFor(x => x.Model)
+            .NotEmpty().WithMessage("Model không được để trống.")
+            .MaximumLength(200).WithMessage("Model tối đa 200 ký tự.");
+
+        RuleFor(x => x.Lot)
+            .NotEmpty().WithMessage("Lot không được để trống.")
+            .MaximumLength(100).WithMessage("Lot tối đa 100 ký tự.");
+
+        // AC2: Revision có thể để trống, không NotEmpty — chỉ giới hạn độ dài khi có nhập.
+        RuleFor(x => x.Revision)
+            .MaximumLength(50).WithMessage("Revision tối đa 50 ký tự.");
 
         RuleFor(x => x.PlannedQuantity)
             .GreaterThan(0).WithMessage("Số lượng kế hoạch phải lớn hơn 0.");
@@ -21,11 +29,11 @@ public class UpdateProductionPlanRequestValidator : AbstractValidator<UpdateProd
         RuleFor(x => x.TaktTimeSeconds)
             .GreaterThan(0).WithMessage("Takt time phải lớn hơn 0.");
 
-        RuleFor(x => x.Shift)
-            .NotEmpty().WithMessage("Ca làm việc không được để trống.")
-            .MaximumLength(50).WithMessage("Ca làm việc tối đa 50 ký tự.");
+        RuleFor(x => x.StartTime)
+            .NotEqual(default(DateTime)).WithMessage("Thời gian bắt đầu không được để trống.");
 
-        RuleFor(x => x.EffectiveDate)
-            .NotEqual(default(DateTime)).WithMessage("Ngày áp dụng không được để trống.");
+        RuleFor(x => x.OperatorNames)
+            .NotEmpty().WithMessage("Tên nhân viên vận hành không được để trống.")
+            .MaximumLength(500).WithMessage("Tên nhân viên vận hành tối đa 500 ký tự.");
     }
 }

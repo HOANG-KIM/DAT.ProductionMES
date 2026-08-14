@@ -13,32 +13,36 @@ public class ProductionPlanConfiguration : IEntityTypeConfiguration<ProductionPl
 
         builder.HasKey(k => k.Id);
 
-        builder.Property(k => k.ProductCode)
-            .IsRequired()
-            .HasMaxLength(100);
-
-        builder.Property(k => k.ProductName)
+        builder.Property(k => k.Customer)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(k => k.Shift)
+        builder.Property(k => k.Model)
             .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(k => k.Lot)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        // AC2 (US-05): Revision có thể để trống — không IsRequired.
+        builder.Property(k => k.Revision)
             .HasMaxLength(50);
+
+        builder.Property(k => k.OperatorNames)
+            .IsRequired()
+            .HasMaxLength(500);
 
         builder.Property(k => k.TaktTimeSeconds)
             .IsRequired()
             .HasColumnType("decimal(10,2)");
-
-        builder.Property(k => k.IsActive)
-            .IsRequired()
-            .HasDefaultValue(false);
 
         builder.HasOne<Line>()
             .WithMany()
             .HasForeignKey(k => k.LineId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // AC2: hỗ trợ truy vấn nhanh "Line này đang có kế hoạch active nào không" khi kích hoạt kế hoạch mới.
-        builder.HasIndex(k => new { k.LineId, k.IsActive });
+        // Hỗ trợ tra cứu nhanh "các kế hoạch của 1 Line" (màn hình Chọn kế hoạch — US-05b).
+        builder.HasIndex(k => k.LineId);
     }
 }

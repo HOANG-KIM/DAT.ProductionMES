@@ -1,15 +1,16 @@
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.ProductionPlans;
 using ProductionMES.Domain.Entities;
+using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
 
 namespace ProductionMES.Application.Services.ProductionPlans;
 
 /// <summary>
-/// Implementation IProductionPlanService (US-05/FR-05).
-/// AC2 (US-05): 1 Line chỉ có 1 kế hoạch active tại 1 thời điểm — validate ở <see cref="ActivateAsync"/>
-/// trước khi cho kích hoạt, không phải ở <see cref="CreateAsync"/> (vì tạo mới luôn ở trạng thái chưa active).
+/// Implementation IProductionPlanService (US-05/FR-05, cập nhật 13/08/2026).
 /// US-06/FR-06: StandardQuantityPerHour tính lúc map Entity → DTO (ToDto), không lưu cột riêng trong DB.
+/// Vòng đời trạng thái (Draft/Running/Paused/Completed/Cancelled) KHÔNG xử lý ở service này — xem
+/// <see cref="ProductionPlanStages.ProductionPlanStageService"/> (US-05a, đúng entity đang giữ trạng thái đó).
 /// </summary>
 public class ProductionPlanService : IProductionPlanService
 {
@@ -36,13 +37,14 @@ public class ProductionPlanService : IProductionPlanService
         var productionPlan = new ProductionPlan
         {
             LineId = request.LineId,
-            ProductCode = request.ProductCode,
-            ProductName = request.ProductName,
+            Customer = request.Customer,
+            Model = request.Model,
+            Lot = request.Lot,
+            Revision = request.Revision,
             PlannedQuantity = request.PlannedQuantity,
             TaktTimeSeconds = request.TaktTimeSeconds,
-            Shift = request.Shift,
-            EffectiveDate = request.EffectiveDate,
-            IsActive = false, // AC1: tạo mới chưa active, kích hoạt là thao tác riêng
+            StartTime = request.StartTime,
+            OperatorNames = request.OperatorNames,
         };
 
         var repository = _unitOfWork.Repository<ProductionPlan>();
@@ -58,61 +60,42 @@ public class ProductionPlanService : IProductionPlanService
         var productionPlan = await repository.GetByIdAsync(id, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {id}.");
 
-        // AC3: cập nhật thông tin, không đụng tới LineId hay trạng thái active
-        productionPlan.ProductCode = request.ProductCode;
-        productionPlan.ProductName = request.ProductName;
+        // AC5: sửa Số lượng kế hoạch/Takt time trong khi kế hoạch đã có công đoạn Running/Paused là tình huống
+        // "chạy dở" — cần Tổ trưởng xác nhận rõ ràng trước khi lưu, tránh sửa nhầm làm sai lệch cách tính "còn
+        // lại" (US-05a AC4) hoặc chỉ số +/- đang hiển thị tại trạm.
+        var quantityOrTaktTimeChanged =
+            request.PlannedQuantity != productionPlan.PlannedQuantity ||
+            request.TaktTimeSeconds != productionPlan.TaktTimeSeconds;
+
+        if (quantityOrTaktTimeChanged && !request.Confirm)
+        {
+            var runningOrPausedStages = await _unitOfWork.Repository<ProductionPlanStage>().FindAsync(
+                x => x.ProductionPlanId == id && (x.PlanStatus == PlanStatus.Running || x.PlanStatus == PlanStatus.Paused),
+                cancellationToken);
+
+            if (runningOrPausedStages.Count > 0)
+            {
+                throw new BusinessRuleException(
+                    "Kế hoạch này đang chạy dở (có công đoạn Running/Paused) — sửa Số lượng kế hoạch/Takt time có " +
+                    "thể làm sai lệch cách tính 'còn lại' hoặc chỉ số +/- đang hiển thị tại trạm. Xác nhận thay đổi " +
+                    "bằng cách gửi lại yêu cầu với Confirm = true.");
+            }
+        }
+
+        // AC4: kế hoạch chưa từng Running ở công đoạn nào (hoặc không đổi Số lượng/Takt time) -> cập nhật tự do.
+        productionPlan.Customer = request.Customer;
+        productionPlan.Model = request.Model;
+        productionPlan.Lot = request.Lot;
+        productionPlan.Revision = request.Revision;
         productionPlan.PlannedQuantity = request.PlannedQuantity;
         productionPlan.TaktTimeSeconds = request.TaktTimeSeconds;
-        productionPlan.Shift = request.Shift;
-        productionPlan.EffectiveDate = request.EffectiveDate;
+        productionPlan.StartTime = request.StartTime;
+        productionPlan.OperatorNames = request.OperatorNames;
 
         repository.Update(productionPlan);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToDto(productionPlan);
-    }
-
-    public async Task<ProductionPlanDto> ActivateAsync(int id, CancellationToken cancellationToken = default)
-    {
-        var repository = _unitOfWork.Repository<ProductionPlan>();
-        var productionPlan = await repository.GetByIdAsync(id, cancellationToken)
-            ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {id}.");
-
-        if (productionPlan.IsActive)
-        {
-            return ToDto(productionPlan);
-        }
-
-        // AC2: 1 Line chỉ có 1 kế hoạch active tại 1 thời điểm
-        var productionPlansOnSameLine = await repository.FindAsync(
-            k => k.LineId == productionPlan.LineId && k.IsActive && k.Id != productionPlan.Id,
-            cancellationToken);
-
-        if (productionPlansOnSameLine.Count > 0)
-        {
-            throw new BusinessRuleException(
-                $"Line này đang có 1 kế hoạch khác (Id = {productionPlansOnSameLine[0].Id}) ở trạng thái active. " +
-                "Cần kết thúc/chuyển trạng thái kế hoạch cũ trước khi kích hoạt kế hoạch mới.");
-        }
-
-        productionPlan.IsActive = true;
-
-        repository.Update(productionPlan);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return ToDto(productionPlan);
-    }
-
-    public async Task DeactivateAsync(int id, CancellationToken cancellationToken = default)
-    {
-        var repository = _unitOfWork.Repository<ProductionPlan>();
-        var productionPlan = await repository.GetByIdAsync(id, cancellationToken)
-            ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {id}.");
-
-        productionPlan.IsActive = false;
-
-        repository.Update(productionPlan);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ProductionPlanDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -132,13 +115,14 @@ public class ProductionPlanService : IProductionPlanService
     {
         Id = productionPlan.Id,
         LineId = productionPlan.LineId,
-        ProductCode = productionPlan.ProductCode,
-        ProductName = productionPlan.ProductName,
+        Customer = productionPlan.Customer,
+        Model = productionPlan.Model,
+        Lot = productionPlan.Lot,
+        Revision = productionPlan.Revision,
         PlannedQuantity = productionPlan.PlannedQuantity,
         TaktTimeSeconds = productionPlan.TaktTimeSeconds,
-        Shift = productionPlan.Shift,
-        EffectiveDate = productionPlan.EffectiveDate,
-        IsActive = productionPlan.IsActive,
+        StartTime = productionPlan.StartTime,
+        OperatorNames = productionPlan.OperatorNames,
         StandardQuantityPerHour = productionPlan.TaktTimeSeconds > 0 ? Math.Round(SecondsPerHour / productionPlan.TaktTimeSeconds, 2) : 0,
     };
 }

@@ -80,13 +80,16 @@ public static class DbSeeder
             (PermissionResource.ProductionPlan, PermissionAction.View),
             (PermissionResource.ProductionPlan, PermissionAction.Create),
             (PermissionResource.ProductionPlan, PermissionAction.Update),
-            (PermissionResource.ProductionPlan, PermissionAction.Activate),
-            (PermissionResource.ProductionPlan, PermissionAction.Deactivate),
 
             (PermissionResource.ProductionPlanStage, PermissionAction.View),
             (PermissionResource.ProductionPlanStage, PermissionAction.Create),
             (PermissionResource.ProductionPlanStage, PermissionAction.Update),
             (PermissionResource.ProductionPlanStage, PermissionAction.Delete),
+            // US-05a: vòng đời trạng thái theo cặp (Kế hoạch, Công đoạn) — thay cho ProductionPlan.Activate/
+            // Deactivate cấp cả kế hoạch trước đây.
+            (PermissionResource.ProductionPlanStage, PermissionAction.Apply),
+            (PermissionResource.ProductionPlanStage, PermissionAction.Pause),
+            (PermissionResource.ProductionPlanStage, PermissionAction.Close),
         };
 
         var existingPairs = (await dbContext.Permissions

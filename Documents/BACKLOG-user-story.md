@@ -2,7 +2,7 @@
 
 **Nguồn căn cứ:** `Documents/SRS-he-thong-quan-ly-ke-hoach-san-xuat.md` (FR-01 → FR-23, mục 6 quy tắc chốt, mục 7 AC, mục 8.2 điểm còn mở), `Documents/ADR-001-lua-chon-wpf-hay-winforms.md`.
 **Ngày lập:** 11/08/2026
-**Cập nhật:** 13/08/2026 — (1) bổ sung AC cho US-09 để đồng bộ với FR-09a (khung giờ nghỉ theo Line) được thêm vào SRS ngày 13/08/2026, sau thời điểm backlog được lập lần đầu; (2) tách 2 khoảng trống phát sinh sau khi story gốc đã code xong thành story riêng — **US-01a** (khung giờ nghỉ theo Line, do FR-01/FR-09a bổ sung sau khi US-01 code xong) và **US-04a** (API Key theo trạm, do ADR-005 chốt sau khi US-04 code xong) — cả 2 đều là điều kiện tiên quyết bắt buộc trước khi triển khai US-07/US-08/US-09, đã cập nhật vào lộ trình triển khai đề xuất.
+**Cập nhật:** 13/08/2026 — (1) bổ sung AC cho US-09 để đồng bộ với FR-09a (khung giờ nghỉ theo Line) được thêm vào SRS ngày 13/08/2026, sau thời điểm backlog được lập lần đầu; (2) tách 2 khoảng trống phát sinh sau khi story gốc đã code xong thành story riêng — **US-01a** (khung giờ nghỉ theo Line, do FR-01/FR-09a bổ sung sau khi US-01 code xong) và **US-04a** (API Key theo trạm, do ADR-005 chốt sau khi US-04 code xong) — cả 2 đều là điều kiện tiên quyết bắt buộc trước khi triển khai US-07/US-08/US-09, đã cập nhật vào lộ trình triển khai đề xuất; (3) cập nhật **US-05** theo FR-05 mới (Khách hàng/Model/Lot/Revision, bỏ ca làm việc) và bổ sung 2 story mới — **US-05a** (vòng đời trạng thái kế hoạch `Draft/Running/Paused/Completed/Cancelled` theo từng cặp (Line, Công đoạn), tạm dừng/chạy lại/đóng độc lập, tính tiến độ động — FR-05a) và **US-05b** (màn hình "Chọn kế hoạch": chọn Công đoạn + Kế hoạch, hiển thị tiến độ, Áp dụng) — phát sinh từ phân tích UI kế hoạch sản xuất ngày 13/08/2026, đã cập nhật vào lộ trình triển khai đề xuất.
 **Ghi chú chung:** Solution hiện chỉ có khung 7 project, chưa có entity/business logic — backlog này là đầu vào để dev bắt đầu implement dần theo thứ tự đề xuất ở cuối tài liệu.
 
 ---
@@ -201,29 +201,114 @@
 
 ## 3.2 Nhóm chức năng: Kế hoạch sản xuất
 
-### US-05: Tạo/cập nhật kế hoạch sản xuất
+### US-05: Tạo/cập nhật kế hoạch sản xuất (màn hình "Cài đặt kế hoạch")
 **Là** Tổ trưởng / Quản lý chuyền
-**Tôi muốn** tạo và cập nhật kế hoạch sản xuất cho 1 Line (sản phẩm, số lượng, takt time, ca, ngày áp dụng)
-**Để** có cơ sở đối chiếu sản lượng thực tế khi công nhân scan tem tại các trạm
+**Tôi muốn** nhập Khách hàng, Model, Lot, Revision, số lượng lot, takt time, thời gian bắt đầu, tên nhân viên vận hành và lưu thành 1 kế hoạch
+**Để** có bản ghi kế hoạch làm cơ sở áp dụng vào từng công đoạn của Line khi đối chiếu sản lượng thực tế lúc scan tem
 
 **Acceptance Criteria**
 - **AC1 — Tạo kế hoạch mới**
   - Given Line đã tồn tại và đang hoạt động
-  - When Tổ trưởng nhập đầy đủ: Line, mã & tên sản phẩm, số lượng kế hoạch, takt time, ca làm việc, ngày áp dụng, và lưu
-  - Then kế hoạch được tạo, có thể được kích hoạt (active) sau đó
-- **AC2 — Một Line chỉ có 1 kế hoạch active tại 1 thời điểm**
-  - Given Line 1 đang có 1 kế hoạch ở trạng thái active
-  - When Tổ trưởng cố gắng kích hoạt thêm 1 kế hoạch khác cho Line 1 trong cùng thời điểm
-  - Then hệ thống từ chối hoặc yêu cầu kết thúc/chuyển trạng thái kế hoạch cũ trước
-- **AC3 — Cập nhật kế hoạch**
-  - Given kế hoạch đã tồn tại
-  - When Tổ trưởng chỉnh sửa thông tin (số lượng, takt time...)
-  - Then thông tin được cập nhật; nếu kế hoạch đang active và đã có lượt scan, cần đảm bảo không làm sai lệch dữ liệu chỉ số +/- đã tính trước đó (ghi nhận là ràng buộc nghiệp vụ cần làm rõ khi thiết kế chi tiết)
+  - When Tổ trưởng nhập đầy đủ: Line áp dụng, Khách hàng, Model, Lot, số lượng kế hoạch (theo Lot), takt time, thời gian bắt đầu (ngày + giờ), tên nhân viên vận hành tại trạm/công đoạn phụ trách lô này (có thể nhiều người), và lưu
+  - Then kế hoạch được tạo ở trạng thái `Draft` (chưa chạy công đoạn nào — xem US-05a để áp dụng vào công đoạn cụ thể)
+- **AC2 — Revision được để trống**
+  - Given Tổ trưởng đang nhập kế hoạch mới
+  - When để trống ô Revision
+  - Then hệ thống vẫn cho lưu bình thường, không bắt buộc
+- **AC3 — Hiển thị ngay sản lượng chuẩn/giờ khi nhập takt time**
+  - Given Tổ trưởng đang nhập takt time
+  - When gõ giá trị takt time
+  - Then hệ thống tính và hiển thị ngay sản lượng chuẩn/giờ (`3600 / Takt time`, FR-06) cạnh ô nhập, giúp phát hiện sớm lỗi nhập liệu trước khi lưu
+- **AC4 — Cập nhật kế hoạch chưa từng chạy (`Draft`)**
+  - Given kế hoạch đang ở trạng thái `Draft`, chưa `Running` ở công đoạn nào
+  - When Tổ trưởng chỉnh sửa bất kỳ trường nào (kể cả số lượng, takt time)
+  - Then thông tin được cập nhật tự do, không ràng buộc gì thêm
+- **AC5 — Cập nhật kế hoạch đã có công đoạn đang `Running`/`Paused`**
+  - Given kế hoạch đã có ít nhất 1 công đoạn đang `Running` hoặc `Paused` (đã có lượt scan OK, xem US-05a)
+  - When Tổ trưởng chỉnh sửa số lượng kế hoạch hoặc takt time
+  - Then hệ thống cảnh báo rõ đây là kế hoạch đang chạy dở, xác nhận trước khi lưu — tránh sửa nhầm làm sai lệch cách tính "còn lại" (US-05a AC4) hoặc chỉ số +/- đang hiển thị tại trạm
 
 **Nguồn FR:** FR-05
 **Phụ thuộc:** US-01 (Line)
 **Cờ cảnh báo mục 8.2:** Không trực tiếp.
 **UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026).
+**Ghi chú:** Cập nhật 13/08/2026 theo FR-05 mới (bổ sung Khách hàng/Model/Lot/Revision, bỏ "ca làm việc", đổi nghĩa "tên nhân viên" thành người vận hành chứ không phải người đăng nhập thao tác màn hình). Phần ràng buộc "1 kế hoạch active" và vòng đời trạng thái đã tách hẳn sang **US-05a** (trước đây là AC2 của story này) vì trạng thái nay gắn cấp (Kế hoạch, Công đoạn), không phải cấp Kế hoạch.
+
+---
+
+### US-05a: Vòng đời trạng thái kế hoạch theo từng công đoạn (tạm dừng — chạy lại — đóng độc lập)
+**Là** Tổ trưởng
+**Tôi muốn** mỗi công đoạn áp dụng 1 kế hoạch có vòng đời trạng thái riêng (`Draft/Running/Paused/Completed/Cancelled`), tiến độ "đã chạy/còn lại" luôn tính đúng theo thời gian thực, và có thể tạm dừng hoặc đóng độc lập từng công đoạn
+**Để** tạm dừng 1 lô đang chạy dở (đổi Line/trạm sang việc khác) rồi chạy lại chính xác sau này mà không mất/nhầm số lượng còn lại, đồng thời cho phép công đoạn nào xong trước tự đóng mà không phải chờ các công đoạn khác của cùng kế hoạch
+
+**Acceptance Criteria**
+- **AC1 — Áp dụng kế hoạch cho 1 (Line, Công đoạn), chuyển `Running`**
+  - Given kế hoạch đang `Draft` hoặc `Paused` cho công đoạn X của Line Y
+  - When Tổ trưởng bấm "Áp dụng"
+  - Then kế hoạch chuyển `Running` cho đúng cặp (Line Y, Công đoạn X); nếu (Line Y, Công đoạn X) đang có 1 kế hoạch khác ở `Running`, hệ thống từ chối và yêu cầu Tạm dừng/Đóng kế hoạch đó trước
+- **AC2 — Ràng buộc active theo (Line, Công đoạn), không theo cả Line**
+  - Given công đoạn A của Line 1 đang `Running` kế hoạch X
+  - When Tổ trưởng áp dụng kế hoạch Y cho công đoạn B của cùng Line 1
+  - Then được chấp nhận bình thường — công đoạn B chạy kế hoạch khác song song, không bị chặn bởi trạng thái của công đoạn A (đúng thực tế dây chuyền có WIP giữa các trạm)
+- **AC3 — Tạm dừng, giữ nguyên tiến độ**
+  - Given kế hoạch đang `Running` tại 1 (Line, Công đoạn)
+  - When Tổ trưởng bấm "Tạm dừng"
+  - Then chuyển `Paused`; tiến độ không mất (vì tính động từ lịch sử scan OK, xem AC4), có thể "Áp dụng" lại bất kỳ lúc nào sau này
+- **AC4 — Tính "đã chạy"/"còn lại" động, không lưu số liệu tĩnh**
+  - Given kế hoạch đã có lượt scan OK tại đúng công đoạn đó
+  - When xem tiến độ (màn hình chọn kế hoạch — US-05b, hoặc dashboard trạm)
+  - Then "đã chạy" = tổng số lượt scan kết quả OK theo đúng cặp (kế hoạch, công đoạn); "còn lại" = số lượng kế hoạch − đã chạy; giá trị luôn tính lại theo dữ liệu scan hiện có, không đọc từ 1 cột số lượng lưu sẵn
+- **AC5 — Tự động `Completed` khi đủ số lượng**
+  - Given 1 cặp (kế hoạch, công đoạn) đang `Running`, số đã chạy sắp đạt đủ số lượng kế hoạch
+  - When có thêm 1 lượt scan OK làm đủ số lượng
+  - Then hệ thống tự động chuyển cặp đó sang `Completed` ngay, không cần Tổ trưởng thao tác thêm
+- **AC6 — Đóng sớm thủ công, yêu cầu xác nhận nếu chưa đủ số lượng**
+  - Given 1 cặp (kế hoạch, công đoạn) đang `Running`/`Paused`, số đã chạy còn thấp hơn số lượng kế hoạch
+  - When Tổ trưởng bấm "Đóng kế hoạch"
+  - Then hệ thống hiển thị rõ số lượng còn thiếu, yêu cầu xác nhận trước khi chuyển sang `Cancelled`
+- **AC7 — Kế hoạch `Completed`/`Cancelled` không tự "Áp dụng" lại được như `Paused`**
+  - Given 1 cặp (kế hoạch, công đoạn) đã `Completed` hoặc `Cancelled`
+  - When Tổ trưởng mở màn hình chọn kế hoạch
+  - Then cặp đó không xuất hiện trong danh sách áp dụng mặc định (US-05b AC2) — coi như đã kết thúc vòng đời tại công đoạn đó
+
+**Nguồn FR:** FR-05a, mục 6 quy tắc 12
+**Phụ thuộc:** US-05 (kế hoạch phải được tạo trước), US-03 (cần biết công đoạn nào thuộc kế hoạch, theo trình tự cấu hình), US-08 (nguồn dữ liệu scan OK để tính tiến độ động)
+**Cờ cảnh báo mục 8.2:** Không (đã chốt đầy đủ với người dùng ngày 13/08/2026).
+**Lưu ý kỹ thuật:** Thay đổi so với thiết kế backend ban đầu (`ProductionPlanService.ActivateAsync`/`DeactivateAsync` hiện chỉ kiểm tra duy nhất theo `LineId`, cờ `IsActive` dạng bool) — cần đổi model sang trạng thái theo cặp `(LineId, StageId)` khi implement, không chỉ đổi UI.
+
+---
+
+### US-05b: Chọn & áp dụng kế hoạch cho công đoạn tại trạm (màn hình "Chọn kế hoạch")
+**Là** Tổ trưởng
+**Tôi muốn** chọn Công đoạn rồi chọn Kế hoạch tương ứng (xem lại thông tin + tiến độ), rồi bấm Áp dụng
+**Để** đưa đúng kế hoạch (kể cả kế hoạch đang tạm dừng muốn chạy tiếp) vào chạy tại 1 công đoạn cụ thể của Line, không bị giới hạn bởi công đoạn vật lý của trạm đang thao tác — phục vụ Tổ trưởng quản lý nhiều công đoạn từ 1 vị trí
+
+**Acceptance Criteria**
+- **AC1 — Combobox Công đoạn không giới hạn theo trạm vật lý**
+  - Given Tổ trưởng đang ở chế độ nâng quyền tại bất kỳ trạm nào thuộc Line Y
+  - When mở màn hình "Chọn kế hoạch"
+  - Then combobox Công đoạn liệt kê **mọi công đoạn đã cấu hình cho Line Y** (không chỉ công đoạn vật lý của trạm đang đứng), cho phép cấu hình kế hoạch cho công đoạn khác từ xa (mục 6 quy tắc 13)
+- **AC2 — Danh sách kế hoạch lọc theo Line + Công đoạn đã chọn**
+  - Given đã chọn Công đoạn X (thuộc Line Y)
+  - When mở combobox "Kế hoạch sản xuất"
+  - Then chỉ hiển thị các kế hoạch có cấu hình áp dụng công đoạn X (qua `ProductionPlanStage`, US-03) trong đúng Line Y; mặc định **ẩn** các kế hoạch đã `Completed`/`Cancelled` tại công đoạn X (US-05a AC7)
+- **AC3 — Hiển thị tiến độ cho kế hoạch đang tạm dừng**
+  - Given trong danh sách có 1 kế hoạch đang `Paused` tại công đoạn X
+  - When hiển thị trong combobox/danh sách chọn
+  - Then hiện rõ tiến độ dạng "Đã chạy 400/1000 — còn 600" (tính động, US-05a AC4), không hiển thị như kế hoạch còn nguyên số lượng gốc
+- **AC4 — Chọn kế hoạch hiển thị lại thông tin ra textbox**
+  - Given Tổ trưởng chọn 1 kế hoạch trong combobox
+  - When hệ thống load thông tin
+  - Then hiển thị (readonly) đầy đủ Khách hàng/Model/Lot/Revision/số lượng/takt time/thời gian bắt đầu/tên nhân viên tương ứng để xem lại trước khi áp dụng
+- **AC5 — Áp dụng**
+  - Given đã chọn đúng Công đoạn + Kế hoạch
+  - When Tổ trưởng bấm "Áp dụng"
+  - Then kế hoạch chuyển `Running` cho đúng (Line, Công đoạn) đó (US-05a AC1); màn hình chính của trạm tương ứng công đoạn đó cập nhật hiển thị đúng kế hoạch vừa áp dụng ngay lập tức (real-time nếu trạm đang mở sẵn)
+
+**Nguồn FR:** FR-05a (phần UI màn hình chọn kế hoạch), mục 6 quy tắc 13
+**Phụ thuộc:** US-05 (kế hoạch phải tồn tại), US-05a (trạng thái & tiến độ động), US-03 (cấu hình công đoạn theo kế hoạch)
+**Cờ cảnh báo mục 8.2:** Không.
+**UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — màn hình "Chọn kế hoạch", tách riêng khỏi màn hình "Cài đặt kế hoạch" (US-05).
 
 ---
 
@@ -282,7 +367,7 @@
   - Then thông báo hiển thị ở góc màn hình/dạng banner nhỏ, không đè lên vùng hiển thị số lượng/chỉ số +/-
 
 **Nguồn FR:** FR-07
-**Phụ thuộc:** US-04 (trạm làm việc), US-04a (API Key theo trạm — bắt buộc để `Station.Wpf` xác thực được, xem ADR-005), US-05 (kế hoạch active), US-08 (business rule kiểm tra hợp lệ — thực thi song song vì FR-07 mô tả UI/UX, FR-08 mô tả rule; nên triển khai cùng đợt)
+**Phụ thuộc:** US-04 (trạm làm việc), US-04a (API Key theo trạm — bắt buộc để `Station.Wpf` xác thực được, xem ADR-005), US-05/US-05a/US-05b (kế hoạch đã tạo và ở trạng thái `Running` cho đúng (Line, Công đoạn) của trạm), US-08 (business rule kiểm tra hợp lệ — thực thi song song vì FR-07 mô tả UI/UX, FR-08 mô tả rule; nên triển khai cùng đợt)
 **Cờ cảnh báo mục 8.2:** Có — phụ thuộc model máy scan Zebra DS2208 (điểm mở #3) cho phần giao tiếp HID thực tế tại trạm.
 
 ---
@@ -779,46 +864,48 @@
 3. US-02 (Công đoạn master)
 4. US-04 (Trạm làm việc) — cần Line + Công đoạn xong trước
 5. US-04a (API Key theo trạm) — cần US-04 xong trước; là điều kiện tiên quyết bắt buộc cho US-07/US-08 (`Station.Wpf` không xác thực được nếu thiếu story này)
-6. US-05 (Kế hoạch sản xuất)
+6. US-05 (Kế hoạch sản xuất — màn hình Cài đặt kế hoạch)
 7. US-03 (Cấu hình trình tự công đoạn theo kế hoạch)
-8. US-06 (Tính sản lượng chuẩn theo giờ)
-9. US-22 (Quản lý người dùng & phân quyền)
+8. US-05a (Vòng đời trạng thái kế hoạch theo từng công đoạn) — cần US-03 xong trước (cần biết công đoạn nào thuộc kế hoạch)
+9. US-05b (Chọn & áp dụng kế hoạch — màn hình Chọn kế hoạch) — cần US-05a xong trước
+10. US-06 (Tính sản lượng chuẩn theo giờ)
+11. US-22 (Quản lý người dùng & phân quyền)
 
-*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. US-01a và US-04a được chèn ngay sau story gốc của chúng (US-01/US-04) vì đây là 2 khoảng trống phát sinh sau khi US-01/US-04 đã code xong (FR-01/FR-09a bổ sung sau; ADR-005 chốt sau) — bắt buộc phải xong trước khi bước vào Giai đoạn 2, nếu không US-07/US-08/US-09 sẽ bị chặn giữa chừng. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-12 (xác nhận Arduino) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
+*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. US-01a và US-04a được chèn ngay sau story gốc của chúng (US-01/US-04) vì đây là 2 khoảng trống phát sinh sau khi US-01/US-04 đã code xong (FR-01/FR-09a bổ sung sau; ADR-005 chốt sau) — bắt buộc phải xong trước khi bước vào Giai đoạn 2, nếu không US-07/US-08/US-09 sẽ bị chặn giữa chừng. US-05a/US-05b tương tự được chèn ngay sau US-05/US-03 vì đây là khoảng trống phát sinh sau khi US-05 gốc đã lập (FR-05a bổ sung sau khi phân tích UI 13/08/2026) — US-07 (`Station.Wpf` lấy "kế hoạch active của trạm") cần US-05a đã có khái niệm `Running` theo (Line, Công đoạn) mới hoạt động đúng. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-12 (xác nhận Arduino) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
 
 **Giai đoạn 2 — Luồng scan lõi (happy path)**
-10. US-07 (Scan tem tại trạm)
-11. US-08 (Kiểm tra hợp lệ khi scan — chống trùng tem, công đoạn liền trước)
-12. US-09 (Hiển thị số lượng & chỉ số +/-)
-13. US-10 (Lưu & tra cứu lịch sử scan)
-14. US-15 (Khôi phục trạng thái phiên khi mở lại bình thường)
+12. US-07 (Scan tem tại trạm)
+13. US-08 (Kiểm tra hợp lệ khi scan — chống trùng tem, công đoạn liền trước)
+14. US-09 (Hiển thị số lượng & chỉ số +/-)
+15. US-10 (Lưu & tra cứu lịch sử scan)
+16. US-15 (Khôi phục trạng thái phiên khi mở lại bình thường)
 
 *Lý do*: Đây là lõi nghiệp vụ trung tâm của toàn hệ thống (scan → kiểm tra → cập nhật số liệu → lưu lịch sử). Cần hoàn thiện và ổn định trước khi thêm các nhánh phức tạp hơn (Arduino, offline, NG) vì các nhánh đó đều là biến thể/mở rộng của luồng scan cơ bản này.
 
 **Giai đoạn 3 — Chống mất dữ liệu (offline/crash)**
-15. US-16 (Hàng đợi cục bộ chống mất lượt scan)
-16. US-17 (Hiển thị trạng thái đồng bộ trên UI)
+17. US-16 (Hàng đợi cục bộ chống mất lượt scan)
+18. US-17 (Hiển thị trạng thái đồng bộ trên UI)
 
 *Lý do*: Đây là lớp bọc thêm quanh luồng scan lõi (ghi trước vào local queue, retry, idempotency) — cần scan lõi hoạt động ổn định trước, sau đó mới bọc thêm cơ chế an toàn dữ liệu này vì nó thay đổi cách trạm gửi/nhận kết quả scan.
 
 **Giai đoạn 4 — Nhánh phụ: Scan NG & Rework**
-17. US-18 (Scan xác nhận sản phẩm NG)
-18. US-19 (Quy trình Rework — mở khóa & scan lại)
-19. US-20 (Báo cáo tỷ lệ lỗi & nguyên nhân)
+19. US-18 (Scan xác nhận sản phẩm NG)
+20. US-19 (Quy trình Rework — mở khóa & scan lại)
+21. US-20 (Báo cáo tỷ lệ lỗi & nguyên nhân)
 
 *Lý do*: NG là nhánh rẽ có điều kiện của luồng scan (không phải mọi lượt scan đều NG), và có ràng buộc dữ liệu phức tạp hơn (nhiều bản ghi tại cùng công đoạn, thay đổi ràng buộc unique) nên làm sau khi luồng OK cơ bản đã vững. Báo cáo tỷ lệ lỗi (US-20) đặt cuối nhóm này vì cần có dữ liệu NG/OK thực tế để thống kê.
 
 **Giai đoạn 5 — Nhánh phụ: Arduino**
-20. US-11 (Cấu hình bật/tắt Arduino theo trạm)
-21. US-14 (Kết nối & phục hồi cổng COM)
-22. US-13 (Timeout xác định kết quả kiểm tra)
-23. US-12 (Luồng scan-chờ-Arduino đầy đủ, bao gồm nhánh xác nhận NG bởi Tổ trưởng)
+22. US-11 (Cấu hình bật/tắt Arduino theo trạm)
+23. US-14 (Kết nối & phục hồi cổng COM)
+24. US-13 (Timeout xác định kết quả kiểm tra)
+25. US-12 (Luồng scan-chờ-Arduino đầy đủ, bao gồm nhánh xác nhận NG bởi Tổ trưởng)
 
 *Lý do*: Arduino là nhánh phụ thuộc phần cứng đặc thù, chỉ áp dụng cho một số trạm/công đoạn nhất định (chưa xác định rõ theo mục 8.2). Đặt sau NG/Rework vì US-12 (bước 5) tái sử dụng trực tiếp cơ chế xác nhận NG + khóa/mở khóa rework đã xây ở Giai đoạn 4. Nên làm US-11/US-14 (cấu hình, kết nối) trước US-12/US-13 (logic state machine đầy đủ) vì đây là điều kiện kỹ thuật cần có trước khi build luồng nghiệp vụ chờ kết quả.
 
 **Giai đoạn 6 — Báo cáo tổng hợp & xuất Excel**
-24. US-21 (Báo cáo tổng hợp theo Line)
-25. US-23 (Xuất báo cáo Excel)
+26. US-21 (Báo cáo tổng hợp theo Line)
+27. US-23 (Xuất báo cáo Excel)
 
 *Lý do*: Báo cáo phụ thuộc vào dữ liệu đã tích lũy đầy đủ từ tất cả các luồng trước (scan OK, chỉ số +/-, trạng thái đồng bộ, dữ liệu NG). Xuất Excel (US-23) làm cuối cùng vì còn phụ thuộc thêm vào việc xác nhận nội dung/mẫu báo cáo cụ thể (điểm mở #4 mục 8.2 — cần hỏi lại stakeholder trước khi code phần này).
 

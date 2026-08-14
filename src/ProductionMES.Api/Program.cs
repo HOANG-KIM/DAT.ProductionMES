@@ -168,13 +168,14 @@ try
         AddPermissionPolicy(PermissionPolicies.ProductionPlanView, PermissionResource.ProductionPlan, PermissionAction.View);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanCreate, PermissionResource.ProductionPlan, PermissionAction.Create);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanUpdate, PermissionResource.ProductionPlan, PermissionAction.Update);
-        AddPermissionPolicy(PermissionPolicies.ProductionPlanActivate, PermissionResource.ProductionPlan, PermissionAction.Activate);
-        AddPermissionPolicy(PermissionPolicies.ProductionPlanDeactivate, PermissionResource.ProductionPlan, PermissionAction.Deactivate);
 
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageView, PermissionResource.ProductionPlanStage, PermissionAction.View);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageCreate, PermissionResource.ProductionPlanStage, PermissionAction.Create);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageUpdate, PermissionResource.ProductionPlanStage, PermissionAction.Update);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageDelete, PermissionResource.ProductionPlanStage, PermissionAction.Delete);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageApply, PermissionResource.ProductionPlanStage, PermissionAction.Apply);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStagePause, PermissionResource.ProductionPlanStage, PermissionAction.Pause);
+        AddPermissionPolicy(PermissionPolicies.ProductionPlanStageClose, PermissionResource.ProductionPlanStage, PermissionAction.Close);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

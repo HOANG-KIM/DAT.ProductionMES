@@ -9,7 +9,7 @@ using ProductionMES.Domain.Exceptions;
 namespace ProductionMES.Application.Services.Scans;
 
 /// <summary>
-/// Implementation IScanService (US-07/US-08, FR-07/FR-08).
+/// Implementation IScanService (US-07/US-08, FR-07/FR-08; cập nhật 14/08/2026 theo US-05a/FR-05a).
 /// </summary>
 /// <remarks>
 /// Tái sử dụng <see cref="IProductionPlanStageService.GetByProductionPlanAsync"/> để suy ra "công đoạn liền
@@ -21,10 +21,20 @@ namespace ProductionMES.Application.Services.Scans;
 /// <c>StageId</c> (công đoạn master) trên TOÀN HỆ THỐNG — không lọc theo Line/kế hoạch — đúng quy tắc đã chốt
 /// (CLAUDE.md, mục 6 SRS).
 ///
-/// "Không có kế hoạch sản xuất đang active" hoặc "công đoạn của trạm chưa được cấu hình trong kế hoạch active"
-/// là lỗi cấu hình/vận hành (không phải 1 trong 3 giá trị <see cref="ScanResult"/> đã chốt cho FR-08) — xử lý
-/// bằng <see cref="BusinessRuleException"/> (HTTP 409), KHÔNG lưu bản ghi Scan cho 2 trường hợp này (khác với
-/// DuplicateTag/PreviousStageNotPassed — 2 kết quả nghiệp vụ hợp lệ theo FR-08, luôn được lưu theo FR-10).
+/// US-05a: "kế hoạch active của trạm" nay được xác định là cặp (Line, Công đoạn) của trạm đang có 1
+/// <see cref="ProductionPlanStage"/> ở trạng thái <see cref="PlanStatus.Running"/> — KHÔNG còn dựa vào
+/// <c>ProductionPlan.IsActive</c> (đã bỏ, xem remarks tại entity ProductionPlan). Vì ProductionPlanStage đại
+/// diện đúng cặp (Kế hoạch, Công đoạn), việc tìm được 1 bản ghi Running cũng đồng thời xác nhận công đoạn của
+/// trạm ĐÃ được cấu hình trong kế hoạch đó — không cần kiểm tra "chưa cấu hình" như 1 bước tách biệt nữa.
+///
+/// "Không có kế hoạch nào đang Running cho (Line, Công đoạn) của trạm" là lỗi cấu hình/vận hành (không phải 1
+/// trong 3 giá trị <see cref="ScanResult"/> đã chốt cho FR-08) — xử lý bằng <see cref="BusinessRuleException"/>
+/// (HTTP 409), KHÔNG lưu bản ghi Scan cho trường hợp này (khác với DuplicateTag/PreviousStageNotPassed — 2 kết
+/// quả nghiệp vụ hợp lệ theo FR-08, luôn được lưu theo FR-10).
+///
+/// US-05a AC5: sau khi lưu 1 lượt scan OK, tự động chuyển <see cref="ProductionPlanStage.PlanStatus"/> của đúng
+/// cặp (Kế hoạch, Công đoạn) đó sang <see cref="PlanStatus.Completed"/> ngay khi số lượt scan OK (tính động,
+/// gồm cả lượt vừa lưu) đạt đủ <c>ProductionPlan.PlannedQuantity</c>.
 /// </remarks>
 public class ScanService : IScanService
 {
@@ -47,26 +57,33 @@ public class ScanService : IScanService
         var workStation = await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy trạm làm việc với Id = {workStationId}.");
 
-        // FR-05: 1 Line tại 1 thời điểm chỉ có tối đa 1 kế hoạch active.
-        var productionPlanRepository = _unitOfWork.Repository<ProductionPlan>();
-        var activeProductionPlans = await productionPlanRepository.FindAsync(
-            p => p.LineId == workStation.LineId && p.IsActive, cancellationToken);
-        var activeProductionPlan = activeProductionPlans.FirstOrDefault();
+        // US-05a/mục 6 quy tắc 12: tại 1 thời điểm, 1 cặp (Line, Công đoạn) chỉ có tối đa 1 kế hoạch Running.
+        var productionPlanStageRepository = _unitOfWork.Repository<ProductionPlanStage>();
+        var runningPlanStages = await productionPlanStageRepository.FindAsync(
+            x => x.LineId == workStation.LineId && x.StageId == workStation.StageId && x.PlanStatus == PlanStatus.Running,
+            cancellationToken);
+        var runningPlanStage = runningPlanStages.FirstOrDefault();
 
-        if (activeProductionPlan is null)
+        if (runningPlanStage is null)
         {
             throw new BusinessRuleException(
-                $"Line Id = {workStation.LineId} hiện không có kế hoạch sản xuất đang active — không thể ghi nhận lượt scan.");
+                $"(Line Id = {workStation.LineId}, Công đoạn Id = {workStation.StageId}) hiện không có kế hoạch sản xuất " +
+                "nào đang Running — không thể ghi nhận lượt scan.");
         }
 
-        // Suy ra trình tự + PreviousStageId của đúng công đoạn trạm này đang thực hiện, trong kế hoạch active.
+        var activeProductionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(runningPlanStage.ProductionPlanId, cancellationToken)
+            ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {runningPlanStage.ProductionPlanId}.");
+
+        // Suy ra trình tự + PreviousStageId của đúng công đoạn trạm này đang thực hiện, trong kế hoạch đang Running.
         var planStages = await _productionPlanStageService.GetByProductionPlanAsync(activeProductionPlan.Id, cancellationToken);
         var currentPlanStage = planStages.FirstOrDefault(x => x.StageId == workStation.StageId);
 
         if (currentPlanStage is null)
         {
+            // Phòng vệ: runningPlanStage vừa tìm thấy ở trên đã xác nhận công đoạn này được cấu hình trong kế
+            // hoạch, nên nhánh này chỉ xảy ra khi dữ liệu bất nhất (vd race condition xóa cấu hình đồng thời).
             throw new BusinessRuleException(
-                $"Công đoạn của trạm Id = {workStationId} chưa được cấu hình trong kế hoạch sản xuất đang active (Id = {activeProductionPlan.Id}).");
+                $"Công đoạn của trạm Id = {workStationId} chưa được cấu hình trong kế hoạch sản xuất Id = {activeProductionPlan.Id}.");
         }
 
         var scanRepository = _unitOfWork.Repository<Scan>();
@@ -107,6 +124,18 @@ public class ScanService : IScanService
         // US-08 AC4: qua đủ 2 bước kiểm tra -> ghi nhận OK.
         var okScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.Ok, rejectionReason: null, nowUtc);
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
+
+        // US-05a AC5: tự động Completed khi số lượt scan OK (tính động, gồm cả lượt vừa lưu) đạt đủ số lượng kế hoạch.
+        var runCount = (await scanRepository.FindAsync(
+            s => s.ProductionPlanId == activeProductionPlan.Id && s.StageId == workStation.StageId && s.Result == ScanResult.Ok,
+            cancellationToken)).Count;
+
+        if (runCount >= activeProductionPlan.PlannedQuantity)
+        {
+            runningPlanStage.PlanStatus = PlanStatus.Completed;
+            productionPlanStageRepository.Update(runningPlanStage);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         // US-07 AC2/AC3: bắn sự kiện real-time cho trạm CHỈ khi lượt scan OK — hạ tầng để Station.Wpf tương lai
         // subscribe (UI thật hiển thị tại trạm chưa triển khai ở đợt US-07/US-08 này, xem báo cáo bàn giao).

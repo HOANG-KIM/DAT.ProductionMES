@@ -3,18 +3,22 @@ using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.ProductionPlans;
 using ProductionMES.Application.Services.ProductionPlans;
 using ProductionMES.Domain.Entities;
+using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
 
 namespace ProductionMES.Application.Tests.Services;
 
 /// <summary>
-/// Unit test cho ProductionPlanService, bám theo AC1-AC3 của US-05 và AC1 của US-06
-/// (Documents/BACKLOG-user-story.md).
+/// Unit test cho ProductionPlanService, bám theo AC1/AC2/AC4/AC5 của US-05 và AC1 của US-06
+/// (Documents/BACKLOG-user-story.md, cập nhật 13/08/2026). AC1 (US-05a — ràng buộc active theo cặp Line/Công
+/// đoạn) và AC5 (US-05a — đóng sớm) được kiểm thử ở ProductionPlanStageServiceTests, vì vòng đời trạng thái nay
+/// thuộc entity ProductionPlanStage.
 /// </summary>
 public class ProductionPlanServiceTests
 {
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
     private readonly Mock<IRepository<Line>> _lineRepositoryMock = new();
+    private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly ProductionPlanService _sut;
 
@@ -22,31 +26,53 @@ public class ProductionPlanServiceTests
     {
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Line>()).Returns(_lineRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _sut = new ProductionPlanService(_unitOfWorkMock.Object);
 
         _lineRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Line { Id = 1, Name = "Line 1", IsActive = true });
+
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStage>());
     }
 
-    // AC1 — Tạo kế hoạch mới: kế hoạch được tạo, chưa active, có thể kích hoạt sau đó.
-    [Fact]
-    public async Task CreateAsync_LineDangHoatDong_TaoKeHoachChuaActive()
+    private static CreateProductionPlanRequest BuildValidCreateRequest(int lineId = 1) => new()
     {
-        var request = new CreateProductionPlanRequest
-        {
-            LineId = 1,
-            ProductCode = "SP001",
-            ProductName = "Sản phẩm A",
-            PlannedQuantity = 1000,
-            TaktTimeSeconds = 30,
-            Shift = "Ca 1",
-            EffectiveDate = new DateTime(2026, 8, 11),
-        };
+        LineId = lineId,
+        Customer = "Khách hàng A",
+        Model = "Model X",
+        Lot = "LOT001",
+        Revision = "A",
+        PlannedQuantity = 1000,
+        TaktTimeSeconds = 30,
+        StartTime = new DateTime(2026, 8, 11, 7, 30, 0),
+        OperatorNames = "Nguyễn Văn A, Trần Thị B",
+    };
+
+    // AC1 — Tạo kế hoạch mới: tự nhiên ở trạng thái Draft (chưa có ProductionPlanStage nào).
+    [Fact]
+    public async Task CreateAsync_LineDangHoatDong_TaoKeHoachThanhCong()
+    {
+        var request = BuildValidCreateRequest();
 
         var result = await _sut.CreateAsync(request);
 
-        Assert.False(result.IsActive);
-        _productionPlanRepositoryMock.Verify(r => r.AddAsync(It.Is<ProductionPlan>(k => !k.IsActive), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("Model X", result.Model);
+        Assert.Equal("LOT001", result.Lot);
+        _productionPlanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<ProductionPlan>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // AC2 — Revision để trống vẫn cho lưu bình thường.
+    [Fact]
+    public async Task CreateAsync_RevisionDeTrong_VanTaoThanhCong()
+    {
+        var request = BuildValidCreateRequest();
+        request.Revision = null;
+
+        var result = await _sut.CreateAsync(request);
+
+        Assert.Null(result.Revision);
     }
 
     [Fact]
@@ -55,7 +81,7 @@ public class ProductionPlanServiceTests
         _lineRepositoryMock.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Line { Id = 2, Name = "Line 2", IsActive = false });
 
-        var request = new CreateProductionPlanRequest { LineId = 2, ProductCode = "SP", ProductName = "SP", PlannedQuantity = 1, TaktTimeSeconds = 10, Shift = "Ca 1", EffectiveDate = DateTime.Today };
+        var request = BuildValidCreateRequest(2);
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request));
     }
@@ -63,82 +89,136 @@ public class ProductionPlanServiceTests
     [Fact]
     public async Task CreateAsync_LineKhongTonTai_NemEntityNotFoundException()
     {
-        var request = new CreateProductionPlanRequest { LineId = 99, ProductCode = "SP", ProductName = "SP", PlannedQuantity = 1, TaktTimeSeconds = 10, Shift = "Ca 1", EffectiveDate = DateTime.Today };
+        var request = BuildValidCreateRequest(99);
 
         await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateAsync(request));
     }
 
-    // AC2 — Một Line chỉ có 1 kế hoạch active tại 1 thời điểm.
+    // AC4 — Cập nhật kế hoạch chưa từng Running (Draft): tự do cập nhật, không cần Confirm.
     [Fact]
-    public async Task ActivateAsync_LineDaCoKeHoachActiveKhac_NemBusinessRuleException()
+    public async Task UpdateAsync_KeHoachDraftChuaCoCongDoanNaoRunning_CapNhatTuDoKhongCanConfirm()
     {
-        var newProductionPlan = new ProductionPlan { Id = 2, LineId = 1, TaktTimeSeconds = 30, IsActive = false };
-        var activeProductionPlan = new ProductionPlan { Id = 1, LineId = 1, TaktTimeSeconds = 20, IsActive = true };
-
-        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>())).ReturnsAsync(newProductionPlan);
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan> { activeProductionPlan });
-
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ActivateAsync(2));
-
-        Assert.False(newProductionPlan.IsActive);
-    }
-
-    [Fact]
-    public async Task ActivateAsync_LineChuaCoKeHoachActiveNao_KichHoatThanhCong()
-    {
-        var productionPlan = new ProductionPlan { Id = 1, LineId = 1, TaktTimeSeconds = 30, IsActive = false };
-
-        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(productionPlan);
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan>());
-
-        var result = await _sut.ActivateAsync(1);
-
-        Assert.True(result.IsActive);
-        _productionPlanRepositoryMock.Verify(r => r.Update(productionPlan), Times.Once);
-    }
-
-    // AC3 — Cập nhật kế hoạch: thông tin được cập nhật.
-    [Fact]
-    public async Task UpdateAsync_KeHoachDaTonTai_CapNhatThanhCong()
-    {
-        var existing = new ProductionPlan { Id = 1, LineId = 1, ProductCode = "SP001", ProductName = "Cũ", PlannedQuantity = 100, TaktTimeSeconds = 20, Shift = "Ca 1", EffectiveDate = DateTime.Today };
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "Cũ", Model = "Model cũ", Lot = "LOT-CU",
+            PlannedQuantity = 100, TaktTimeSeconds = 20, StartTime = DateTime.Today, OperatorNames = "A",
+        };
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
 
         var request = new UpdateProductionPlanRequest
         {
-            ProductCode = "SP002",
-            ProductName = "Mới",
+            Customer = "Mới",
+            Model = "Model mới",
+            Lot = "LOT-MOI",
             PlannedQuantity = 200,
             TaktTimeSeconds = 25,
-            Shift = "Ca 2",
-            EffectiveDate = DateTime.Today.AddDays(1),
+            StartTime = DateTime.Today.AddDays(1),
+            OperatorNames = "B",
+            Confirm = false,
         };
 
         var result = await _sut.UpdateAsync(1, request);
 
-        Assert.Equal("SP002", result.ProductCode);
+        Assert.Equal("Model mới", result.Model);
         Assert.Equal(200, result.PlannedQuantity);
         _productionPlanRepositoryMock.Verify(r => r.Update(existing), Times.Once);
+    }
+
+    // AC5 — Sửa Số lượng/Takt time khi đã có công đoạn Running/Paused mà chưa Confirm -> từ chối, cảnh báo rõ.
+    [Fact]
+    public async Task UpdateAsync_DoiSoLuongKhiCoCongDoanRunning_ChuaConfirm_NemBusinessRuleException()
+    {
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStage> { new() { Id = 1, ProductionPlanId = 1, StageId = 10, PlanStatus = PlanStatus.Running } });
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 500, // đổi số lượng
+            TaktTimeSeconds = 30,
+            StartTime = DateTime.Today,
+            OperatorNames = "A",
+            Confirm = false,
+        };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request));
+        _productionPlanRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlan>()), Times.Never);
+    }
+
+    // AC5 — Cùng tình huống trên nhưng đã Confirm = true -> cho phép cập nhật.
+    [Fact]
+    public async Task UpdateAsync_DoiSoLuongKhiCoCongDoanRunning_DaConfirm_CapNhatThanhCong()
+    {
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStage> { new() { Id = 1, ProductionPlanId = 1, StageId = 10, PlanStatus = PlanStatus.Running } });
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 500,
+            TaktTimeSeconds = 30,
+            StartTime = DateTime.Today,
+            OperatorNames = "A",
+            Confirm = true,
+        };
+
+        var result = await _sut.UpdateAsync(1, request);
+
+        Assert.Equal(500, result.PlannedQuantity);
+        _productionPlanRepositoryMock.Verify(r => r.Update(existing), Times.Once);
+    }
+
+    // AC5 (mặt trái): sửa các trường KHÔNG phải Số lượng/Takt time, dù có công đoạn Running -> không cần Confirm.
+    [Fact]
+    public async Task UpdateAsync_SuaTruongKhacKhongPhaiSoLuongHayTaktTime_KhongCanConfirmDuCoCongDoanRunning()
+    {
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStage> { new() { Id = 1, ProductionPlanId = 1, StageId = 10, PlanStatus = PlanStatus.Running } });
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "Khách hàng mới", // chỉ đổi Customer
+            Model = "M",
+            Lot = "L",
+            PlannedQuantity = 1000, // giữ nguyên
+            TaktTimeSeconds = 30, // giữ nguyên
+            StartTime = DateTime.Today,
+            OperatorNames = "A",
+            Confirm = false,
+        };
+
+        var result = await _sut.UpdateAsync(1, request);
+
+        Assert.Equal("Khách hàng mới", result.Customer);
     }
 
     // US-06/AC1 (AC-04 gốc): takt time = 30 giây -> sản lượng chuẩn = 120 sản phẩm/giờ.
     [Fact]
     public async Task CreateAsync_TaktTime30Giay_SanLuongChuanMoiGioLa120()
     {
-        var request = new CreateProductionPlanRequest
-        {
-            LineId = 1,
-            ProductCode = "SP001",
-            ProductName = "Sản phẩm A",
-            PlannedQuantity = 1000,
-            TaktTimeSeconds = 30,
-            Shift = "Ca 1",
-            EffectiveDate = DateTime.Today,
-        };
+        var request = BuildValidCreateRequest();
+        request.TaktTimeSeconds = 30;
 
         var result = await _sut.CreateAsync(request);
 

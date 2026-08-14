@@ -13,7 +13,8 @@ using ProductionMES.Domain.Exceptions;
 namespace ProductionMES.Application.Tests.Services;
 
 /// <summary>
-/// Unit test cho ScanService, bám theo AC-01 → AC-04 (mục 7 SRS) và AC1-AC5 của US-08 (Documents/BACKLOG-user-story.md).
+/// Unit test cho ScanService, bám theo AC-01 → AC-04 (mục 7 SRS), AC1-AC5 của US-08, và AC5 của US-05a (tự
+/// động Completed) (Documents/BACKLOG-user-story.md).
 /// </summary>
 public class ScanServiceTests
 {
@@ -22,6 +23,7 @@ public class ScanServiceTests
 
     private readonly Mock<IRepository<WorkStation>> _workStationRepositoryMock = new();
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
+    private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
@@ -29,10 +31,13 @@ public class ScanServiceTests
     private readonly Mock<IScanNotifier> _scanNotifierMock = new();
     private readonly ScanService _sut;
 
+    private List<Scan> _existingScans = new();
+
     public ScanServiceTests()
     {
         _unitOfWorkMock.Setup(u => u.Repository<WorkStation>()).Returns(_workStationRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
 
@@ -44,28 +49,66 @@ public class ScanServiceTests
             .ReturnsAsync(new Stage { Id = ThongDienStageId, Name = "Thông điện", IsActive = true });
 
         // Mô phỏng repository thật: FindAsync lọc trên "dữ liệu" hiện có trong _scanRepositoryMock (mặc định rỗng,
-        // từng test override qua SetupExistingScans).
+        // từng test override qua SetupExistingScans). AddAsync đẩy bản ghi mới vào cùng danh sách để các lượt
+        // FindAsync SAU đó (vd tính RunCount cho US-05a AC5) thấy được bản ghi vừa lưu.
         SetupExistingScans(new List<Scan>());
+
+        // Mặc định không có ProductionPlanStage nào Running — từng test override qua SetupRunningPlanStage.
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStage>());
     }
 
     /// <summary>Mô phỏng bảng Scan hiện có trong DB — FindAsync sẽ áp đúng predicate của ScanService lên danh sách này.</summary>
     private void SetupExistingScans(List<Scan> existingScans)
     {
+        _existingScans = existingScans;
+
         _scanRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Expression<Func<Scan, bool>> predicate, CancellationToken _) =>
-                existingScans.Where(predicate.Compile()).ToList());
+                _existingScans.Where(predicate.Compile()).ToList());
+
+        // Mô phỏng AddAsync ghi thật vào "DB" cục bộ này, để các FindAsync gọi SAU (vd tính RunCount cho US-05a
+        // AC5, thực hiện SAU khi lượt scan OK vừa được lưu) thấy đúng bản ghi vừa thêm.
+        _scanRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()))
+            .Callback((Scan scan, CancellationToken _) => _existingScans.Add(scan))
+            .Returns(Task.CompletedTask);
     }
 
-    /// <summary>Cấu hình trạm Line2/Thông điện, kế hoạch active Id=2, công đoạn "Thông điện" liền sau "Lắp ráp" (Sequence 2, Previous = LapRapStageId).</summary>
+    /// <summary>
+    /// Cấu hình 1 ProductionPlanStage đang Running cho (lineId, stageId), thuộc kế hoạch productionPlanId — mô
+    /// phỏng "kế hoạch active của trạm" theo model mới (US-05a). plannedQuantity mặc định rất lớn để không vô
+    /// tình kích hoạt auto-Completed (US-05a AC5) ở các test không liên quan.
+    /// </summary>
+    private void SetupRunningPlanStage(int lineId, int stageId, int productionPlanId, int plannedQuantity = 1_000_000)
+    {
+        var runningPlanStage = new ProductionPlanStage
+        {
+            Id = productionPlanId * 1000 + stageId,
+            ProductionPlanId = productionPlanId,
+            StageId = stageId,
+            LineId = lineId,
+            PlanStatus = PlanStatus.Running,
+        };
+
+        _productionPlanStageRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<ProductionPlanStage, bool>> predicate, CancellationToken _) =>
+                new List<ProductionPlanStage> { runningPlanStage }.Where(predicate.Compile()).ToList());
+
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(productionPlanId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductionPlan { Id = productionPlanId, LineId = lineId, PlannedQuantity = plannedQuantity });
+    }
+
+    /// <summary>Cấu hình trạm Line2/Thông điện, kế hoạch Running Id=2, công đoạn "Thông điện" liền sau "Lắp ráp" (Sequence 2, Previous = LapRapStageId).</summary>
     private void SetupLine2ThongDienVoiCongDoanLienTruocLaLapRap()
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 2, LineId = 2, StageId = ThongDienStageId, Name = "Trạm Thông điện Line 2" });
 
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan> { new() { Id = 2, LineId = 2, IsActive = true } });
+        SetupRunningPlanStage(lineId: 2, stageId: ThongDienStageId, productionPlanId: 2);
 
         _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStageDto>
@@ -82,9 +125,7 @@ public class ScanServiceTests
         // Trạm Line 2, công đoạn Lắp ráp (StageId trùng với công đoạn tem A đã OK ở Line 1) — công đoạn đầu tiên (không có liền trước).
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(3, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 3, LineId = 2, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 2" });
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan> { new() { Id = 2, LineId = 2, IsActive = true } });
+        SetupRunningPlanStage(lineId: 2, stageId: LapRapStageId, productionPlanId: 2);
         _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStageDto>
             {
@@ -144,9 +185,7 @@ public class ScanServiceTests
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 1" });
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan> { new() { Id = 1, LineId = 1, IsActive = true } });
+        SetupRunningPlanStage(lineId: 1, stageId: LapRapStageId, productionPlanId: 1);
         _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStageDto>
             {
@@ -156,19 +195,18 @@ public class ScanServiceTests
         var result = await _sut.CreateAsync(1, "C");
 
         Assert.Equal(ScanResult.Ok, result.Result);
-        // Không truy vấn kiểm tra công đoạn liền trước vì PreviousStageId = null -> chỉ 1 lần FindAsync (bước chống trùng tem).
-        _scanRepositoryMock.Verify(r => r.FindAsync(It.IsAny<Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()), Times.Once);
+        // Không truy vấn kiểm tra công đoạn liền trước vì PreviousStageId = null -> chỉ 1 lần FindAsync (bước chống trùng tem)
+        // + 1 lần FindAsync tính RunCount cho US-05a AC5 = 2 lần.
+        _scanRepositoryMock.Verify(r => r.FindAsync(It.IsAny<Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
-    // Không có kế hoạch active trên Line của trạm -> lỗi rõ ràng (BusinessRuleException), không NullReference.
+    // Không có kế hoạch nào Running cho (Line, Công đoạn) của trạm -> lỗi rõ ràng (BusinessRuleException), không NullReference.
     [Fact]
-    public async Task CreateAsync_LineKhongCoKeHoachActive_NemBusinessRuleException()
+    public async Task CreateAsync_KhongCoKeHoachNaoRunningChoLineCongDoanCuaTram_NemBusinessRuleException()
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(5, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 5, LineId = 9, StageId = LapRapStageId, Name = "Trạm chưa có kế hoạch" });
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan>());
+        // Mặc định (constructor) productionPlanStageRepository trả về rỗng -> không có Running nào.
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(5, "D"));
         _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -183,15 +221,14 @@ public class ScanServiceTests
         await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateAsync(999, "E"));
     }
 
-    // Công đoạn của trạm chưa được cấu hình trong kế hoạch active -> lỗi rõ ràng (BusinessRuleException), không lưu Scan.
+    // Dữ liệu bất nhất (phòng vệ): có ProductionPlanStage Running cho (Line, Công đoạn) của trạm, nhưng
+    // GetByProductionPlanAsync (mock riêng) lại không trả về đúng công đoạn đó -> lỗi rõ ràng, không lưu Scan.
     [Fact]
-    public async Task CreateAsync_CongDoanTramChuaCauHinhTrongKeHoachActive_NemBusinessRuleException()
+    public async Task CreateAsync_DuLieuBatNhatKhongTimThayCauHinhCongDoan_NemBusinessRuleException()
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(6, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 6, LineId = 1, StageId = ThongDienStageId, Name = "Trạm chưa cấu hình" });
-        _productionPlanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ProductionPlan> { new() { Id = 1, LineId = 1, IsActive = true } });
+        SetupRunningPlanStage(lineId: 1, stageId: ThongDienStageId, productionPlanId: 1);
         _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStageDto>
             {
@@ -200,5 +237,49 @@ public class ScanServiceTests
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(6, "F"));
         _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // US-05a AC5 — Lượt scan OK làm đủ số lượng kế hoạch -> tự động chuyển ProductionPlanStage sang Completed.
+    [Fact]
+    public async Task CreateAsync_ScanOkLamDuSoLuongKeHoach_TuDongChuyenCompleted()
+    {
+        _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 1" });
+        // PlannedQuantity = 5, đã có sẵn 4 lượt scan OK -> lượt scan thứ 5 này sẽ đủ số lượng.
+        SetupRunningPlanStage(lineId: 1, stageId: LapRapStageId, productionPlanId: 1, plannedQuantity: 5);
+        _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStageDto>
+            {
+                new() { Id = 1, ProductionPlanId = 1, StageId = LapRapStageId, SequenceNumber = 1, PreviousStageId = null },
+            });
+        SetupExistingScans(Enumerable.Range(1, 4)
+            .Select(i => new Scan { TagCode = $"TAG{i}", StageId = LapRapStageId, LineId = 1, ProductionPlanId = 1, Result = ScanResult.Ok })
+            .ToList());
+
+        var result = await _sut.CreateAsync(1, "TAG5");
+
+        Assert.Equal(ScanResult.Ok, result.Result);
+        _productionPlanStageRepositoryMock.Verify(
+            r => r.Update(It.Is<ProductionPlanStage>(x => x.ProductionPlanId == 1 && x.StageId == LapRapStageId && x.PlanStatus == PlanStatus.Completed)),
+            Times.Once);
+    }
+
+    // US-05a AC5 (mặt trái) — Scan OK nhưng CHƯA đủ số lượng -> KHÔNG chuyển Completed.
+    [Fact]
+    public async Task CreateAsync_ScanOkChuaDuSoLuongKeHoach_KhongChuyenCompleted()
+    {
+        _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 1" });
+        SetupRunningPlanStage(lineId: 1, stageId: LapRapStageId, productionPlanId: 1, plannedQuantity: 100);
+        _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ProductionPlanStageDto>
+            {
+                new() { Id = 1, ProductionPlanId = 1, StageId = LapRapStageId, SequenceNumber = 1, PreviousStageId = null },
+            });
+
+        var result = await _sut.CreateAsync(1, "TAG1");
+
+        Assert.Equal(ScanResult.Ok, result.Result);
+        _productionPlanStageRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlanStage>()), Times.Never);
     }
 }

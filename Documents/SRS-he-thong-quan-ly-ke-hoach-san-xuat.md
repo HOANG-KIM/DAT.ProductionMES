@@ -40,6 +40,7 @@ Phạm vi **không bao gồm** (trừ khi có yêu cầu bổ sung riêng):
 | Takt time | Thời gian tiêu chuẩn (giây) để hoàn thành 1 sản phẩm tại 1 công đoạn, dùng làm cơ sở tính sản lượng/giờ |
 | Kế hoạch sản xuất | Kế hoạch cho 1 lô/ca sản xuất trên 1 Line cụ thể, gồm sản phẩm, số lượng mục tiêu, takt time |
 | Chỉ số âm/dương | Chênh lệch giữa sản lượng thực tế lũy kế và sản lượng kế hoạch lũy kế tại một thời điểm |
+| Khung giờ nghỉ | Khoảng thời gian (giờ bắt đầu–giờ kết thúc) không sản xuất, cấu hình theo từng Line (vd nghỉ trưa 12:00–13:00, nghỉ giữa giờ) — dùng để tính đúng sản lượng kế hoạch lũy kế (xem FR-01, FR-09a) |
 
 ### 1.4 Tài liệu tham chiếu
 Tài liệu thiết kế kiến trúc hệ thống (kèm sơ đồ, schema CSDL, các interface chính) đã được thống nhất trong quá trình trao đổi trước SRS này — dùng làm tài liệu kỹ thuật đi kèm, không lặp lại chi tiết trong SRS.
@@ -75,6 +76,7 @@ Một server trung tâm (Web API + MySQL) phục vụ toàn bộ nhà máy, gồ
 **FR-01 — Quản lý danh mục Line**
 - Thêm/sửa/vô hiệu hóa Line sản xuất.
 - Mỗi Line có tên, mô tả, trạng thái hoạt động.
+- Mỗi Line có thể cấu hình **0 hoặc nhiều khung giờ nghỉ** (giờ bắt đầu, giờ kết thúc, ghi chú — vd nghỉ trưa 12:00–13:00, nghỉ giữa giờ 15:00–15:15). Khung giờ nghỉ áp dụng chung cho **mọi kế hoạch sản xuất chạy trên Line đó** (không cấu hình riêng theo từng kế hoạch), dùng làm cơ sở tính sản lượng kế hoạch lũy kế tại FR-09a.
 
 **FR-02 — Quản lý danh mục Công đoạn (master)**
 - Thêm/sửa/vô hiệu hóa công đoạn dùng chung cho toàn hệ thống (vd: Lắp ráp, Thông điện, Ngoại quan).
@@ -95,8 +97,18 @@ Một server trung tâm (Web API + MySQL) phục vụ toàn bộ nhà máy, gồ
 ### 3.2 Nhóm chức năng: Kế hoạch sản xuất
 
 **FR-05 — Tạo/cập nhật kế hoạch sản xuất**
-- Nhập: Line áp dụng, mã & tên sản phẩm, số lượng kế hoạch, takt time (giây/sản phẩm), ca làm việc, ngày áp dụng.
-- Một Line trong một thời điểm chỉ có 1 kế hoạch đang active (tránh nhầm lẫn khi tính sản lượng).
+- Nhập: Line áp dụng, Khách hàng, Model (thay thế cặp `ProductCode`/`ProductName` cũ — gộp thành 1 cột duy nhất), Lot, Revision (có thể để trống), số lượng kế hoạch (theo Lot), takt time (giây/sản phẩm), thời gian bắt đầu (ngày + giờ), tên nhân viên vận hành tại trạm/công đoạn phụ trách lô này (có thể nhiều người — không phải người đăng nhập thao tác màn hình cấu hình, vốn đã có audit riêng theo tài khoản).
+- Khi nhập takt time, hệ thống hiển thị ngay sản lượng chuẩn/giờ tính theo FR-06 để người dùng phát hiện sớm lỗi nhập liệu trước khi lưu.
+- Một cặp **(Line, Công đoạn)** trong một thời điểm chỉ có tối đa 1 kế hoạch ở trạng thái `Running` (xem FR-05a) — tránh nhầm lẫn khi tính sản lượng. **Không** ràng buộc theo cả Line: các công đoạn khác nhau của cùng 1 Line được phép chạy các kế hoạch khác nhau cùng lúc, vì thực tế dây chuyền luôn có WIP (bán thành phẩm tồn) giữa các công đoạn khiến công đoạn sau "đi trễ hơn" công đoạn trước.
+
+**FR-05a — Vòng đời trạng thái kế hoạch sản xuất (tạm dừng — chạy lại nhiều lần, đóng độc lập theo từng công đoạn)**
+- Phát sinh từ tình huống thực tế: 1 kế hoạch (lot) có thể chạy dở rồi tạm ngưng (đổi Line/trạm sang việc khác), sau đó chạy tiếp lại vào thời điểm khác — cần phân biệt rõ với kế hoạch đã hoàn thành, tránh chạy nhầm lại từ đầu số lượng gốc.
+- **Mỗi cặp (Kế hoạch, Công đoạn) có trạng thái riêng độc lập**: `Draft` (chưa từng chạy) → `Running` (đang active) ⇄ `Paused` (tạm dừng, chưa đủ số lượng) → `Completed` (đã đủ số lượng) hoặc `Cancelled` (đóng sớm dù chưa đủ, do quyết định nghiệp vụ) — vì các công đoạn của cùng 1 kế hoạch hoàn thành ở thời điểm khác nhau. Ví dụ: kế hoạch áp dụng cho công đoạn A, B, C — công đoạn A chạy đủ số lượng thì **A tự động đóng `Completed` ngay**, trong khi B, C vẫn tiếp tục `Running`/`Paused` độc lập cho tới khi đủ số lượng riêng của từng công đoạn.
+- Tự động chuyển `Completed` khi số lượng đã chạy (tính động) tại đúng công đoạn đó đạt đủ `PlannedQuantity`; **đồng thời** cho phép Tổ trưởng đóng sớm thủ công (`→ Cancelled`) cho 1 công đoạn cụ thể dù chưa đủ số lượng — cả 2 cơ chế cùng tồn tại.
+- **"Đã chạy" / "còn lại" luôn tính động** từ lịch sử scan kết quả OK theo cặp (kế hoạch, công đoạn) — không lưu số liệu tĩnh cộng dồn, tránh lệch dữ liệu khi có rework/scan hủy.
+- 2 hành động tách riêng khi ngừng chạy 1 công đoạn của kế hoạch: **"Tạm dừng"** (`Running → Paused`, có thể "Áp dụng" lại bất kỳ lúc nào, tiến độ được giữ nguyên vì tính động) và **"Đóng kế hoạch"** (`→ Completed`/`Cancelled`, yêu cầu xác nhận nếu số lượng thực tế còn thấp hơn kế hoạch).
+- Màn hình chọn kế hoạch (mục 5.2) hiển thị rõ tiến độ cho từng cặp (Kế hoạch, Công đoạn) đang `Paused` (vd `Đã chạy 400/1000 — còn 600`), mặc định ẩn khỏi danh sách chọn các cặp đã `Completed`/`Cancelled`.
+- **Đã chốt phạm vi ràng buộc active**: theo cặp **(Line, Công đoạn)**, không theo cả Line (xem FR-05 đã cập nhật) — công đoạn A của 1 Line có thể đang `Running` kế hoạch mới trong khi công đoạn B, C của cùng Line vẫn `Running`/`Paused` kế hoạch cũ, đúng thực tế dây chuyền có WIP giữa các trạm.
 
 **FR-06 — Tính sản lượng chuẩn theo giờ**
 - Hệ thống tự tính: `Sản lượng/giờ = 3600 / Takt time`.
@@ -124,6 +136,12 @@ Khi nhận 1 lượt scan, hệ thống thực hiện tuần tự:
 - Màn hình trạm hiển thị: số lượng đã scan OK (lũy kế theo ca/kế hoạch hiện tại), sản lượng kế hoạch lũy kế đến thời điểm hiện tại, và **chênh lệch (Thực tế − Kế hoạch)**.
 - Chênh lệch dương → hiển thị màu xanh (vượt tiến độ); âm → hiển thị màu đỏ (trễ tiến độ).
 - Giá trị cập nhật ngay khi có lượt scan mới (real-time), không cần thao tác làm mới thủ công.
+
+**FR-09a — Trừ thời gian nghỉ khi tính sản lượng kế hoạch lũy kế**
+- Sản lượng kế hoạch lũy kế tại FR-09 = Sản lượng chuẩn/giờ (FR-06, `3600 / Takt time`) × **thời gian làm việc thực tế** đã trôi qua kể từ giờ bắt đầu ca, sau khi **trừ đi phần giao với các khung giờ nghỉ đã cấu hình cho Line** (FR-01) tính đến thời điểm hiện tại.
+- Trong lúc đang ở trong 1 khung giờ nghỉ, sản lượng kế hoạch lũy kế **dừng tăng**, giữ nguyên giá trị tại thời điểm bắt đầu khung giờ nghỉ đó; sau khi hết nghỉ, tính tiếp bình thường theo thời gian làm việc thực tế.
+- Áp dụng cho cả bảng theo dõi theo mốc giờ tại màn hình trạm: nếu 1 mốc giờ hiển thị rơi vào khung giờ nghỉ, mốc đó **vẫn hiển thị** trên bảng nhưng cột PLAN lũy kế giữ nguyên bằng giá trị tại thời điểm bắt đầu nghỉ (không cộng thêm cho tới khi hết khung giờ nghỉ).
+- Quy tắc này **không thay đổi công thức sản lượng chuẩn/giờ gốc tại FR-06** — chỉ ảnh hưởng cách tính lũy kế theo thời gian thực tế đã trôi qua.
 
 **FR-10 — Lưu lịch sử scan**
 - Mọi lượt scan (kể cả lượt bị từ chối/lỗi) được lưu lại: mã tem, thời gian, trạm, công đoạn, Line, kế hoạch, kết quả (OK/Trùng tem/Chưa qua công đoạn trước), người thao tác.
@@ -265,6 +283,9 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 8. Khi tắt/mở lại ứng dụng (bình thường hoặc do crash/mất điện), phải khôi phục lại đúng trạng thái phiên làm việc (kế hoạch, số lượng, chỉ số +/-) và **không được mất bất kỳ lượt scan nào** đã thực hiện trước khi tắt, kể cả lượt chưa kịp gửi lên server — xử lý bằng hàng đợi cục bộ ghi trước (FR-16), hiển thị rõ trạng thái "Chờ đồng bộ" cho các lượt chưa được server xác nhận.
 9. Sản phẩm bị đánh giá NG về chất lượng phải được **chủ động scan NG kèm lý do lỗi** (không phải hệ thống tự suy luận), bị khóa lại tại công đoạn đó, và chỉ được scan lại sau khi **Tổ trưởng xác nhận mở khóa rework** — không giới hạn số lần lặp lại. Toàn bộ lịch sử các lần NG/OK tại cùng công đoạn đều được lưu lại, không ghi đè.
 10. Với công đoạn có Arduino làm thiết bị kiểm tra tự động (bật/tắt theo từng trạm): công nhân **scan tem trước**, sau đó chờ Arduino gửi tín hiệu "OK" (Arduino không chủ động gửi NG). Nếu hết thời gian timeout (mặc định 45 giây) mà không nhận được OK, hệ thống **suy luận là NG**, nhưng **không tự động lưu** — cần **Tổ trưởng xác nhận ngay tại trạm** để lưu NG hoặc hủy kiểm tra lại. Về vật lý, chỉ có tối đa 1 sản phẩm được kiểm tra tại 1 thời điểm (không có hàng đợi nhiều kết quả).
+11. Mỗi Line có thể cấu hình **khung giờ nghỉ riêng** (nghỉ trưa, nghỉ giữa giờ…), áp dụng chung cho mọi kế hoạch chạy trên Line đó (FR-01). Sản lượng kế hoạch lũy kế hiển thị tại màn hình trạm **dừng tăng trong lúc nghỉ**, tính tiếp sau khi hết nghỉ (FR-09a) — không ảnh hưởng đến công thức sản lượng chuẩn/giờ gốc (FR-06).
+12. Mỗi cặp (Kế hoạch, Công đoạn) có vòng đời trạng thái riêng `Draft/Running/Paused/Completed/Cancelled` (FR-05a) thay vì 1 cờ bật/tắt chung cho cả kế hoạch — cho phép tạm dừng và chạy lại nhiều lần mà không mất/nhầm tiến độ (tính động từ lịch sử scan OK), đồng thời cho phép từng công đoạn của cùng 1 kế hoạch **đóng độc lập** (vd công đoạn A chạy đủ số lượng thì tự đóng `Completed` dù công đoạn B, C của cùng kế hoạch chưa đủ). Ràng buộc "1 kế hoạch `Running` tại 1 thời điểm" (FR-05) áp dụng theo cặp **(Line, Công đoạn)**, không theo cả Line — công đoạn A của 1 Line được phép chuyển sang kế hoạch mới trong khi công đoạn B, C của cùng Line vẫn đang chạy/tạm dừng kế hoạch cũ, đúng thực tế dây chuyền có WIP giữa các trạm.
+13. Tổ trưởng có thể cấu hình/áp dụng kế hoạch cho **bất kỳ công đoạn nào cùng Line**, không giới hạn theo công đoạn vật lý của trạm đang thao tác — màn hình "Chọn kế hoạch" (mục 5.2) cho chọn Công đoạn độc lập với công đoạn của trạm hiện tại, phục vụ Tổ trưởng quản lý nhiều công đoạn từ 1 vị trí.
 
 ---
 
@@ -297,6 +318,11 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 | AC-20 | Trạm có `SuDungArduino = false` | Hoạt động hoàn toàn theo luồng scan thủ công bình thường (FR-07/FR-08/FR-18), không có bước chờ Arduino |
 | AC-21 | Mất mạng/server tạm ngưng trong lúc trạm đang có nhiều bản ghi ở trạng thái "Chờ gửi" | Không chặn scan; tiến trình nền tiếp tục thử gửi lại định kỳ; khi kết nối phục hồi, toàn bộ bản ghi tồn đọng tự động đồng bộ theo đúng thứ tự thời gian, không cần thao tác thủ công |
 | AC-22 | Xuất báo cáo tổng hợp theo bộ lọc đã chọn | Tải về file Excel (.xlsx) đúng dữ liệu đã lọc |
+| AC-24 | Line có cấu hình nghỉ trưa 12:00–13:00, thời điểm hiện tại đang trong khung giờ này | Sản lượng kế hoạch lũy kế trên màn hình trạm giữ nguyên giá trị tại 12:00, không tăng thêm cho tới 13:00 |
+| AC-25 | Bảng theo dõi theo giờ tại màn hình trạm có mốc 12:35 (nằm trong khung nghỉ trưa 12:00–13:00) | Dòng 12:35 vẫn hiển thị bình thường; cột PLAN = giá trị lũy kế tại 12:00 (không cộng thêm phần rơi vào giờ nghỉ) |
+| AC-26 | Kế hoạch Lot A (SL 1000) đang `Running`, đã scan OK 400 sản phẩm tại công đoạn X, Tổ trưởng bấm "Tạm dừng" | Kế hoạch chuyển `Paused`, không mất tiến độ; Line có thể Áp dụng kế hoạch khác |
+| AC-27 | Vài ngày sau, Tổ trưởng mở màn hình "Chọn kế hoạch", chọn lại Lot A (đang `Paused`) | Hiển thị rõ "Đã chạy 400/1000 — còn 600" (tính động từ lịch sử scan OK), không hiển thị nhầm như còn nguyên 1000 |
+| AC-28 | Tổ trưởng bấm "Đóng kế hoạch" cho 1 lot đang `Paused` chưa đủ số lượng | Hệ thống yêu cầu xác nhận trước khi chuyển sang `Cancelled`, nêu rõ số lượng còn thiếu |
 
 ---
 
@@ -319,10 +345,20 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 - Cách kích hoạt Chế độ Scan NG: giữ **cả 2 phương án** (nút bấm cho trạm có màn hình cảm ứng/chuột, mã vạch NG cố định cho trạm chỉ có đầu đọc mã vạch) — Admin cấu hình theo từng trạm tùy hạ tầng thực tế.
 - Các giá trị timeout (Chế độ Scan NG 30s, chờ Arduino 45s) **cấu hình qua file cấu hình cục bộ tại từng trạm** (ví dụ `appsettings.json`), không phải cấu hình tập trung ở Admin/server — cho phép chỉnh riêng theo từng trạm mà không cần deploy lại hay phụ thuộc kết nối server.
 - **Nền tảng UI cho ứng dụng trạm làm việc: WPF (kèm mẫu kiến trúc MVVM), không dùng WinForms** — quyết định kiến trúc chính thức, xem chi tiết bối cảnh và lý do tại `ADR-001-lua-chon-wpf-hay-winforms.md`.
+- **Thời gian nghỉ cấu hình theo từng Line** (không theo từng kế hoạch/ca) — áp dụng chung cho mọi kế hoạch chạy trên Line đó. Chỉ ảnh hưởng cách tính sản lượng kế hoạch lũy kế hiển thị tại màn hình trạm (dừng tăng trong lúc nghỉ, tính tiếp sau khi hết nghỉ), không thay đổi công thức sản lượng chuẩn/giờ gốc (FR-06) — xem FR-01, FR-09a, mục 6 quy tắc 11.
+- Trường "Ca làm việc" (Shift) tại màn hình Cài đặt kế hoạch: **không cần** — Lot + Thời gian bắt đầu đã đủ xác định phiên chạy, đã bỏ khỏi FR-05.
+- Trường "Tên nhân viên" tại màn hình Cài đặt kế hoạch: là **danh sách nhân viên vận hành tại trạm/công đoạn phụ trách lô đó** (có thể nhiều người), không phải người đăng nhập thao tác màn hình cấu hình — audit thao tác cấu hình vẫn theo tài khoản đăng nhập riêng (ADR-005).
+- Màn hình Cài đặt kế hoạch hiển thị **ngay sản lượng chuẩn/giờ** (FR-06) khi nhập takt time, không cần đợi qua màn hình trạm mới thấy — giúp phát hiện sớm lỗi nhập liệu.
+- Kế hoạch sản xuất có **vòng đời trạng thái** `Draft/Running/Paused/Completed/Cancelled` (không phải cờ bật/tắt đơn giản), cho phép tạm dừng và chạy lại nhiều lần; "đã chạy/còn lại" luôn tính động từ lịch sử scan OK theo cặp (kế hoạch, công đoạn) — xem FR-05a, mục 6 quy tắc 12.
+- Combobox "Công đoạn" tại màn hình Chọn kế hoạch **giữ nguyên** (không lược bỏ) — mục đích để Tổ trưởng cấu hình/áp dụng kế hoạch cho các công đoạn khác cùng Line, không giới hạn theo công đoạn vật lý của trạm đang thao tác — xem mục 6 quy tắc 13.
+- **Số lượng Line thực tế: nhiều hơn 2 Line** — chưa có con số/danh sách công đoạn chính xác từng Line (vẫn cần khảo sát tại xưởng, xem mục 8.2), nhưng đã đủ để loại trừ giả định "2 Line" khi ước lượng hạ tầng.
+- **Công đoạn dùng Arduino hiện tại: chỉ có Thông điện**, chưa có công đoạn nào khác — chỉ cần cấu hình `SuDungArduino = true` cho các trạm Thông điện ở giai đoạn triển khai đầu.
+- **Không cần toàn bộ máy scan cùng 1 model** — thiết kế đã dựa vào VendorID/ProductID đọc trực tiếp qua HID (mục 5.1), không phụ thuộc model cụ thể; chỉ cần xác định đúng VID/PID của từng thiết bị Zebra thực tế khi cấu hình từng trạm, khác model không ảnh hưởng thiết kế.
+- **"Model" ở màn hình Cài đặt kế hoạch thay thế hẳn cặp `ProductCode`/`ProductName`** cũ (dư thừa) — gộp thành 1 cột duy nhất (đã cập nhật FR-05).
+- Kế hoạch chuyển `Completed` **theo cả 2 cơ chế**: tự động khi đủ số lượng, **và** cho phép Tổ trưởng đóng sớm thủ công — áp dụng **độc lập theo từng công đoạn** trong cùng 1 kế hoạch, không chờ tất cả công đoạn cùng hoàn thành (đã cập nhật FR-05a, mục 6 quy tắc 12).
+- Ràng buộc "1 kế hoạch `Running` tại 1 thời điểm" áp dụng theo cặp **(Line, Công đoạn)**, không theo cả Line — các công đoạn khác nhau của cùng 1 Line được chạy kế hoạch khác nhau cùng lúc, đúng thực tế dây chuyền có WIP giữa các trạm (đã cập nhật FR-05, FR-05a). Đây là thay đổi so với ràng buộc gốc (chỉ theo `LineId`) — cần sửa ràng buộc unique trong `ProductionPlanService` sang theo `(LineId, StageId)` khi triển khai.
 
 ### 8.2 Còn cần xác nhận trước khi phát triển
 
-- [ ] Số lượng Line thực tế và danh sách công đoạn cụ thể từng Line — cần khảo sát tại xưởng trước khi cấu hình hệ thống lần đầu.
-- [ ] Danh sách công đoạn cụ thể nào sẽ kết nối Arduino (ngoài Thông điện) — để xác định số lượng trạm cần cấu hình `SuDungArduino = true` và chuẩn bị phần cứng tương ứng.
-- [ ] Model máy scan có phải toàn bộ đều là Zebra DS2208, hay có model khác tại một số trạm — cần xác nhận đồng nhất để đảm bảo thiết kế HID áp dụng được cho tất cả các trạm.
-- [ ] Nội dung cụ thể cần có trong báo cáo Excel (FR-23) — các cột dữ liệu, cách nhóm/tổng hợp — để thiết kế đúng mẫu báo cáo khi phát triển.
+- [ ] Danh sách công đoạn cụ thể + số lượng chính xác từng Line (đã biết có nhiều hơn 2 Line) — cần khảo sát tại xưởng trước khi cấu hình hệ thống lần đầu.
+- [ ] Nội dung cụ thể cần có trong báo cáo Excel (FR-23) — các cột dữ liệu, cách nhóm/tổng hợp — khách hàng sẽ chốt sau, để thiết kế đúng mẫu báo cáo khi phát triển.
