@@ -24,10 +24,11 @@ public static class TaktTimeFormat
     }
 
     /// <summary>
-    /// Quy đổi số giây sang chuỗi hiển thị dài "mm phút ss giây" (vd "01 phút 00 giây") — dùng cho màn hình CHỈ
-    /// ĐỌC (Andon board, US-09) để tránh nhầm giữa phút/giây như định dạng "m:ss" ngắn gọn của <see cref="ToDisplay"/>.
-    /// KHÔNG dùng cho luồng nhập liệu (giữ nguyên <see cref="ToDisplay"/>/<see cref="TryParse"/> cho <c>PlanSettingsPage</c>,
-    /// đổi định dạng ở đó sẽ phá luồng round-trip hiển thị → nhập → parse lại đã có từ US-05 AC1e).
+    /// Quy đổi số giây sang chuỗi hiển thị dài "mm m ss" (vd "01 m 00", cả phút lẫn giây đều zero-pad 2 chữ số) —
+    /// dùng cho màn hình CHỈ ĐỌC (Andon board, US-09) để tránh nhầm giữa phút/giây như định dạng "m:ss" ngắn gọn
+    /// của <see cref="ToDisplay"/>. KHÔNG dùng cho luồng nhập liệu (giữ nguyên <see cref="ToDisplay"/>/
+    /// <see cref="TryParse"/> cho <c>PlanSettingsPage</c>, đổi định dạng ở đó sẽ phá luồng round-trip hiển thị →
+    /// nhập → parse lại đã có từ US-05 AC1e).
     /// </summary>
     public static string ToVerboseDisplay(decimal seconds)
     {
@@ -39,7 +40,7 @@ public static class TaktTimeFormat
 
         var minutes = totalSeconds / 60;
         var secondsPart = totalSeconds % 60;
-        return $"{minutes:D2} phút {secondsPart:D2} giây";
+        return $"{minutes:D2} m {secondsPart:D2}";
     }
 
     /// <summary>
