@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using ProductionMES.Station.Wpf.Models;
 using ProductionMES.Station.Wpf.ViewModels;
 
 namespace ProductionMES.Station.Wpf.Views.Pages;
@@ -35,5 +36,32 @@ public partial class PlanSettingsPage : Page
     private void LineStageSequenceButton_Click(object sender, RoutedEventArgs e)
     {
         ((MainWindow)Window.GetWindow(this)!).NavigateToLineStageSequence();
+    }
+
+    /// <summary>
+    /// US-05 AC1e "Ngoại lệ khi xoá trắng": nếu ô Takt time bị xoá trắng và mất focus mà không nhập lại gì, tự
+    /// phục hồi về giá trị mặc định thay vì để trống. Set lại <c>Text</c> sẽ tự đẩy ngược vào
+    /// <see cref="ViewModels.PlanSettingsViewModel.TaktTimeDisplay"/> qua binding (đã UpdateSourceTrigger=PropertyChanged).
+    /// </summary>
+    private void TaktTimeTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var textBox = (TextBox)sender;
+        if (string.IsNullOrWhiteSpace(textBox.Text))
+        {
+            textBox.Text = TaktTimeFormat.ToDisplay(0);
+        }
+    }
+
+    /// <summary>
+    /// US-05 AC1d "Ngoại lệ khi xoá trắng": tương tự <see cref="TaktTimeTextBox_LostFocus"/>, áp dụng cho ô
+    /// Giờ:Phút của Thời gian bắt đầu.
+    /// </summary>
+    private void StartTimeOfDayTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var textBox = (TextBox)sender;
+        if (string.IsNullOrWhiteSpace(textBox.Text))
+        {
+            textBox.Text = "00:00";
+        }
     }
 }

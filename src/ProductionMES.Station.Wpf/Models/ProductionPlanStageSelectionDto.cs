@@ -32,4 +32,10 @@ public class ProductionPlanStageSelectionDto
     public int RunCount { get; set; }
 
     public int RemainingCount { get; set; }
+
+    /// <summary>Hiển thị Takt time dạng "m:ss" (US-05 AC1e, US-05b AC4) — thay cho hiển thị số giây thô.</summary>
+    public string TaktTimeDisplay => TaktTimeFormat.ToDisplay(TaktTimeSeconds);
+
+    /// <summary>Hiển thị Thời gian bắt đầu dạng "dd/MM/yyyy HH:mm" (US-05 AC1d, US-05b AC4) — thay cho ToString mặc định .NET.</summary>
+    public string StartTimeDisplay => StartTime.ToString("dd/MM/yyyy HH:mm");
 }

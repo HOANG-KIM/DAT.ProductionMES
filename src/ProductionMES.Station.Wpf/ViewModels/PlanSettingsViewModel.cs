@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Windows;
@@ -31,6 +32,17 @@ namespace ProductionMES.Station.Wpf.ViewModels;
 /// <see cref="SelectedLine"/> đổi. Không cho đổi Line khi đang sửa kế hoạch cũ (<c>UpdateProductionPlanRequest</c>
 /// không có trường LineId — server không hỗ trợ đổi Line sau khi tạo), combobox bị khoá (<see cref="CanEditLine"/>)
 /// trong trường hợp này nhưng vẫn hiển thị đúng tên Line hiện tại.
+/// </remarks>
+/// <remarks>
+/// Sửa lại 17/08/2026 (US-05 AC1d/AC1e): "Thời gian bắt đầu" tách thành 2 ô nhập độc lập —
+/// <see cref="StartDate"/> (DatePicker, chỉ Ngày) và <see cref="StartTimeOfDay"/> (TextBox, chuỗi "HH:mm") — ghép
+/// lại thành <c>DateTime</c> đầy đủ chỉ lúc Lưu (<see cref="TryParseStartTime"/>), không giữ property
+/// <c>StartTime</c> trung gian để tránh nhầm lẫn giữa giá trị đang gõ dở và giá trị đã ghép hợp lệ. "Takt time"
+/// đổi từ nhập số giây thô sang <see cref="TaktTimeDisplay"/> (chuỗi "m:ss") — <see cref="TaktTimeSeconds"/> vẫn
+/// giữ làm giá trị gửi API, tự đồng bộ 1 chiều khi gõ hợp lệ (<see cref="OnTaktTimeDisplayChanged"/>) để
+/// <see cref="StandardQuantityPerHour"/> cập nhật ngay (AC3), nhưng giá trị AUTHORITATIVE thật sự gửi API luôn
+/// được parse lại từ đầu lúc Lưu (<see cref="TaktTimeFormat.TryParse"/>) — nhập sai định dạng thì từ chối lưu qua
+/// <see cref="StatusMessage"/>, không tự sửa ngầm (theo đúng yêu cầu AC1e).
 /// </remarks>
 public partial class PlanSettingsViewModel : ObservableObject
 {
@@ -89,16 +101,33 @@ public partial class PlanSettingsViewModel : ObservableObject
     [ObservableProperty]
     private int plannedQuantity;
 
+    /// <summary>Giá trị giây gửi API — nguồn xác thực thật sự chỉ được cập nhật lúc Lưu (đã parse hợp lệ từ
+    /// <see cref="TaktTimeDisplay"/>); trong lúc gõ dở được đồng bộ tạm ngay khi hợp lệ (<see cref="OnTaktTimeDisplayChanged"/>)
+    /// chỉ để <see cref="StandardQuantityPerHour"/> cập nhật realtime (AC3).</summary>
     [ObservableProperty]
     private decimal taktTimeSeconds;
 
-    /// <summary>
-    /// Kiểu <see cref="DateTime"/>? để khớp đúng <c>DatePicker.SelectedDate</c> (tránh lỗi convert ngầm của WPF
-    /// binding giữa DateTime/DateTime?). Lưu ý: DatePicker chỉ chọn NGÀY, chưa có ô chọn giờ — khác mockup gốc
-    /// (2 ô Ngày + Giờ riêng) — cần bổ sung ô giờ ở bản sau để đúng đủ FR-05 "ngày + giờ".
-    /// </summary>
+    /// <summary>Chuỗi hiển thị/nhập Takt time dạng "m:ss" (US-05 AC1e) — thay cho nhập số giây thô.</summary>
     [ObservableProperty]
-    private DateTime? startTime = DateTime.Today;
+    private string taktTimeDisplay = "0:00";
+
+    partial void OnTaktTimeDisplayChanged(string value)
+    {
+        // Chỉ đồng bộ tạm khi hợp lệ để preview StandardQuantityPerHour cập nhật realtime (AC3); giá trị gửi API
+        // thật sự luôn được parse lại từ đầu lúc Lưu (TryParseTaktTime) — không dựa vào giá trị tạm này.
+        if (TaktTimeFormat.TryParse(value, out var seconds, out _))
+        {
+            TaktTimeSeconds = seconds;
+        }
+    }
+
+    /// <summary>Ô chọn Ngày bắt đầu (US-05 AC1d) — ghép với <see cref="StartTimeOfDay"/> thành DateTime đầy đủ lúc Lưu.</summary>
+    [ObservableProperty]
+    private DateTime? startDate = DateTime.Today;
+
+    /// <summary>Ô nhập Giờ:Phút bắt đầu, định dạng 24h "HH:mm" (US-05 AC1d).</summary>
+    [ObservableProperty]
+    private string startTimeOfDay = "00:00";
 
     [ObservableProperty]
     private string operatorNames = string.Empty;
@@ -214,7 +243,9 @@ public partial class PlanSettingsViewModel : ObservableObject
         Revision = string.Empty;
         PlannedQuantity = 0;
         TaktTimeSeconds = 0;
-        StartTime = DateTime.Today;
+        TaktTimeDisplay = "0:00";
+        StartDate = DateTime.Today;
+        StartTimeOfDay = "00:00";
         OperatorNames = string.Empty;
         StatusMessage = string.Empty;
     }
@@ -237,16 +268,58 @@ public partial class PlanSettingsViewModel : ObservableObject
         Revision = value.Revision ?? string.Empty;
         PlannedQuantity = value.PlannedQuantity;
         TaktTimeSeconds = value.TaktTimeSeconds;
-        StartTime = value.StartTime;
+        TaktTimeDisplay = TaktTimeFormat.ToDisplay(value.TaktTimeSeconds);
+        StartDate = value.StartTime.Date;
+        StartTimeOfDay = value.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
         OperatorNames = value.OperatorNames;
         StatusMessage = string.Empty;
+    }
+
+    /// <summary>Parse <see cref="StartDate"/> + <see cref="StartTimeOfDay"/> thành DateTime đầy đủ (US-05 AC1d) —
+    /// gọi lúc Lưu, KHÔNG tự sửa ngầm nếu Giờ:Phút nhập sai định dạng.</summary>
+    private bool TryParseStartTime(out DateTime value, out string? error)
+    {
+        value = default;
+        error = null;
+
+        if (StartDate is null)
+        {
+            error = "Vui lòng chọn Ngày bắt đầu.";
+            return false;
+        }
+
+        if (!DateTime.TryParseExact(StartTimeOfDay?.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var timeOfDay))
+        {
+            error = "Giờ bắt đầu không hợp lệ, nhập theo định dạng HH:mm (24h), ví dụ \"07:30\".";
+            return false;
+        }
+
+        value = StartDate.Value.Date + timeOfDay.TimeOfDay;
+        return true;
     }
 
     [RelayCommand]
     private async Task SaveAsync()
     {
-        IsBusy = true;
         StatusMessage = string.Empty;
+
+        // Validate format Takt time (AC1e) và Thời gian bắt đầu (AC1d) TRƯỚC khi gọi API — nhập sai thì từ chối
+        // lưu, báo lỗi rõ ràng qua StatusMessage, không tự sửa ngầm giá trị.
+        if (!TaktTimeFormat.TryParse(TaktTimeDisplay, out var taktTimeSecondsValue, out var taktTimeError))
+        {
+            StatusMessage = taktTimeError!;
+            return;
+        }
+
+        if (!TryParseStartTime(out var startTimeValue, out var startTimeError))
+        {
+            StatusMessage = startTimeError!;
+            return;
+        }
+
+        TaktTimeSeconds = taktTimeSecondsValue;
+
+        IsBusy = true;
         try
         {
             if (EditingId is null)
@@ -259,8 +332,8 @@ public partial class PlanSettingsViewModel : ObservableObject
                     Lot = Lot,
                     Revision = string.IsNullOrWhiteSpace(Revision) ? null : Revision,
                     PlannedQuantity = PlannedQuantity,
-                    TaktTimeSeconds = TaktTimeSeconds,
-                    StartTime = StartTime ?? DateTime.Today,
+                    TaktTimeSeconds = taktTimeSecondsValue,
+                    StartTime = startTimeValue,
                     OperatorNames = OperatorNames,
                 });
                 Plans.Add(created);
@@ -269,7 +342,7 @@ public partial class PlanSettingsViewModel : ObservableObject
             }
             else
             {
-                await UpdateWithConfirmRetryAsync(EditingId.Value, confirm: false);
+                await UpdateWithConfirmRetryAsync(EditingId.Value, taktTimeSecondsValue, startTimeValue, confirm: false);
             }
         }
         catch (ApiException ex)
@@ -290,7 +363,7 @@ public partial class PlanSettingsViewModel : ObservableObject
         }
     }
 
-    private async Task UpdateWithConfirmRetryAsync(int id, bool confirm)
+    private async Task UpdateWithConfirmRetryAsync(int id, decimal taktTimeSecondsValue, DateTime startTimeValue, bool confirm)
     {
         var request = new UpdateProductionPlanRequest
         {
@@ -299,8 +372,8 @@ public partial class PlanSettingsViewModel : ObservableObject
             Lot = Lot,
             Revision = string.IsNullOrWhiteSpace(Revision) ? null : Revision,
             PlannedQuantity = PlannedQuantity,
-            TaktTimeSeconds = TaktTimeSeconds,
-            StartTime = StartTime ?? DateTime.Today,
+            TaktTimeSeconds = taktTimeSecondsValue,
+            StartTime = startTimeValue,
             OperatorNames = OperatorNames,
             Confirm = confirm,
         };
@@ -326,7 +399,7 @@ public partial class PlanSettingsViewModel : ObservableObject
 
             if (proceed)
             {
-                await UpdateWithConfirmRetryAsync(id, confirm: true);
+                await UpdateWithConfirmRetryAsync(id, taktTimeSecondsValue, startTimeValue, confirm: true);
             }
         }
     }

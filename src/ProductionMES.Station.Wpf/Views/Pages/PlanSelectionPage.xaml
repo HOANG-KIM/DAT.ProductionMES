@@ -73,12 +73,12 @@
 
                 <TextBlock Text="Số lượng / Takt time" Foreground="#5C6577" FontSize="10"/>
                 <TextBlock Margin="0,0,0,8" Foreground="White">
-                    <Run Text="{Binding PlannedQuantity, Mode=OneWay}"/> sp · <Run Text="{Binding TaktTimeSeconds, Mode=OneWay}"/> s
+                    <Run Text="{Binding PlannedQuantity, Mode=OneWay}"/> sp · <Run Text="{Binding TaktTimeDisplay, Mode=OneWay}"/>
                     (≈ <Run Text="{Binding StandardQuantityPerHour, Mode=OneWay}"/> sp/giờ)
                 </TextBlock>
 
                 <TextBlock Text="Thời gian bắt đầu" Foreground="#5C6577" FontSize="10"/>
-                <TextBlock Text="{Binding StartTime}" Foreground="White" Margin="0,0,0,8"/>
+                <TextBlock Text="{Binding StartTimeDisplay}" Foreground="White" Margin="0,0,0,8"/>
 
                 <TextBlock Text="Nhân viên vận hành" Foreground="#5C6577" FontSize="10"/>
                 <TextBlock Text="{Binding OperatorNames}" Foreground="White" TextWrapping="Wrap" Margin="0,0,0,8"/>

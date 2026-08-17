@@ -59,9 +59,9 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="SL kế hoạch" Binding="{Binding PlannedQuantity}"/>
-                    <DataGridTextColumn Header="Takt (s)" Binding="{Binding TaktTimeSeconds}"/>
+                    <DataGridTextColumn Header="Takt (m:ss)" Binding="{Binding TaktTimeDisplay}"/>
                     <DataGridTextColumn Header="SL/giờ" Binding="{Binding StandardQuantityPerHour}"/>
-                    <DataGridTextColumn Header="Bắt đầu" Binding="{Binding StartTime}"/>
+                    <DataGridTextColumn Header="Bắt đầu" Binding="{Binding StartTimeDisplay}"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -88,12 +88,18 @@
                 <TextBlock Text="Số lượng kế hoạch" Foreground="#8D96A8" FontSize="11"/>
                 <TextBox Text="{Binding PlannedQuantity, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Takt time (giây/sản phẩm)" Foreground="#8D96A8" FontSize="11"/>
-                <TextBox Text="{Binding TaktTimeSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,2"/>
+                <TextBlock Text="Takt time (phút:giây, vd &quot;1:30&quot;)" Foreground="#8D96A8" FontSize="11"/>
+                <TextBox x:Name="TaktTimeTextBox" Text="{Binding TaktTimeDisplay, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,2"
+                         LostFocus="TaktTimeTextBox_LostFocus"/>
                 <TextBlock Text="{Binding StandardQuantityPerHour, StringFormat='≈ {0} sp/giờ'}" Foreground="#F4B55A" Margin="0,0,0,10"/>
 
-                <TextBlock Text="Thời gian bắt đầu" Foreground="#8D96A8" FontSize="11"/>
-                <DatePicker SelectedDate="{Binding StartTime, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
+                <TextBlock Text="Thời gian bắt đầu (Ngày + Giờ:Phút, 24h)" Foreground="#8D96A8" FontSize="11"/>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,10">
+                    <DatePicker SelectedDate="{Binding StartDate, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
+                    <TextBox x:Name="StartTimeOfDayTextBox" Text="{Binding StartTimeOfDay, UpdateSourceTrigger=PropertyChanged}" Width="60" Margin="8,0,0,0"
+                             ToolTip="Giờ:Phút, định dạng HH:mm (24h), vd 07:30"
+                             LostFocus="StartTimeOfDayTextBox_LostFocus"/>
+                </StackPanel>
 
                 <TextBlock Text="Tên nhân viên vận hành (phân tách bằng dấu phẩy)" Foreground="#8D96A8" FontSize="11"/>
                 <TextBox Text="{Binding OperatorNames, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,16"/>

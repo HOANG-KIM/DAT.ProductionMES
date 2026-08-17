@@ -24,4 +24,10 @@ public class ProductionPlanDto
     public string OperatorNames { get; set; } = string.Empty;
 
     public decimal StandardQuantityPerHour { get; set; }
+
+    /// <summary>Hiển thị Takt time dạng "m:ss" (US-05 AC1e) — thay cho hiển thị số giây thô trên DataGrid.</summary>
+    public string TaktTimeDisplay => TaktTimeFormat.ToDisplay(TaktTimeSeconds);
+
+    /// <summary>Hiển thị Thời gian bắt đầu dạng "dd/MM/yyyy HH:mm" (US-05 AC1d) — thay cho ToString mặc định .NET.</summary>
+    public string StartTimeDisplay => StartTime.ToString("dd/MM/yyyy HH:mm");
 }
