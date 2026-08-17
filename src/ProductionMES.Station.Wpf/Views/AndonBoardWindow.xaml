@@ -52,16 +52,18 @@
             <!-- row-top (mockup 13/08/2026): tên trạm/công đoạn (trái) + đồng hồ DATE/TIME realtime (phải) — không phụ thuộc HasActivePlan. -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding WorkStationName}" FontSize="38" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
-                    <TextBlock Text="{Binding StageName}" FontSize="34" FontWeight="Bold" Foreground="#FFAB1F"/>
-                </StackPanel>
+                <TextBlock Grid.Column="0" Text="{Binding WorkStationName}" FontSize="38" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
 
-                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                <!-- Tên công đoạn canh giữa phần không gian còn lại giữa tên trạm (trái) và khối đồng hồ/số liệu (phải) — cùng cỡ chữ với tên trạm theo yêu cầu 17/08. -->
+                <TextBlock Grid.Column="1" Text="{Binding StageName}" FontSize="38" FontWeight="Bold" Foreground="#FFAB1F"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
                     <!-- Đồng hồ DATE/TIME realtime (mockup) — đặt phía trên khối số liệu ACTUAL/PLAN/BALANCE đã có (US-09), không đổi khối đó. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
                         <TextBlock Text="DATE" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center" Margin="0,0,6,0"/>
