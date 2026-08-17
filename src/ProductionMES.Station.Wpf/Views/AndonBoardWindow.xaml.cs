@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using ProductionMES.Station.Wpf.Services.Navigation;
 using ProductionMES.Station.Wpf.ViewModels;
 
@@ -25,6 +26,13 @@ public partial class AndonBoardWindow : Window
 
         // Không có nút đóng thật (WindowStyle=None) — chặn Alt+F4 vô tình tắt board luôn hiển thị cho công nhân.
         Closing += (_, e) => e.Cancel = true;
+
+        // US-09: luôn tự cuộn xuống dòng cuối (dòng "hiện tại") mỗi khi Rows đổi (làm mới định kỳ hoặc scan mới),
+        // không bắt operator phải tự kéo cuộn để thấy số liệu mới nhất. Dispatcher.BeginInvoke ở Background
+        // priority để chạy SAU khi layout đã tính lại ScrollableHeight theo nội dung mới (gọi ngay trong sự kiện
+        // CollectionChanged thì ScrollableHeight vẫn còn là giá trị cũ, cuộn sai chỗ).
+        _viewModel.Rows.CollectionChanged += (_, _) =>
+            Dispatcher.BeginInvoke(() => RowsScrollViewer.ScrollToBottom(), DispatcherPriority.Background);
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)

@@ -165,7 +165,8 @@
                             <TextBlock Grid.Column="3" Text="BALANCE" FontSize="19" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
                         </Grid>
 
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <!-- x:Name để code-behind tự cuộn xuống dòng cuối (dòng "hiện tại") mỗi khi Rows đổi — không bắt operator phải tự kéo cuộn để thấy số liệu mới nhất. -->
+                        <ScrollViewer x:Name="RowsScrollViewer" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Rows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
