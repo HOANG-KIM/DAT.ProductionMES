@@ -46,7 +46,7 @@
                     Padding="12,6" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                     Visibility="{Binding IsManualScanInputEnabled, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="⚠ ĐANG BẬT CHẾ ĐỘ NHẬP TAY — TEST ONLY (không dùng ở trạm production)"
-                           FontSize="16" FontWeight="Bold" Foreground="#FFC107" HorizontalAlignment="Center"/>
+                           FontSize="20" FontWeight="Bold" Foreground="#FFC107" HorizontalAlignment="Center"/>
             </Border>
 
             <!-- row-top (mockup 13/08/2026): tên trạm/công đoạn (trái) + đồng hồ DATE/TIME realtime (phải) — không phụ thuộc HasActivePlan. -->
@@ -57,32 +57,32 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding WorkStationName}" FontSize="34" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
-                    <TextBlock Text="{Binding StageName}" FontSize="30" FontWeight="Bold" Foreground="#FFAB1F"/>
+                    <TextBlock Text="{Binding WorkStationName}" FontSize="38" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
+                    <TextBlock Text="{Binding StageName}" FontSize="34" FontWeight="Bold" Foreground="#FFAB1F"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                     <!-- Đồng hồ DATE/TIME realtime (mockup) — đặt phía trên khối số liệu ACTUAL/PLAN/BALANCE đã có (US-09), không đổi khối đó. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
-                        <TextBlock Text="DATE" FontSize="14" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="{Binding CurrentDateLabel}" FontSize="20" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                        <TextBlock Text="TIME" FontSize="14" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="{Binding CurrentTimeLabel}" FontSize="24" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                        <TextBlock Text="DATE" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding CurrentDateLabel}" FontSize="24" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                        <TextBlock Text="TIME" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding CurrentTimeLabel}" FontSize="28" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- US-09 AC1: 3 giá trị chính (ACTUAL/PLAN/BALANCE) luôn hiển thị ở đây, cập nhật real-time (AC4), độc lập với việc cuộn bảng theo mốc giờ bên dưới. Cỡ chữ giảm nhẹ so với trước để MODEL (row-model bên dưới) là số liệu nổi bật nhất header, đúng thứ tự ưu tiên trong ảnh Andon board gốc. -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <StackPanel Margin="0,0,24,0">
-                            <TextBlock Text="ĐÃ SCAN OK" FontSize="12" Foreground="#8D96A8" HorizontalAlignment="Right"/>
-                            <TextBlock Text="{Binding ScannedOkCount}" FontSize="28" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                            <TextBlock Text="ĐÃ SCAN OK" FontSize="16" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding ScannedOkCount}" FontSize="32" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Right"/>
                         </StackPanel>
                         <StackPanel Margin="0,0,24,0" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="KẾ HOẠCH (PLAN)" FontSize="12" Foreground="#8D96A8" HorizontalAlignment="Right"/>
-                            <TextBlock Text="{Binding PlanCumulative}" FontSize="28" FontWeight="Bold" Foreground="White" HorizontalAlignment="Right"/>
+                            <TextBlock Text="KẾ HOẠCH (PLAN)" FontSize="16" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding PlanCumulative}" FontSize="32" FontWeight="Bold" Foreground="White" HorizontalAlignment="Right"/>
                         </StackPanel>
                         <StackPanel Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="CHÊNH LỆCH (BALANCE)" FontSize="12" Foreground="#8D96A8" HorizontalAlignment="Right"/>
-                            <TextBlock Text="{Binding BalanceLabel}" FontSize="28" FontWeight="Bold" Foreground="{Binding BalanceBrush}" HorizontalAlignment="Right"/>
+                            <TextBlock Text="CHÊNH LỆCH (BALANCE)" FontSize="16" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding BalanceLabel}" FontSize="32" FontWeight="Bold" Foreground="{Binding BalanceBrush}" HorizontalAlignment="Right"/>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -90,46 +90,53 @@
 
             <!--
               row-model (mockup): dòng NỔI BẬT NHẤT của header — giá trị Model to hơn hẳn mọi chữ khác (đúng ảnh
-              Andon board gốc, operator cần nhận ra ngay đang sản xuất đúng Model). Layout Grid Auto/*/Auto để
-              value Model canh giữa phần không gian còn lại, giống CSS gốc (grid-template-columns: auto 1fr;
-              .val { justify-self: center }). LOT không có trong ảnh gốc nhưng người dùng yêu cầu thêm — đặt thành
-              chip nhỏ bên phải, không cạnh tranh độ nổi bật với Model.
+              Andon board gốc, operator cần nhận ra ngay đang sản xuất đúng Model). Layout Grid Auto/* để value
+              Model canh giữa phần không gian còn lại, giống CSS gốc (grid-template-columns: auto 1fr;
+              .val { justify-self: center }). LOT chuyển sang hàng row-plan bên dưới, cạnh TAKT TIME (theo yêu
+              cầu người dùng 17/08) — cùng cỡ chữ với PROD.PLAN/TAKT TIME thay vì chip riêng biệt.
             -->
             <Grid Grid.Row="2" Margin="0,18,0,0" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="MODEL:" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="{Binding Model}" FontSize="46" FontWeight="Bold" Foreground="White"
+                <TextBlock Grid.Column="0" Text="MODEL:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Model}" FontSize="50" FontWeight="Bold" Foreground="White"
                            HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <Border Grid.Column="2" Background="#1A1E27" BorderBrush="#2A3040" BorderThickness="1" CornerRadius="6" Padding="12,5" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="LOT " FontSize="14" FontWeight="Bold" Foreground="#FFAB1F"/>
-                        <TextBlock Text="{Binding Lot}" FontSize="14" Foreground="White"/>
-                    </StackPanel>
-                </Border>
             </Grid>
 
-            <!-- row-plan (mockup): PROD.PLAN + TAKT TIME + ô PER (tên nhân viên vận hành). -->
-            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,14,0,0"
-                        Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="PROD.PLAN:" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
-                <TextBlock Text="{Binding PlannedQuantity}" FontSize="24" FontWeight="Bold" Foreground="White" VerticalAlignment="Bottom"/>
-                <TextBlock Text="pcs" FontSize="14" Foreground="#8D96A8" Margin="4,0,40,0" VerticalAlignment="Bottom"/>
-                <TextBlock Text="TAKT TIME:" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
-                <TextBlock Text="{Binding TaktTimeLabel}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,0,40,0" VerticalAlignment="Bottom"/>
-                <Border Background="#1A1E27" BorderBrush="#2A3040" BorderThickness="1" CornerRadius="6" Padding="14,6">
-                    <TextBlock Text="{Binding OperatorNamesLabel}" FontSize="18" FontWeight="Bold" Foreground="White"/>
+            <!--
+              row-plan (mockup + yêu cầu 17/08): PROD.PLAN + TAKT TIME + LOT cùng 1 cỡ chữ (đồng bộ, Column 0,
+              chiếm hết phần rộng còn lại) — ô PER (tên nhân viên vận hành) đặt ở Column 1 (Auto), neo sát mép
+              phải ngoài cùng của hàng, tách biệt khỏi cụm số liệu bên trái.
+            -->
+            <Grid Grid.Row="3" Margin="0,14,0,0" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="PROD.PLAN:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="{Binding PlannedQuantity}" FontSize="28" FontWeight="Bold" Foreground="White" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="pcs" FontSize="18" Foreground="#8D96A8" Margin="4,0,40,0" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="TAKT TIME:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="{Binding TaktTimeLabel}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,40,0" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="LOT:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="{Binding Lot}" FontSize="28" FontWeight="Bold" Foreground="White" VerticalAlignment="Bottom"/>
+                </StackPanel>
+
+                <Border Grid.Column="1" Background="#1A1E27" BorderBrush="#2A3040" BorderThickness="1" CornerRadius="6"
+                        Padding="14,6" VerticalAlignment="Bottom">
+                    <TextBlock Text="{Binding OperatorNamesLabel}" FontSize="22" FontWeight="Bold" Foreground="White"/>
                 </Border>
-            </StackPanel>
+            </Grid>
 
             <!-- row-shift (mockup): STARTING TIME. -->
             <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0"
                         Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="STARTING TIME:" FontSize="18" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0"/>
-                <TextBlock Text="{Binding StartingTimeLabel}" FontSize="18" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="STARTING TIME:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding StartingTimeLabel}" FontSize="22" FontWeight="Bold" Foreground="White"/>
             </StackPanel>
         </Grid>
 
@@ -150,10 +157,10 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="TIME" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
-                            <TextBlock Grid.Column="1" Text="PLAN" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
-                            <TextBlock Grid.Column="2" Text="ACTUAL" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
-                            <TextBlock Grid.Column="3" Text="BALANCE" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="0" Text="TIME" FontSize="19" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="PLAN" FontSize="19" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="ACTUAL" FontSize="19" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="BALANCE" FontSize="19" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
                         </Grid>
 
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -178,10 +185,10 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Grid.Style>
-                                            <TextBlock Grid.Column="0" Text="{Binding TimeLabel}" FontSize="20" FontWeight="Bold" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding PlanCumulative}" FontSize="20" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding ActualCumulative}" FontSize="20" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
-                                            <TextBlock Grid.Column="3" Text="{Binding BalanceLabel}" FontSize="20" FontWeight="Bold" Foreground="{Binding BalanceBrush}" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="0" Text="{Binding TimeLabel}" FontSize="24" FontWeight="Bold" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding PlanCumulative}" FontSize="24" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding ActualCumulative}" FontSize="24" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding BalanceLabel}" FontSize="24" FontWeight="Bold" Foreground="{Binding BalanceBrush}" Padding="12,8" HorizontalAlignment="Center"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -193,14 +200,14 @@
                 <!-- 1 ô gộp duy nhất cho cả bảng (không tách theo mốc giờ) — quyết định layout 13/08/2026. -->
                 <Border Grid.Column="1" BorderBrush="#2A3040" BorderThickness="1">
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="NG / %NG" FontSize="15" FontWeight="Bold" Foreground="#8D96A8" HorizontalAlignment="Center" Margin="0,0,0,14"/>
-                        <TextBlock Text="{Binding NgSummaryLabel}" FontSize="30" FontWeight="Bold" Foreground="#E53935" HorizontalAlignment="Center"/>
+                        <TextBlock Text="NG / %NG" FontSize="19" FontWeight="Bold" Foreground="#8D96A8" HorizontalAlignment="Center" Margin="0,0,0,14"/>
+                        <TextBlock Text="{Binding NgSummaryLabel}" FontSize="34" FontWeight="Bold" Foreground="#E53935" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
             <TextBlock Text="Chưa có kế hoạch sản xuất nào đang chạy tại công đoạn này (hoặc đang tải dữ liệu)."
-                       Foreground="#5C6577" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="#5C6577" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"
                        TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"
                        Visibility="{Binding NoActivePlan, Converter={StaticResource BoolToVisibility}}"/>
 
@@ -211,16 +218,16 @@
                     CornerRadius="10" Padding="24" MinWidth="360" MaxWidth="480"
                     Visibility="{Binding IsBannerVisible, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
-                    <TextBlock Text="{Binding BannerTitle}" FontSize="24" FontWeight="Bold" Foreground="{Binding BannerForeground}"/>
+                    <TextBlock Text="{Binding BannerTitle}" FontSize="28" FontWeight="Bold" Foreground="{Binding BannerForeground}"/>
 
                     <StackPanel Margin="0,14,0,0">
-                        <TextBlock Text="NAMESHEET" FontSize="11" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
-                        <TextBlock Text="{Binding BannerTagCode}" FontSize="18" FontWeight="SemiBold" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                        <TextBlock Text="NAMESHEET" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                        <TextBlock Text="{Binding BannerTagCode}" FontSize="22" FontWeight="SemiBold" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <StackPanel Margin="0,12,0,0">
-                        <TextBlock Text="MESSAGE" FontSize="11" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
-                        <TextBlock Text="{Binding BannerMessage}" FontSize="14" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                        <TextBlock Text="MESSAGE" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                        <TextBlock Text="{Binding BannerMessage}" FontSize="18" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <!-- Style tường minh (không dùng MaterialDesign implicit style — Application.Resources áp global cho mọi Window, nhưng AC4 cần nút luôn đọc rõ trên nền banner màu động, không phụ thuộc Light theme). -->
@@ -243,8 +250,8 @@
                     Visibility="{Binding IsManualScanInputEnabled, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel Orientation="Horizontal">
                     <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-                        <TextBlock Text="Nhập mã tem (test)" FontSize="12" Foreground="#FFC107" Margin="0,0,0,4"/>
-                        <TextBox x:Name="ManualScanInputBox" Width="220" FontSize="16" Padding="6"
+                        <TextBlock Text="Nhập mã tem (test)" FontSize="16" Foreground="#FFC107" Margin="0,0,0,4"/>
+                        <TextBox x:Name="ManualScanInputBox" Width="220" FontSize="20" Padding="6"
                                  Text="{Binding ManualScanInputText, UpdateSourceTrigger=PropertyChanged}"
                                  KeyDown="ManualScanInputBox_KeyDown"/>
                     </StackPanel>
@@ -255,7 +262,7 @@
             </Border>
         </Grid>
 
-        <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="12"
+        <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="16"
                     Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
 
         <!--
