@@ -19,7 +19,9 @@ public partial class PlanSelectionPage : Page
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
         await _viewModel.LoadLineInfoCommand.ExecuteAsync(null);
-        await _viewModel.LoadCommand.ExecuteAsync(null);
+        // LoadStagesAsync tự chọn SelectedStage mặc định (AC1), việc này trigger OnSelectedStageChanged gọi
+        // LoadAsync — KHÔNG gọi LoadCommand riêng ở đây nữa để tránh tải danh sách kế hoạch 2 lần thừa.
+        await _viewModel.LoadStagesCommand.ExecuteAsync(null);
     }
 
     private void HomeButton_Click(object sender, RoutedEventArgs e)

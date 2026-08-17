@@ -30,9 +30,9 @@
             <TextBlock Foreground="#8D96A8" VerticalAlignment="Center" Margin="0,0,8,0">
                 <Run Text="{Binding LineName, Mode=OneWay}"/><Run Text=" (theo trạm đang đăng nhập) — Công đoạn:"/>
             </TextBlock>
-            <ComboBox SelectedIndex="0" Width="180" IsEnabled="False">
-                <ComboBoxItem Content="{Binding StageName}"/>
-            </ComboBox>
+            <ComboBox Width="220" IsEnabled="True"
+                      ItemsSource="{Binding AvailableStages}" DisplayMemberPath="Name"
+                      SelectedItem="{Binding SelectedStage, Mode=TwoWay}"/>
             <CheckBox Content="Hiện cả kế hoạch đã Completed/Cancelled" IsChecked="{Binding IncludeClosed}"
                       Foreground="#8D96A8" VerticalAlignment="Center" Margin="20,0,0,0"/>
         </StackPanel>
