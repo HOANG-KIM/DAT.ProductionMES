@@ -5,7 +5,8 @@
         Width="380" SizeToContent="Height" MinHeight="260"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#161B23">
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,20 +17,20 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Đăng nhập" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
-        
+        <TextBlock Grid.Row="0" Text="Đăng nhập" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"/>
+
 
         <StackPanel Grid.Row="2" Margin="0,0,0,10">
-            <TextBlock Text="Tài khoản" Foreground="#8D96A8" FontSize="11" Margin="0,0,0,4"/>
+            <TextBlock Text="Tài khoản" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,4"/>
             <TextBox x:Name="UsernameBox" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Padding="6"/>
         </StackPanel>
 
         <StackPanel Grid.Row="3" Margin="0,0,0,6">
-            <TextBlock Text="Mật khẩu" Foreground="#8D96A8" FontSize="11" Margin="0,0,0,4"/>
+            <TextBlock Text="Mật khẩu" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,4"/>
             <PasswordBox x:Name="PasswordBox" Padding="6" KeyDown="PasswordBox_KeyDown"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="4" Text="{Binding ErrorMessage}" Foreground="#E5484D" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <TextBlock Grid.Row="4" Text="{Binding ErrorMessage}" Foreground="{StaticResource StatusNgBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButtonElement" Content="Hủy" Width="80" Margin="0,0,8,0" Click="CancelButton_Click"/>

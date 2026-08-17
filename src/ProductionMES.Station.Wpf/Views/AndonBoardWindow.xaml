@@ -5,7 +5,8 @@
         WindowStyle="None"
         WindowState="Maximized"
         ResizeMode="NoResize"
-        Background="#0B0E13"
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Grid>
         <Grid.RowDefinitions>
@@ -15,18 +16,18 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24">
-            <TextBlock x:Name="StationLabel" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
-            <TextBlock x:Name="StageLabel" FontSize="24" FontWeight="Bold" Foreground="#FFAB1F"/>
+            <TextBlock x:Name="StationLabel" FontSize="28" FontWeight="Bold" Margin="0,0,24,0"/>
+            <TextBlock x:Name="StageLabel" FontSize="24" FontWeight="Bold" Foreground="{StaticResource StatusWarningBrush}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="Andon Board" FontSize="20" Foreground="#8D96A8" HorizontalAlignment="Center"/>
+            <TextBlock Text="Andon Board" FontSize="20" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
             <TextBlock Text="Bảng theo dõi PLAN/ACTUAL/BALANCE và popup kết quả scan thuộc US-07/US-09 (chưa triển khai)."
-                       Foreground="#5C6577" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
-            <TextBlock Text="Xem mockup tham khảo: artifact &quot;Station Andon Board&quot;." Foreground="#5C6577" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                       Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
+            <TextBlock Text="Xem mockup tham khảo: artifact &quot;Station Andon Board&quot;." Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0" HorizontalAlignment="Center"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="12"
+        <TextBlock Grid.Row="2" Margin="24" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                     Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
     </Grid>
 </Window>

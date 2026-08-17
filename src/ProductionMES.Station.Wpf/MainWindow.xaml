@@ -4,6 +4,7 @@
         Title="DAT ProductionMES — Trạm"
         Height="700" Width="1000"
         WindowStartupLocation="CenterScreen"
-        Background="#161B23">
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}">
     <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden"/>
 </Window>

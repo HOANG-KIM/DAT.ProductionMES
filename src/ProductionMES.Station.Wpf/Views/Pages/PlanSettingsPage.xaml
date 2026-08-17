@@ -3,7 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:converters="clr-namespace:ProductionMES.Station.Wpf.Converters"
       Title="Cài đặt kế hoạch sản xuất"
-      Background="#161B23"
+      Background="{DynamicResource MaterialDesignPaper}"
       Loaded="Page_Loaded">
     <Page.Resources>
         <converters:LineIdToNameConverter x:Key="LineIdToNameConverter"/>
@@ -18,7 +18,7 @@
         <DockPanel Grid.Row="0" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                 <Button Content="← Trang chủ" Click="HomeButton_Click" Margin="0,0,12,0"/>
-                <TextBlock Text="Cài đặt kế hoạch sản xuất" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                <TextBlock Text="Cài đặt kế hoạch sản xuất" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
             </StackPanel>
             <Button DockPanel.Dock="Right" HorizontalAlignment="Right" Content="+ Tạo kế hoạch mới" Command="{Binding NewCommand}"/>
         </DockPanel>
@@ -27,7 +27,7 @@
             <Button Content="Cài đặt kế hoạch" Margin="0,0,8,0" IsEnabled="False"/>
             <Button Content="Chọn kế hoạch" Click="PlanSelectionButton_Click" Margin="0,0,8,0"/>
             <Button Content="Trình tự công đoạn (Line)" Click="LineStageSequenceButton_Click"/>
-            <TextBlock Text="{Binding StatusMessage}" Foreground="#E8A23D" Margin="16,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource StatusWarningBrush}" Margin="16,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -67,33 +67,33 @@
 
             <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,0,10,20">
-                <TextBlock Text="{Binding FormTitle}" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,10"/>
+                <TextBlock Text="{Binding FormTitle}" FontWeight="Bold" FontSize="14" Margin="0,0,0,10"/>
 
-                <TextBlock Text="Line áp dụng" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Line áp dụng" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <ComboBox ItemsSource="{Binding AvailableLines}" DisplayMemberPath="Name"
                           SelectedItem="{Binding SelectedLine}" IsEnabled="{Binding CanEditLine}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Khách hàng" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Khách hàng" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding Customer, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Model" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Model" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Lot" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Lot" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding Lot, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Revision (không bắt buộc)" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Revision (không bắt buộc)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding Revision, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Số lượng kế hoạch" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Số lượng kế hoạch" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding PlannedQuantity, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
-                <TextBlock Text="Takt time (phút:giây, vd &quot;1:30&quot;)" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Takt time (phút:giây, vd &quot;1:30&quot;)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox x:Name="TaktTimeTextBox" Text="{Binding TaktTimeDisplay, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,2"
                          LostFocus="TaktTimeTextBox_LostFocus"/>
-                <TextBlock Text="{Binding StandardQuantityPerHour, StringFormat='≈ {0} sp/giờ'}" Foreground="#F4B55A" Margin="0,0,0,10"/>
+                <TextBlock Text="{Binding StandardQuantityPerHour, StringFormat='≈ {0} sp/giờ'}" Foreground="{StaticResource StatusWarningBrush}" Margin="0,0,0,10"/>
 
-                <TextBlock Text="Thời gian bắt đầu (Ngày + Giờ:Phút, 24h)" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Thời gian bắt đầu (Ngày + Giờ:Phút, 24h)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <StackPanel Orientation="Horizontal" Margin="0,2,0,10">
                     <DatePicker SelectedDate="{Binding StartDate, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
                     <TextBox x:Name="StartTimeOfDayTextBox" Text="{Binding StartTimeOfDay, UpdateSourceTrigger=PropertyChanged}" Width="60" Margin="8,0,0,0"
@@ -101,7 +101,7 @@
                              LostFocus="StartTimeOfDayTextBox_LostFocus"/>
                 </StackPanel>
 
-                <TextBlock Text="Tên nhân viên vận hành (phân tách bằng dấu phẩy)" Foreground="#8D96A8" FontSize="11"/>
+                <TextBlock Text="Tên nhân viên vận hành (phân tách bằng dấu phẩy)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding OperatorNames, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,16"/>
 
                 <StackPanel Orientation="Horizontal">
