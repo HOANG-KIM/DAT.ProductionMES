@@ -43,6 +43,9 @@ public partial class AndonBoardViewModel : ObservableObject
     /// </summary>
     private readonly DispatcherTimer _boardRefreshTimer;
 
+    /// <summary>Đồng hồ DATE/TIME ở header (mockup 13/08/2026) — tick mỗi giây, không gọi API, độc lập với <see cref="_boardRefreshTimer"/>.</summary>
+    private readonly DispatcherTimer _clockTimer;
+
     public string WorkStationName { get; }
 
     public string StageName { get; }
@@ -100,6 +103,38 @@ public partial class AndonBoardViewModel : ObservableObject
 
     public bool NoActivePlan => !HasActivePlan;
 
+    /// <summary>Header bổ sung theo mockup 13/08/2026 (artifact "Station Andon Board") — Model sản phẩm, rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private string model = string.Empty;
+
+    /// <summary>Lot sản xuất — rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private string lot = string.Empty;
+
+    /// <summary>PROD.PLAN — số lượng kế hoạch, 0 khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private int plannedQuantity;
+
+    /// <summary>TAKT TIME đã format phút:giây (tái dùng <see cref="TaktTimeFormat.ToDisplay"/> đã dùng ở US-05), rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private string taktTimeLabel = string.Empty;
+
+    /// <summary>STARTING TIME đã format "HH:mm", rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private string startingTimeLabel = string.Empty;
+
+    /// <summary>Ô PER — danh sách tên nhân viên vận hành, free text, rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    [ObservableProperty]
+    private string operatorNamesLabel = string.Empty;
+
+    /// <summary>Đồng hồ DATE (dd/MM) hiển thị góc trên-trái header, cập nhật mỗi giây, độc lập với dữ liệu kế hoạch.</summary>
+    [ObservableProperty]
+    private string currentDateLabel = string.Empty;
+
+    /// <summary>Đồng hồ TIME (HH:mm:ss) hiển thị góc trên-trái header, cập nhật mỗi giây, độc lập với dữ liệu kế hoạch.</summary>
+    [ObservableProperty]
+    private string currentTimeLabel = string.Empty;
+
     /// <summary>US-09 AC1/AC5: sản lượng kế hoạch (PLAN) lũy kế đến hiện tại — đồng bộ với dòng "hiện tại" cuối cùng của <see cref="Rows"/>.</summary>
     [ObservableProperty]
     private int planCumulative;
@@ -151,6 +186,11 @@ public partial class AndonBoardViewModel : ObservableObject
         _boardRefreshTimer.Tick += async (_, _) => await RefreshBoardAsync();
         _boardRefreshTimer.Start();
 
+        _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clockTimer.Tick += (_, _) => UpdateClock();
+        UpdateClock();
+        _clockTimer.Start();
+
         _scanHubClient.ScanRecorded += OnScanRecorded;
     }
 
@@ -177,9 +217,23 @@ public partial class AndonBoardViewModel : ObservableObject
         Application.Current?.Dispatcher.Invoke(() => ApplyBoard(board));
     }
 
+    /// <summary>Cập nhật đồng hồ DATE/TIME ở header — gọi mỗi tick <see cref="_clockTimer"/> và 1 lần lúc khởi tạo.</summary>
+    private void UpdateClock()
+    {
+        var now = DateTime.Now;
+        CurrentDateLabel = now.ToString("dd/MM");
+        CurrentTimeLabel = now.ToString("HH:mm:ss");
+    }
+
     private void ApplyBoard(AndonBoardDto board)
     {
         HasActivePlan = board.HasActivePlan;
+        Model = board.Model;
+        Lot = board.Lot;
+        PlannedQuantity = board.PlannedQuantity;
+        TaktTimeLabel = board.HasActivePlan ? TaktTimeFormat.ToDisplay(board.TaktTimeSeconds) : string.Empty;
+        StartingTimeLabel = board.HasActivePlan && board.PlanStartTime.HasValue ? board.PlanStartTime.Value.ToString("HH:mm") : string.Empty;
+        OperatorNamesLabel = board.OperatorNames;
         PlanCumulative = board.PlanCumulative;
         Balance = board.Balance;
         NgCount = board.NgCount;

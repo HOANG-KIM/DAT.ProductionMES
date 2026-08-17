@@ -22,6 +22,24 @@ public class AndonBoardDto
 
     public int? ProductionPlanId { get; set; }
 
+    /// <summary>Model sản phẩm (<c>ProductionPlan.Model</c>) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true, bổ sung theo mockup 13/08/2026.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Lot sản xuất (<c>ProductionPlan.Lot</c>) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true.</summary>
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>Số lượng kế hoạch (PROD.PLAN, <c>ProductionPlan.PlannedQuantity</c>) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true.</summary>
+    public int PlannedQuantity { get; set; }
+
+    /// <summary>Takt time (giây/sản phẩm, <c>ProductionPlan.TaktTimeSeconds</c>) — đơn vị giây, client tự format phút:giây (giống US-05).</summary>
+    public decimal TaktTimeSeconds { get; set; }
+
+    /// <summary>Thời gian bắt đầu kế hoạch (STARTING TIME, <c>ProductionPlan.StartTime</c>) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true.</summary>
+    public DateTime? PlanStartTime { get; set; }
+
+    /// <summary>Tên nhân viên vận hành (ô PER, <c>ProductionPlan.OperatorNames</c>, free text) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true.</summary>
+    public string OperatorNames { get; set; } = string.Empty;
+
     /// <summary>AC1: số lượng đã scan OK lũy kế đến hiện tại (đúng cặp Kế hoạch, Công đoạn của trạm).</summary>
     public int ActualCumulative { get; set; }
 

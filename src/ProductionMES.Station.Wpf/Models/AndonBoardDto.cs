@@ -17,6 +17,24 @@ public class AndonBoardDto
 
     public int? ProductionPlanId { get; set; }
 
+    /// <summary>Model sản phẩm — rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Lot sản xuất — rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>Số lượng kế hoạch (PROD.PLAN) — 0 khi <see cref="HasActivePlan"/> = false.</summary>
+    public int PlannedQuantity { get; set; }
+
+    /// <summary>Takt time (giây/sản phẩm) — format phút:giây làm ở client bằng <c>TaktTimeFormat.ToDisplay</c> (US-05).</summary>
+    public decimal TaktTimeSeconds { get; set; }
+
+    /// <summary>Thời gian bắt đầu kế hoạch (STARTING TIME) — null khi <see cref="HasActivePlan"/> = false.</summary>
+    public DateTime? PlanStartTime { get; set; }
+
+    /// <summary>Tên nhân viên vận hành (ô PER, free text) — rỗng khi <see cref="HasActivePlan"/> = false.</summary>
+    public string OperatorNames { get; set; } = string.Empty;
+
     public int ActualCumulative { get; set; }
 
     public int PlanCumulative { get; set; }

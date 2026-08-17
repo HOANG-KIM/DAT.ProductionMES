@@ -73,7 +73,11 @@ public class AndonBoardServiceTests
                 new List<ProductionPlanStage> { runningPlanStage }.Where(predicate.Compile()).ToList());
 
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(productionPlanId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProductionPlan { Id = productionPlanId, LineId = lineId, StartTime = startTime, TaktTimeSeconds = taktTimeSeconds, PlannedQuantity = 1_000_000 });
+            .ReturnsAsync(new ProductionPlan
+            {
+                Id = productionPlanId, LineId = lineId, StartTime = startTime, TaktTimeSeconds = taktTimeSeconds, PlannedQuantity = 1_000_000,
+                Model = "33800-82M71/D", Lot = "LOT-01", OperatorNames = "HOANG, MINH, TUAN",
+            });
     }
 
     // Phòng vệ: trạm không tồn tại -> EntityNotFoundException, không NullReference.
@@ -99,6 +103,13 @@ public class AndonBoardServiceTests
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.ActualCumulative);
         Assert.Equal(0, result.PlanCumulative);
+        // Không có kế hoạch active -> các field header bổ sung (mockup 13/08/2026) giữ giá trị mặc định, không lỗi.
+        Assert.Equal(string.Empty, result.Model);
+        Assert.Equal(string.Empty, result.Lot);
+        Assert.Equal(0, result.PlannedQuantity);
+        Assert.Equal(0m, result.TaktTimeSeconds);
+        Assert.Null(result.PlanStartTime);
+        Assert.Equal(string.Empty, result.OperatorNames);
     }
 
     // AC1: ACTUAL/NG chỉ tính đúng cặp (ProductionPlanId, StageId) của kế hoạch active, bỏ qua scan của công đoạn/kế hoạch khác.
@@ -123,6 +134,13 @@ public class AndonBoardServiceTests
 
         Assert.True(result.HasActivePlan);
         Assert.Equal(10, result.ProductionPlanId);
+        // Header bổ sung theo mockup 13/08/2026: map thẳng từ ProductionPlan, không tính toán gì thêm.
+        Assert.Equal("33800-82M71/D", result.Model);
+        Assert.Equal("LOT-01", result.Lot);
+        Assert.Equal(1_000_000, result.PlannedQuantity);
+        Assert.Equal(3600m, result.TaktTimeSeconds);
+        Assert.Equal(startTime, result.PlanStartTime);
+        Assert.Equal("HOANG, MINH, TUAN", result.OperatorNames);
         Assert.Equal(2, result.ActualCumulative); // A, B
         Assert.Equal(1, result.NgCount); // C
         Assert.Equal(Math.Round(1 * 100m / 3, 1), result.NgPercent); // 1 NG / (2 OK + 1 NG) = 33.3%
