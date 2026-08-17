@@ -190,7 +190,7 @@
                                             </Grid.Style>
                                             <TextBlock Grid.Column="0" Text="{Binding TimeLabel}" FontSize="24" FontWeight="Bold" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
                                             <TextBlock Grid.Column="1" Text="{Binding PlanCumulative}" FontSize="24" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding ActualCumulative}" FontSize="24" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding ActualCumulative}" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" Padding="12,8" HorizontalAlignment="Center"/>
                                             <TextBlock Grid.Column="3" Text="{Binding BalanceLabel}" FontSize="24" FontWeight="Bold" Foreground="{Binding BalanceBrush}" Padding="12,8" HorizontalAlignment="Center"/>
                                         </Grid>
                                     </DataTemplate>
