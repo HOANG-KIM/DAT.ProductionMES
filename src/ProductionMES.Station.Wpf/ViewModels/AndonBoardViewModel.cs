@@ -231,7 +231,7 @@ public partial class AndonBoardViewModel : ObservableObject
         Model = board.Model;
         Lot = board.Lot;
         PlannedQuantity = board.PlannedQuantity;
-        TaktTimeLabel = board.HasActivePlan ? TaktTimeFormat.ToDisplay(board.TaktTimeSeconds) : string.Empty;
+        TaktTimeLabel = board.HasActivePlan ? TaktTimeFormat.ToVerboseDisplay(board.TaktTimeSeconds) : string.Empty;
         StartingTimeLabel = board.HasActivePlan && board.PlanStartTime.HasValue ? board.PlanStartTime.Value.ToString("HH:mm") : string.Empty;
         OperatorNamesLabel = board.OperatorNames;
         PlanCumulative = board.PlanCumulative;

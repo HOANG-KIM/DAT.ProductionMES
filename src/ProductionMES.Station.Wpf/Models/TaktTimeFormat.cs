@@ -24,6 +24,25 @@ public static class TaktTimeFormat
     }
 
     /// <summary>
+    /// Quy đổi số giây sang chuỗi hiển thị dài "mm phút ss giây" (vd "01 phút 00 giây") — dùng cho màn hình CHỈ
+    /// ĐỌC (Andon board, US-09) để tránh nhầm giữa phút/giây như định dạng "m:ss" ngắn gọn của <see cref="ToDisplay"/>.
+    /// KHÔNG dùng cho luồng nhập liệu (giữ nguyên <see cref="ToDisplay"/>/<see cref="TryParse"/> cho <c>PlanSettingsPage</c>,
+    /// đổi định dạng ở đó sẽ phá luồng round-trip hiển thị → nhập → parse lại đã có từ US-05 AC1e).
+    /// </summary>
+    public static string ToVerboseDisplay(decimal seconds)
+    {
+        var totalSeconds = (long)Math.Round(seconds, MidpointRounding.AwayFromZero);
+        if (totalSeconds < 0)
+        {
+            totalSeconds = 0;
+        }
+
+        var minutes = totalSeconds / 60;
+        var secondsPart = totalSeconds % 60;
+        return $"{minutes:D2} phút {secondsPart:D2} giây";
+    }
+
+    /// <summary>
     /// Parse chuỗi "m:ss" người dùng nhập thành số giây nguyên. Chỉ chấp nhận số nguyên giây (không phần thập
     /// phân), giây bắt buộc đúng 2 chữ số trong khoảng 00-59. Trả về <c>false</c> kèm <paramref name="error"/> mô
     /// tả lỗi nếu không hợp lệ — KHÔNG tự sửa ngầm giá trị (AC1e).
