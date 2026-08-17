@@ -57,4 +57,13 @@ public class StationOptions
     /// nhằm giảm rủi ro vô tình lẫn dữ liệu giả vào production bằng cách bắt buộc bật rõ ràng + cảnh báo trực quan.
     /// </summary>
     public bool EnableManualScanInput { get; set; }
+
+    /// <summary>
+    /// Chu kỳ (giây) gọi lại <c>GET api/v1/andon-board</c> để làm mới toàn bộ bảng PLAN/ACTUAL/BALANCE (US-09
+    /// AC4/AC6) — dùng cho việc PLAN "trôi" theo thời gian (không phụ thuộc lượt scan) và phát hiện mốc giờ mới
+    /// xuất hiện. Tăng ACTUAL theo lượt scan mới KHÔNG dùng chu kỳ này — tái sử dụng trực tiếp sự kiện SignalR
+    /// <c>ScanRecorded</c> đã có (<c>AndonBoardViewModel.OnScanRecorded</c>) để đạt độ trễ ≤ 1s (AC4). Mặc định
+    /// 30 giây — đủ mượt để PLAN không bị "đứng hình" lâu mà không gọi server quá dày.
+    /// </summary>
+    public int AndonBoardRefreshIntervalSeconds { get; set; } = 30;
 }

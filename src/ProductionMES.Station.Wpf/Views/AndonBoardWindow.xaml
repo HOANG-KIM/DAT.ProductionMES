@@ -13,8 +13,7 @@
       AndonBoardWindow KHÔNG dùng Light theme MaterialDesignInXaml/Themes/AppColors.xaml của phần còn lại
       trong Station.Wpf (xem ADR-007) — màn hình này theo mockup Andon board thực tế riêng (nền tối, màu
       trạng thái động OK/NG/WAITING). Giữ hex cục bộ tại đây, không tham chiếu brush dùng chung cho các màn
-      Tổ trưởng. Bảng PLAN/ACTUAL/BALANCE đầy đủ theo mốc giờ thuộc US-09 (chưa triển khai) — ở đây chỉ có 1
-      chỉ số đơn giản "Số lượng đã scan OK" (US-07 AC2) để không chặn US-09 sau này thay bằng bảng đầy đủ.
+      Tổ trưởng. Bảng PLAN/ACTUAL/BALANCE theo mốc giờ (US-09 AC1-AC6) hiển thị ở Row 1 bên dưới.
     -->
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
@@ -58,20 +57,94 @@
                     <TextBlock Text="{Binding StageName}" FontSize="24" FontWeight="Bold" Foreground="#FFAB1F"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                    <TextBlock Text="ĐÃ SCAN OK" FontSize="13" Foreground="#8D96A8" HorizontalAlignment="Right"/>
-                    <TextBlock Text="{Binding ScannedOkCount}" FontSize="36" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                <!-- US-09 AC1: 3 giá trị chính (ACTUAL/PLAN/BALANCE) luôn hiển thị ở đây, cập nhật real-time (AC4), độc lập với việc cuộn bảng theo mốc giờ bên dưới. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <StackPanel Margin="0,0,28,0">
+                        <TextBlock Text="ĐÃ SCAN OK" FontSize="13" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding ScannedOkCount}" FontSize="36" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,28,0" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="KẾ HOẠCH (PLAN)" FontSize="13" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding PlanCumulative}" FontSize="36" FontWeight="Bold" Foreground="White" HorizontalAlignment="Right"/>
+                    </StackPanel>
+                    <StackPanel Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="CHÊNH LỆCH (BALANCE)" FontSize="13" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                        <TextBlock Text="{Binding BalanceLabel}" FontSize="36" FontWeight="Bold" Foreground="{Binding BalanceBrush}" HorizontalAlignment="Right"/>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Grid>
 
         <Grid Grid.Row="1">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="Andon Board" FontSize="20" Foreground="#8D96A8" HorizontalAlignment="Center"/>
-                <TextBlock Text="Bảng theo dõi PLAN/ACTUAL/BALANCE đầy đủ theo mốc giờ thuộc US-09 (chưa triển khai)."
-                           Foreground="#5C6577" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
-                <TextBlock Text="Quét tem bằng máy scan để thử luồng US-07." Foreground="#5C6577" Margin="0,6,0,0" HorizontalAlignment="Center"/>
-            </StackPanel>
+            <!-- US-09 AC1/AC5/AC6: bảng PLAN/ACTUAL/BALANCE theo mốc giờ + ô NG/%NG gộp — chỉ hiển thị khi trạm đang có kế hoạch active. -->
+            <Grid Margin="24" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="240"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" BorderBrush="#2A3040" BorderThickness="1" Margin="0,0,16,0">
+                    <DockPanel LastChildFill="True">
+                        <Grid DockPanel.Dock="Top" Background="#151922">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="TIME" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="PLAN" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="ACTUAL" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="BALANCE" FontSize="15" FontWeight="Bold" Foreground="#FFAB1F" Padding="12,10" HorizontalAlignment="Center"/>
+                        </Grid>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Style.Triggers>
+                                                        <!-- Dòng "hiện tại" (US-09 mockup) highlight khác các dòng mốc giờ đã qua. -->
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="Background" Value="#22344A"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <TextBlock Grid.Column="0" Text="{Binding TimeLabel}" FontSize="20" FontWeight="Bold" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding PlanCumulative}" FontSize="20" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding ActualCumulative}" FontSize="20" Foreground="White" Padding="12,8" HorizontalAlignment="Center"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding BalanceLabel}" FontSize="20" FontWeight="Bold" Foreground="{Binding BalanceBrush}" Padding="12,8" HorizontalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- 1 ô gộp duy nhất cho cả bảng (không tách theo mốc giờ) — quyết định layout 13/08/2026. -->
+                <Border Grid.Column="1" BorderBrush="#2A3040" BorderThickness="1">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="NG / %NG" FontSize="15" FontWeight="Bold" Foreground="#8D96A8" HorizontalAlignment="Center" Margin="0,0,0,14"/>
+                        <TextBlock Text="{Binding NgSummaryLabel}" FontSize="30" FontWeight="Bold" Foreground="#E53935" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <TextBlock Text="Chưa có kế hoạch sản xuất nào đang chạy tại công đoạn này (hoặc đang tải dữ liệu)."
+                       Foreground="#5C6577" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"
+                       Visibility="{Binding NoActivePlan, Converter={StaticResource BoolToVisibility}}"/>
 
             <!-- Banner kết quả scan (US-07 AC3/AC4/AC5): góc trên-phải, không đè lên Row 0 (tên trạm/công đoạn/số lượng). -->
             <Border x:Name="ScanBanner"

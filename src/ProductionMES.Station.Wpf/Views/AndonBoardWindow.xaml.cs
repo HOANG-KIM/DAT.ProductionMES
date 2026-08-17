@@ -6,10 +6,10 @@ using ProductionMES.Station.Wpf.ViewModels;
 namespace ProductionMES.Station.Wpf.Views;
 
 /// <summary>
-/// Cửa sổ Andon Board (ADR-006) — fullscreen, luôn tồn tại suốt vòng đời ứng dụng. Bảng PLAN/ACTUAL/BALANCE đầy
-/// đủ theo mốc giờ thuộc US-09 (chưa triển khai) — ở đây triển khai luồng scan cơ bản (US-07 AC2-AC5): bắt input
-/// máy scan HID qua <see cref="ScanInputBox"/> (ẩn, luôn giữ focus), gọi <see cref="AndonBoardViewModel.HandleScanAsync"/>,
-/// hiển thị banner OK/NG qua binding.
+/// Cửa sổ Andon Board (ADR-006) — fullscreen, luôn tồn tại suốt vòng đời ứng dụng. Triển khai luồng scan cơ bản
+/// (US-07 AC2-AC5): bắt input máy scan HID qua <see cref="ScanInputBox"/> (ẩn, luôn giữ focus), gọi
+/// <see cref="AndonBoardViewModel.HandleScanAsync"/>, hiển thị banner OK/NG qua binding; và bảng PLAN/ACTUAL/
+/// BALANCE theo mốc giờ (US-09 AC1-AC6), tải qua <see cref="AndonBoardViewModel.InitializeAsync"/>.
 /// </summary>
 public partial class AndonBoardWindow : Window
 {
@@ -27,7 +27,15 @@ public partial class AndonBoardWindow : Window
         Closing += (_, e) => e.Cancel = true;
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e) => FocusScanInput();
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        FocusScanInput();
+
+        // US-09: tải dữ liệu bảng PLAN/ACTUAL/BALANCE lần đầu ngay khi Window sẵn sàng, không chờ tick đầu tiên
+        // của chu kỳ làm mới định kỳ (AndonBoardViewModel._boardRefreshTimer). Lỗi mạng/server tạm thời đã được
+        // nuốt bên trong InitializeAsync/RefreshBoardAsync (không làm gián đoạn luồng scan).
+        _ = _viewModel.InitializeAsync();
+    }
 
     private void Window_Activated(object sender, EventArgs e) => FocusScanInput();
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ProductionMES.Station.Wpf.Configuration;
+using ProductionMES.Station.Wpf.Services.AndonBoard;
 using ProductionMES.Station.Wpf.Services.Auth;
 using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.LineStageSequences;
@@ -122,6 +123,12 @@ public partial class App : Application
         // US-07: xác thực bằng API Key theo trạm (ADR-005, scheme StationApiKey) — KHÔNG dùng SupervisorAuthHandler
         // (Bearer, luồng Tổ trưởng nâng quyền).
         services.AddHttpClient<IScanApiClient, ScanApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<StationApiKeyHandler>();
+
+        // US-09: cùng scheme StationApiKey với IScanApiClient (không cần đăng nhập Supervisor).
+        services.AddHttpClient<IAndonBoardApiClient, AndonBoardApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<StationApiKeyHandler>();

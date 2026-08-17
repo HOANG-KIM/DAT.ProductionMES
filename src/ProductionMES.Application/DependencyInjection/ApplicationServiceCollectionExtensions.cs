@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Application.Options;
+using ProductionMES.Application.Services.AndonBoard;
 using ProductionMES.Application.Services.Auth;
 using ProductionMES.Application.Services.BreakWindows;
 using ProductionMES.Application.Services.Permissions;
@@ -39,6 +40,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IProductionPlanStageService, ProductionPlanStageService>();
         services.AddScoped<ILineStageSequenceService, LineStageSequenceService>();
         services.AddScoped<IScanService, ScanService>();
+        services.AddScoped<IAndonBoardService, AndonBoardService>();
 
         // US-22: PasswordHasher<TUser> (Microsoft.Extensions.Identity.Core) — không cần cả hệ thống
         // ASP.NET Core Identity đầy đủ, chỉ dùng đúng phần băm/kiểm tra mật khẩu.
