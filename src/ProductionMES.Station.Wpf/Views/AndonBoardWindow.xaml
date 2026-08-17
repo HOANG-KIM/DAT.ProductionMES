@@ -6,13 +6,20 @@
         WindowState="Maximized"
         ResizeMode="NoResize"
         Background="#0B0E13"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Loaded="Window_Loaded"
+        Activated="Window_Activated">
     <!--
       AndonBoardWindow KHÔNG dùng Light theme MaterialDesignInXaml/Themes/AppColors.xaml của phần còn lại
       trong Station.Wpf (xem ADR-007) — màn hình này theo mockup Andon board thực tế riêng (nền tối, màu
-      trạng thái động OK/NG/WAITING), sẽ triển khai đầy đủ ở US-07/US-09. Giữ hex cục bộ tại đây cho tới
-      khi đó, không tham chiếu brush dùng chung cho các màn Tổ trưởng.
+      trạng thái động OK/NG/WAITING). Giữ hex cục bộ tại đây, không tham chiếu brush dùng chung cho các màn
+      Tổ trưởng. Bảng PLAN/ACTUAL/BALANCE đầy đủ theo mốc giờ thuộc US-09 (chưa triển khai) — ở đây chỉ có 1
+      chỉ số đơn giản "Số lượng đã scan OK" (US-07 AC2) để không chặn US-09 sau này thay bằng bảng đầy đủ.
     -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -20,19 +27,113 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24">
-            <TextBlock x:Name="StationLabel" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
-            <TextBlock x:Name="StageLabel" FontSize="24" FontWeight="Bold" Foreground="#FFAB1F"/>
-        </StackPanel>
+        <!-- Vùng "số liệu chính" (AC5): tên trạm/công đoạn + số lượng đã scan OK — banner KHÔNG được che vùng này. -->
+        <Grid Grid.Row="0" Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock Text="Andon Board" FontSize="20" Foreground="#8D96A8" HorizontalAlignment="Center"/>
-            <TextBlock Text="Bảng theo dõi PLAN/ACTUAL/BALANCE và popup kết quả scan thuộc US-07/US-09 (chưa triển khai)."
-                       Foreground="#5C6577" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
-            <TextBlock Text="Xem mockup tham khảo: artifact &quot;Station Andon Board&quot;." Foreground="#5C6577" Margin="0,6,0,0" HorizontalAlignment="Center"/>
-        </StackPanel>
+            <!--
+              US-07, chế độ nhập tay/test (quyết định 17/08/2026 — SRS mục 5.1/8.2): banner cảnh báo LUÔN hiển
+              thị liên tục (không tự ẩn, không dùng cùng cơ chế auto-close với ScanBanner) khi
+              EnableManualScanInput = true, đặt ngay dưới hàng tên trạm/công đoạn, KHÔNG che số liệu chính.
+              Khi cờ tắt (mặc định): Visibility=Collapsed, UI y hệt hiện tại.
+            -->
+            <Border Grid.Row="0" Background="#6B4E00" BorderBrush="#FFC107" BorderThickness="2" CornerRadius="6"
+                    Padding="12,6" Margin="0,0,0,12" HorizontalAlignment="Stretch"
+                    Visibility="{Binding IsManualScanInputEnabled, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="⚠ ĐANG BẬT CHẾ ĐỘ NHẬP TAY — TEST ONLY (không dùng ở trạm production)"
+                           FontSize="16" FontWeight="Bold" Foreground="#FFC107" HorizontalAlignment="Center"/>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding WorkStationName}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
+                    <TextBlock Text="{Binding StageName}" FontSize="24" FontWeight="Bold" Foreground="#FFAB1F"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                    <TextBlock Text="ĐÃ SCAN OK" FontSize="13" Foreground="#8D96A8" HorizontalAlignment="Right"/>
+                    <TextBlock Text="{Binding ScannedOkCount}" FontSize="36" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="Andon Board" FontSize="20" Foreground="#8D96A8" HorizontalAlignment="Center"/>
+                <TextBlock Text="Bảng theo dõi PLAN/ACTUAL/BALANCE đầy đủ theo mốc giờ thuộc US-09 (chưa triển khai)."
+                           Foreground="#5C6577" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
+                <TextBlock Text="Quét tem bằng máy scan để thử luồng US-07." Foreground="#5C6577" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Banner kết quả scan (US-07 AC3/AC4/AC5): góc trên-phải, không đè lên Row 0 (tên trạm/công đoạn/số lượng). -->
+            <Border x:Name="ScanBanner"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="24"
+                    Background="{Binding BannerBackground}" BorderBrush="{Binding BannerBorderBrush}" BorderThickness="2"
+                    CornerRadius="10" Padding="24" MinWidth="360" MaxWidth="480"
+                    Visibility="{Binding IsBannerVisible, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding BannerTitle}" FontSize="24" FontWeight="Bold" Foreground="{Binding BannerForeground}"/>
+
+                    <StackPanel Margin="0,14,0,0">
+                        <TextBlock Text="NAMESHEET" FontSize="11" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                        <TextBlock Text="{Binding BannerTagCode}" FontSize="18" FontWeight="SemiBold" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,12,0,0">
+                        <TextBlock Text="MESSAGE" FontSize="11" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                        <TextBlock Text="{Binding BannerMessage}" FontSize="14" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Style tường minh (không dùng MaterialDesign implicit style — Application.Resources áp global cho mọi Window, nhưng AC4 cần nút luôn đọc rõ trên nền banner màu động, không phụ thuộc Light theme). -->
+                    <Button Content="ĐÃ ĐỌC, ĐÓNG" Margin="0,18,0,0" Padding="16,10" HorizontalAlignment="Right"
+                            Background="White" Foreground="#1B1B1B" BorderBrush="White" FontWeight="Bold"
+                            Command="{Binding AcknowledgeBannerCommand}" Click="AcknowledgeButton_Click"
+                            Visibility="{Binding RequiresAcknowledgement, Converter={StaticResource BoolToVisibility}}"/>
+                </StackPanel>
+            </Border>
+
+            <!--
+              US-07, khu vực nhập tay/test (quyết định 17/08/2026 — SRS mục 5.1/8.2): chỉ hiển thị khi
+              EnableManualScanInput = true, đặt góc dưới-trái, không che nội dung trung tâm hay ScanBanner
+              (góc trên-phải). Enter hoặc bấm "Gửi" đều gọi SubmitManualScanCommand → HandleScanAsync, dùng
+              chung luồng banner OK/NG/Waiting đã có, không xử lý kết quả riêng. Độc lập với ScanInputBox ẩn
+              (máy quét thật) — không thay đổi hành vi của ô đó.
+            -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="24"
+                    Background="#1A1E27" BorderBrush="#FFC107" BorderThickness="1.5" CornerRadius="8" Padding="16"
+                    Visibility="{Binding IsManualScanInputEnabled, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="Nhập mã tem (test)" FontSize="12" Foreground="#FFC107" Margin="0,0,0,4"/>
+                        <TextBox x:Name="ManualScanInputBox" Width="220" FontSize="16" Padding="6"
+                                 Text="{Binding ManualScanInputText, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="ManualScanInputBox_KeyDown"/>
+                    </StackPanel>
+                    <Button Content="GỬI" VerticalAlignment="Bottom" Padding="16,8"
+                            Background="#FFC107" Foreground="#1B1B1B" BorderBrush="#FFC107" FontWeight="Bold"
+                            Command="{Binding SubmitManualScanCommand}" Click="ManualScanSubmitButton_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="12"
                     Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
+
+        <!--
+          Ô ẩn luôn giữ focus để bắt input máy scan HID (keyboard-wedge, Zebra DS2208): ký tự tem gõ vào tự
+          tích lũy như TextBox bình thường, Enter kết thúc 1 lượt scan (ScanInputBox_KeyDown). Độc lập với
+          Window_PreviewKeyDown (chỉ xử lý Esc) — không "nuốt" phím Esc vì handler này chỉ bắt Enter.
+        -->
+        <TextBox x:Name="ScanInputBox" Width="1" Height="1" Opacity="0" IsTabStop="False"
+                 CaretBrush="Transparent" BorderThickness="0" Background="Transparent"
+                 KeyDown="ScanInputBox_KeyDown" LostFocus="ScanInputBox_LostFocus"/>
     </Grid>
 </Window>

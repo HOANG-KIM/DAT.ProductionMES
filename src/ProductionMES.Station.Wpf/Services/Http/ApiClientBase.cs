@@ -39,11 +39,20 @@ public abstract class ApiClientBase
         }
     }
 
-    private static async Task<ApiException> ToApiExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    /// <summary>
+    /// Message hiển thị khi server trả 401 — mặc định giả định luồng Bearer/Tổ trưởng (<c>SupervisorAuthHandler</c>),
+    /// đúng cho hầu hết client hiện có. Client dùng scheme khác (vd <c>ScanApiClient</c> — "StationApiKey",
+    /// ADR-005) PHẢI override lại cho đúng nguyên nhân thật, tránh gán nhầm lỗi cấu hình API Key trạm thành
+    /// "hết hạn đăng nhập Tổ trưởng" (2 khái niệm không liên quan, gây hiểu sai khi debug tại trạm).
+    /// </summary>
+    protected virtual string UnauthorizedMessage =>
+        "Phiên đăng nhập Tổ trưởng đã hết hạn hoặc chưa đăng nhập — vui lòng đăng nhập lại.";
+
+    private async Task<ApiException> ToApiExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
-            return new ApiException(response.StatusCode, "Phiên đăng nhập Tổ trưởng đã hết hạn hoặc chưa đăng nhập — vui lòng đăng nhập lại.");
+            return new ApiException(response.StatusCode, UnauthorizedMessage);
         }
 
         try

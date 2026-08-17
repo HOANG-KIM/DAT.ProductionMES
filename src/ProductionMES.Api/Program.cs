@@ -179,8 +179,11 @@ try
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
-    // SignalR (real-time)
-    builder.Services.AddSignalR();
+    // SignalR (real-time) — serialize enum (vd. ScanResultDto.Result) ra chuỗi thay vì số, đồng bộ với
+    // AddControllers().AddJsonOptions() ở trên (HTTP) để cùng 1 DTO trả về cùng format qua cả 2 kênh.
+    builder.Services.AddSignalR()
+        .AddJsonProtocol(options =>
+            options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
     // US-07/US-08: implementation IScanNotifier dùng IHubContext<ScanHub> — đặt ở Api vì ScanHub chỉ tồn tại ở đây.
     builder.Services.AddScoped<IScanNotifier, ScanHubNotifier>();
 

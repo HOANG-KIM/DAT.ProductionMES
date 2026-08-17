@@ -10,6 +10,8 @@ using ProductionMES.Station.Wpf.Services.Lines;
 using ProductionMES.Station.Wpf.Services.Navigation;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
+using ProductionMES.Station.Wpf.Services.Realtime;
+using ProductionMES.Station.Wpf.Services.Scans;
 using ProductionMES.Station.Wpf.Services.Stages;
 using ProductionMES.Station.Wpf.ViewModels;
 using ProductionMES.Station.Wpf.Views;
@@ -61,10 +63,16 @@ public partial class App : Application
         coordinator.Register(andonBoardWindow, mainWindow);
 
         andonBoardWindow.Show();
+
+        // US-07 AC2: mở kết nối SignalR ngay khi app khởi động, không chờ scan đầu tiên — lỗi kết nối (mạng/
+        // server chưa chạy) không throw ra ngoài (xem ScanHubClient.StartAsync), luồng scan qua HTTP vẫn hoạt
+        // động độc lập nếu hub tạm thời không tới được.
+        _ = _host.Services.GetRequiredService<IScanHubClient>().StartAsync();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _host?.Services.GetService<IScanHubClient>()?.StopAsync().GetAwaiter().GetResult();
         _host?.Dispose();
         base.OnExit(e);
     }
@@ -77,7 +85,9 @@ public partial class App : Application
 
         services.AddSingleton<ISupervisorSessionService, SupervisorSessionService>();
         services.AddSingleton<IWindowCoordinator, WindowCoordinator>();
+        services.AddSingleton<IScanHubClient, ScanHubClient>();
         services.AddTransient<SupervisorAuthHandler>();
+        services.AddTransient<StationApiKeyHandler>();
 
         services.AddHttpClient<ISupervisorAuthService, SupervisorAuthService>((sp, client) =>
         {
@@ -109,7 +119,15 @@ public partial class App : Application
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
+        // US-07: xác thực bằng API Key theo trạm (ADR-005, scheme StationApiKey) — KHÔNG dùng SupervisorAuthHandler
+        // (Bearer, luồng Tổ trưởng nâng quyền).
+        services.AddHttpClient<IScanApiClient, ScanApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<StationApiKeyHandler>();
+
         services.AddSingleton<AndonBoardWindow>();
+        services.AddSingleton<AndonBoardViewModel>();
         services.AddSingleton<MainWindow>();
 
         services.AddTransient<HomePage>();
