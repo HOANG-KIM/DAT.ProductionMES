@@ -28,6 +28,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<ProductionPlanStage> ProductionPlanStages => Set<ProductionPlanStage>();
 
+    public DbSet<LineStageSequence> LineStageSequences => Set<LineStageSequence>();
+
     public DbSet<Scan> Scans => Set<Scan>();
 
     public DbSet<User> Users => Set<User>();

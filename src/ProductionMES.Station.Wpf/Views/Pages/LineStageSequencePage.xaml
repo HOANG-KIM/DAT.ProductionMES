@@ -1,0 +1,81 @@
+<Page x:Class="ProductionMES.Station.Wpf.Views.Pages.LineStageSequencePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Trình tự công đoạn của Line"
+      Background="#161B23"
+      Loaded="Page_Loaded">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button Content="← Trang chủ" Click="HomeButton_Click" Margin="0,0,12,0"/>
+                <TextBlock Text="Trình tự công đoạn của Line" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
+            <Button Content="Cài đặt kế hoạch" Click="PlanSettingsButton_Click" Margin="0,0,8,0"/>
+            <Button Content="Chọn kế hoạch" Click="PlanSelectionButton_Click" Margin="0,0,8,0"/>
+            <Button Content="Trình tự công đoạn (Line)" IsEnabled="False"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#E8A23D" Margin="16,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,14">
+            <TextBlock Text="Line áp dụng:" Foreground="#8D96A8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding LineName}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <Button Content="Tải lại" Command="{Binding LoadCommand}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.3*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <DataGrid Grid.Column="0" ItemsSource="{Binding Sequence}" AutoGenerateColumns="False" IsReadOnly="True"
+                      CanUserAddRows="False" SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Công đoạn" Binding="{Binding StageName}" Width="*"/>
+                    <DataGridTextColumn Header="Thứ tự" Binding="{Binding SequenceNumber}" Width="80"/>
+                    <DataGridTemplateColumn Header="" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="▲" Padding="8,2" Margin="0,0,4,0" ToolTip="Đưa lên trước"
+                                            Command="{Binding DataContext.MoveStageUpCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding StageId}"/>
+                                    <Button Content="▼" Padding="8,2" Margin="0,0,4,0" ToolTip="Đưa xuống sau"
+                                            Command="{Binding DataContext.MoveStageDownCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding StageId}"/>
+                                    <Button Content="Gỡ" Padding="8,2"
+                                            Command="{Binding DataContext.RemoveStageCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding StageId}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Grid.Column="2" Margin="0,0,10,20">
+                <TextBlock Text="Công đoạn cần gắn" FontWeight="Bold" Foreground="White" FontSize="13" Margin="0,0,0,8"/>
+                <TextBlock Text="Chọn 1 công đoạn từ danh mục master để thêm vào cuối trình tự của Line này."
+                           Foreground="#8D96A8" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,10"/>
+
+                <ComboBox ItemsSource="{Binding AvailableStages}" DisplayMemberPath="Name"
+                          SelectedItem="{Binding SelectedNewStage}" Margin="0,0,0,8"/>
+                <Button Content="Gắn công đoạn" Command="{Binding AddStageCommand}" Padding="10,4" HorizontalAlignment="Left"/>
+
+                <TextBlock Text="Lưu ý: gỡ công đoạn đang có kế hoạch Running/Paused sẽ bị từ chối — cần Tạm dừng/Đóng kế hoạch tại công đoạn đó trước."
+                           Foreground="#5C6577" TextWrapping="Wrap" FontSize="11" Margin="0,20,0,0"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

@@ -103,30 +103,69 @@ public static class DbSeeder
             .Select(c => new Permission { Resource = c.Item1, Action = c.Item2 })
             .ToList();
 
-        if (newPermissions.Count == 0)
+        if (newPermissions.Count > 0)
+        {
+            dbContext.Permissions.AddRange(newPermissions);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var rolePermissions = new List<RolePermission>();
+
+            // Admin: toàn bộ permission MỚI (khớp hardcode Admin cũ ở LinesController/StagesController/
+            // WorkStationsController/ProductionPlansController/ProductionPlanStagesController). Permission đã tồn
+            // tại từ trước giữ nguyên RolePermission đã gán, không tạo trùng.
+            rolePermissions.AddRange(newPermissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
+
+            // Supervisor: phần MỚI của ProductionPlan + ProductionPlanStage (khớp hardcode "Supervisor,Admin" cũ
+            // ở 2 Controller đó).
+            var newSupervisorPermissions = newPermissions.Where(p =>
+                p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage);
+            rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
+
+            // Operator/Manager: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép 2 role này).
+
+            dbContext.RolePermissions.AddRange(rolePermissions);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await EnsureSupervisorCatalogViewPermissionsAsync(dbContext, cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 17/08/2026 (rà soát gap "gõ tay Id Line/Công đoạn" ở <c>Station.Wpf</c>, US-05 AC1a/US-03 AC8):
+    /// Tổ trưởng nâng quyền tại trạm (<c>Station.Wpf</c>) cần gọi <c>GET api/v1/lines</c> (combobox chọn Line ở
+    /// <c>PlanSettingsPage</c>) và <c>GET api/v1/stages</c> (combobox chọn Công đoạn ở <c>LineStageSequencePage</c>,
+    /// đã dùng từ trước nhưng CHƯA từng seed đủ quyền) — 2 permission này KHÔNG nằm trong nhóm "MỚI" ở
+    /// <see cref="SeedPermissionsAsync"/> (đã tồn tại từ catalog gốc 12/08/2026, chỉ seed cho <c>Admin</c>) nên
+    /// đoạn seed dựa trên <c>newPermissions</c> ở trên không bao giờ chạy lại cho 2 permission này. Tách thành
+    /// bước riêng, tự kiểm tra và bổ sung nếu thiếu (idempotent theo từng cặp Role+PermissionId), chạy MỖI lần
+    /// khởi động bất kể catalog Permission có gì mới hay không.
+    /// </summary>
+    private static async Task EnsureSupervisorCatalogViewPermissionsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var resources = new[] { PermissionResource.Line, PermissionResource.Stage };
+
+        var viewPermissionIds = await dbContext.Permissions
+            .Where(p => resources.Contains(p.Resource) && p.Action == PermissionAction.View)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (viewPermissionIds.Count == 0)
         {
             return;
         }
 
-        dbContext.Permissions.AddRange(newPermissions);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var alreadyGrantedIds = await dbContext.RolePermissions
+            .Where(rp => rp.Role == UserRole.Supervisor && viewPermissionIds.Contains(rp.PermissionId))
+            .Select(rp => rp.PermissionId)
+            .ToListAsync(cancellationToken);
 
-        var rolePermissions = new List<RolePermission>();
+        var missingIds = viewPermissionIds.Except(alreadyGrantedIds).ToList();
+        if (missingIds.Count == 0)
+        {
+            return;
+        }
 
-        // Admin: toàn bộ permission MỚI (khớp hardcode Admin cũ ở LinesController/StagesController/
-        // WorkStationsController/ProductionPlansController/ProductionPlanStagesController). Permission đã tồn
-        // tại từ trước giữ nguyên RolePermission đã gán, không tạo trùng.
-        rolePermissions.AddRange(newPermissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
-
-        // Supervisor: phần MỚI của ProductionPlan + ProductionPlanStage (khớp hardcode "Supervisor,Admin" cũ
-        // ở 2 Controller đó).
-        var newSupervisorPermissions = newPermissions.Where(p =>
-            p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage);
-        rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
-
-        // Operator/Manager: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép 2 role này).
-
-        dbContext.RolePermissions.AddRange(rolePermissions);
+        dbContext.RolePermissions.AddRange(missingIds.Select(id => new RolePermission { Role = UserRole.Supervisor, PermissionId = id }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

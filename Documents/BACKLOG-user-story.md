@@ -18,12 +18,12 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | US-01 | Quản lý danh mục Line | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `d4dd6ab`) | 2026-08-14 |
 | US-01a | Khung giờ nghỉ theo Line | ✅ Xong | `4f0a3ed` | 2026-08-14 |
 | US-02 | Quản lý danh mục Công đoạn | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
-| US-03 | Cấu hình trình tự công đoạn theo kế hoạch | 🟡 Một phần | Backend xong (`a42c9f2`); UI thuộc `Station.Wpf` — project này chưa được khởi tạo/build | 2026-08-14 |
+| US-03 | Cấu hình trình tự công đoạn cho Line | 🟡 Một phần | **17/08 (implement lại theo thiết kế mới)**: entity `LineStageSequence` (LineId/StageId/SequenceNumber, unique theo LineId+SequenceNumber và LineId+StageId) thay hẳn `ProductionPlanStage.SequenceNumber` (đã xoá property này khỏi entity). `LineStageSequenceService`/`ILineStageSequenceService` (AddAsync/RemoveAsync/ReorderAsync/GetByLineAsync) + `LineStageSequencesController` (`api/v1/lines/{lineId}/stage-sequence`, dùng lại permission `ProductionPlanStage.*`) cover đủ AC1-AC7. `ProductionPlanStageService` sửa lại cơ chế "lazy get-or-create": `GetByProductionPlanAsync`/`ApplyAsync`/`PauseAsync`/`CloseAsync` tự tạo bản ghi `PlanStatus=Draft` khi cần dựa theo trình tự Line, `GetByLineAndStageAsync` (US-05b) liệt kê mọi `ProductionPlan` của Line thay vì chỉ các row đã tồn tại; `AddAsync/RemoveAsync/ReorderAsync` cũ đã xoá khỏi service/controller này (chuyển hẳn sang `LineStageSequenceService`) — `IProductionPlanStageService.GetByProductionPlanAsync`/`ProductionPlanStageDto` giữ nguyên shape nên `ScanService`/`ScanServiceTests` KHÔNG phải sửa. UI `Station.Wpf`: bỏ khu vực "Công đoạn của kế hoạch" khỏi `PlanSettingsPage`/`PlanSettingsViewModel`, thêm màn mới `LineStageSequencePage`/`LineStageSequenceViewModel` (+ API client `ILineStageSequenceApiClient`), điều hướng từ `HomePage`/`MainWindow` theo ADR-006. Migration `AddLineStageSequence_RemoveProductionPlanStageSequenceNumber` đã generate VÀ apply thành công lên DB dev cục bộ (`dotnet ef database update` kết nối được MySQL thật). Solution build sạch (`dotnet build ProductionMES.sln`), 125/125 test pass (`dotnet test`, thêm mới `LineStageSequenceServiceTests`, sửa lại `ProductionPlanStageServiceTests`). Toàn bộ code chưa commit (giữ nguyên working tree theo yêu cầu) — UI chưa chạy thử bằng mắt (không có công cụ chụp màn hình Windows app trong phiên này), cần người chạy `dotnet run --project src/ProductionMES.Station.Wpf` để xác nhận trực quan. **17/08 (gap mới, cùng đợt)**: `LineStageSequencePage` cũng đang để `TextBox` gõ tay đổi `LineId` thay vì hiển thị Tên Line cố định readonly — đã bổ sung AC8, chưa implement. **17/08 (đã sửa AC8)**: bỏ hẳn `TextBox` gõ tay `LineId`, thay bằng `TextBlock` readonly hiển thị `LineName` (tra qua `ILineApiClient` mới, US-01) — Line vẫn cố định theo `StationOptions.LineId`, không cho đổi từ màn này. Cũng bổ sung seed permission `Line.View`/`Stage.View` cho role `Supervisor` trong `DbSeeder.EnsureSupervisorCatalogViewPermissionsAsync` (gap phát hiện thêm: `Stage.View` vốn đã cần cho combobox Công đoạn của chính màn này từ trước nhưng CHƯA từng được seed cho Supervisor — nếu không vá, `IStageApiClient.GetAllAsync()` sẽ luôn 403 với tài khoản Supervisor thật). Build `dotnet build src/ProductionMES.Station.Wpf` + `dotnet build src/ProductionMES.Infrastructure` pass, 125/125 test Application pass (không đổi Application layer). Api không build lại được trong phiên này do bị Visual Studio khoá file (đang chạy), chỉ build riêng từng project bị ảnh hưởng để xác nhận biên dịch đúng — UI vẫn CHƯA chạy thử bằng mắt trên app Windows thật | 2026-08-17 |
 | US-04 | Quản lý trạm làm việc | ✅ Xong | Backend + UI web-admin (`a42c9f2`, `cedf66b`) | 2026-08-14 |
 | US-04a | Quản lý API Key theo trạm | ✅ Xong | `4f0a3ed` | 2026-08-14 |
-| US-05 | Tạo/cập nhật kế hoạch sản xuất | 🟡 Một phần | Backend xong, cập nhật theo FR-05 mới (`0c5b944`); UI (`Station.Wpf`, màn "Cài đặt kế hoạch") chưa làm. **14/08**: AC6 (khóa tuyệt đối Khách hàng/Model/Lot/Revision khi đã có scan) đã code + test pass ở `ProductionPlanService.UpdateAsync` (`9f0e299`) | 2026-08-14 |
-| US-05a | Vòng đời trạng thái kế hoạch theo công đoạn | 🟡 Một phần | Backend xong (`0c5b944`); UI `Station.Wpf` chưa làm | 2026-08-14 |
-| US-05b | Chọn & áp dụng kế hoạch tại trạm | ⬜ Chưa làm | | 2026-08-14 |
+| US-05 | Tạo/cập nhật kế hoạch sản xuất | 🟡 Một phần | Backend xong (`0c5b944`, AC6 `9f0e299`). **14/08 (vòng 2)**: UI `Station.Wpf` (`PlanSettingsPage`/`PlanSettingsViewModel`) đã code, solution build + 117 test pass. Còn thiếu: ô "Thời gian bắt đầu" chỉ chọn Ngày (chưa có ô Giờ — thiếu 1 phần AC1); AC6 không khoá field trước trên UI mà dựa vào lỗi 409 server lúc Lưu (đúng rule, khác UX mockup); chưa test tự động UI, chưa chạy thử bằng mắt (không có công cụ chụp màn hình Windows app trong phiên này) — cần người chạy `dotnet run --project src/ProductionMES.Station.Wpf` để xác nhận trực quan. **17/08 (gap mới)**: người dùng phát hiện ô "Line áp dụng" đang là `TextBox` gõ tay Id thay vì combobox chọn theo tên — đã bổ sung AC1a/AC1b/AC1c, chưa implement. **17/08 (đã sửa AC1a/AC1b/AC1c)**: `PlanSettingsViewModel` thêm `AllLines` (toàn bộ, không lọc `IsActive` — AC1b) + `AvailableLines` (tính lại: chỉ Line active, cộng thêm Line đang gán cho `SelectedPlan` dù đã vô hiệu hóa) + `SelectedLine`/`CanEditLine` (combobox khoá khi đang sửa kế hoạch cũ vì `UpdateProductionPlanRequest` không có `LineId` — server không hỗ trợ đổi Line sau khi tạo, giữ nguyên logic cũ, chỉ đổi UI). `PlanSettingsPage.xaml`: đổi `TextBox` sang `ComboBox` (AC1a), cột "Line" trong DataGrid danh sách đổi sang `DataGridTemplateColumn` + `MultiBinding`/`LineIdToNameConverter` hiển thị tên thay vì Id thô (AC1c) — chọn cách converter thay vì đổi kiểu `ObservableCollection<ProductionPlanDto>` để ít xáo trộn nhất. Tạo mới `ILineApiClient`/`LineApiClient` (mirror `IStageApiClient`, gọi `GET api/v1/lines`) + `LineDto` mirror, đăng ký DI trong `App.xaml.cs`. Build `dotnet build src/ProductionMES.Station.Wpf` pass, 125/125 test Application pass (không đổi Application layer). UI vẫn CHƯA chạy thử bằng mắt trên app Windows thật | 2026-08-17 |
+| US-05a | Vòng đời trạng thái kế hoạch theo công đoạn | 🟡 Một phần | Backend xong (`0c5b944`). **14/08 (vòng 2)**: UI Áp dụng/Tạm dừng/Đóng đã code trong `PlanSelectionPage` (US-05b), gọi đúng `ProductionPlanStagesController`. Chưa test tự động UI, chưa chạy thử bằng mắt | 2026-08-14 |
+| US-05b | Chọn & áp dụng kế hoạch tại trạm | 🟡 Một phần | **14/08 (vòng 2)**: Backend mới — `GET api/v1/production-plan-stages?lineId=&stageId=&includeClosed=` (`ProductionPlanStageSelectionController`/`ProductionPlanStageService.GetByLineAndStageAsync`), 4 unit test mới pass (tổng 117 test). UI `Station.Wpf` (`PlanSelectionPage`) đã code. **Gap còn lại so với AC1**: combobox "Công đoạn" hiện chỉ liệt kê đúng 1 công đoạn cấu hình cục bộ tại trạm (`StationOptions.StageId`), CHƯA liệt kê mọi công đoạn của Line — thiếu API tra cứu danh sách công đoạn theo Line (qua `WorkStation`) để làm đúng đủ AC1. Cũng cần bổ sung `ADR-006` (điều hướng 2 cửa sổ Station.Wpf) + `POST auth/station-login`/`station-refresh` (ADR-005, trước đó chưa implement) làm nền tảng — cả 2 đã xong trong vòng này. **17/08 (gap mới)**: phát hiện `PlanSelectionPage.xaml` hardcode cứng chữ "Line 1" thay vì hiển thị đúng tên Line thật của trạm — đã ghi chú vào AC1, chưa sửa. **17/08 (đã sửa bug hardcode)**: `PlanSelectionViewModel` thêm `LineName` (tra qua `ILineApiClient` mới, US-01) + `LoadLineInfoCommand` gọi lúc vào trang; `PlanSelectionPage.xaml` bind động thay cho chuỗi tĩnh "Line 1...". Gap chính AC1 (combobox Công đoạn chưa liệt kê mọi công đoạn của Line, chỉ đúng 1 công đoạn cục bộ trạm) VẪN CÒN, không thuộc phạm vi lần sửa này. Build `dotnet build src/ProductionMES.Station.Wpf` pass. UI vẫn CHƯA chạy thử bằng mắt trên app Windows thật | 2026-08-17 |
 | US-06 | Tính sản lượng chuẩn theo giờ | ✅ Xong | Xác nhận có sẵn từ US-05, không cần code thêm (ghi chú trong `4f0a3ed`) | 2026-08-14 |
 | US-07 | Scan tem tại trạm (luồng cơ bản) | 🟡 Một phần | Backend xong (`ceb0ee1`); UI hiển thị tại trạm (AC2–AC5) chưa làm | 2026-08-14 |
 | US-08 | Kiểm tra hợp lệ khi scan | ✅ Xong | `ceb0ee1` — rule backend, không có UI riêng | 2026-08-14 |
@@ -136,41 +136,51 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 
 ---
 
-### US-03: Cấu hình công đoạn áp dụng cho từng kế hoạch/Line (trình tự công đoạn)
+### US-03: Cấu hình trình tự công đoạn cho Line
 **Là** Tổ trưởng / Admin
-**Tôi muốn** thêm, bớt, sắp xếp trình tự công đoạn cho từng kế hoạch sản xuất
-**Để** xác định đúng chuỗi công đoạn và công đoạn "liền trước" phục vụ kiểm tra hợp lệ khi scan (FR-08)
+**Tôi muốn** thêm, bớt, sắp xếp trình tự công đoạn cho 1 Line sản xuất (cấu hình 1 lần, dùng chung cho mọi kế hoạch chạy trên Line đó)
+**Để** xác định đúng chuỗi công đoạn và công đoạn "liền trước" của Line, áp dụng thống nhất cho toàn bộ kế hoạch sản xuất hiện tại/tương lai trên Line, phục vụ kiểm tra hợp lệ khi scan (FR-08)
+
+> **Sửa lại 17/08/2026** — bản gốc viết nhầm trình tự công đoạn là cấu hình riêng của từng kế hoạch (`ProductionPlan`); đúng ra đây là cấu hình của **Line**, thiết lập 1 lần, KHÔNG cấu hình lại theo từng kế hoạch. Mọi kế hoạch tạo trên 1 Line đều đi qua đúng và đủ toàn bộ trình tự đã cấu hình cho Line đó (không có khái niệm 1 kế hoạch chỉ áp dụng 1 tập con công đoạn — đã xác nhận với người dùng).
 
 **Acceptance Criteria**
-- **AC1 — Thêm công đoạn vào kế hoạch**
-  - Given kế hoạch sản xuất đã tồn tại
-  - When tôi chọn 1 công đoạn từ danh mục master và thêm vào kế hoạch
-  - Then công đoạn xuất hiện trong danh sách công đoạn của kế hoạch, chưa có trình tự hoặc theo trình tự mặc định cuối danh sách
-- **AC2 — Gỡ công đoạn khỏi kế hoạch**
-  - Given công đoạn đã có trong kế hoạch, chưa phát sinh lượt scan nào liên quan
-  - When tôi gỡ công đoạn đó khỏi kế hoạch
-  - Then công đoạn không còn thuộc kế hoạch, trình tự công đoạn còn lại được điều chỉnh hợp lý
+- **AC1 — Thêm công đoạn vào trình tự của Line**
+  - Given Line đã tồn tại và đang hoạt động
+  - When tôi chọn 1 công đoạn từ danh mục master và thêm vào trình tự của Line
+  - Then công đoạn xuất hiện trong danh sách trình tự của Line, chưa có số thứ tự hoặc theo trình tự mặc định cuối danh sách; mọi kế hoạch (Draft/Running/Paused) đang chạy trên Line đó lập tức có thể áp dụng công đoạn mới này
+- **AC2 — Gỡ công đoạn khỏi trình tự của Line — chặn hẳn nếu đang có kế hoạch chạy dở**
+  - Given công đoạn đang thuộc trình tự của Line
+  - When tôi gỡ công đoạn đó khỏi trình tự của Line, mà đang có ít nhất 1 kế hoạch của Line đó ở trạng thái `Running`/`Paused` tại đúng công đoạn này (US-05a)
+  - Then hệ thống **từ chối gỡ**, báo rõ lý do (đang có kế hoạch chạy dở) — phải Tạm dừng/Đóng kế hoạch tại công đoạn đó trước mới gỡ được; nếu không có kế hoạch nào chạy dở tại công đoạn đó thì gỡ bình thường, số thứ tự các công đoạn còn lại được điều chỉnh hợp lý (liên tục 1..n)
 - **AC3 — Sắp xếp lại trình tự (kéo-thả/nhập số thứ tự)**
-  - Given kế hoạch có từ 2 công đoạn trở lên
+  - Given Line có từ 2 công đoạn trở lên trong trình tự
   - When tôi kéo-thả hoặc nhập lại số thứ tự
-  - Then hệ thống lưu đúng trình tự mới và tự xác định lại công đoạn "liền trước" của mỗi công đoạn
+  - Then hệ thống lưu đúng trình tự mới của Line và tự xác định lại công đoạn "liền trước" của mỗi công đoạn; áp dụng ngay cho mọi kế hoạch chạy trên Line đó, không phân biệt kế hoạch cũ/mới
 - **AC4 — Từ chối khi trùng số thứ tự**
-  - Given tôi đang sắp xếp trình tự công đoạn
+  - Given tôi đang sắp xếp trình tự công đoạn của Line
   - When tôi lưu với 2 công đoạn có cùng số thứ tự
   - Then hệ thống từ chối lưu và báo lỗi rõ ràng
 - **AC5 — Từ chối khi tạo vòng lặp**
-  - Given cấu hình trình tự công đoạn
-  - When cấu hình dẫn đến vòng lặp (vd: A liền trước B, B liền trước A)
+  - Given cấu hình trình tự công đoạn của Line
+  - When cấu hình dẫn đến 1 công đoạn xuất hiện quá 1 lần trong trình tự (gây vòng lặp khi suy "liền trước")
   - Then hệ thống từ chối lưu, báo lỗi
-- **AC6 — Thêm công đoạn vào kế hoạch đang chạy, hiệu lực ngay** (AC-07 SRS)
-  - Given kế hoạch đang active và đã có lượt scan
-  - When Tổ trưởng/Admin thêm 1 công đoạn mới vào kế hoạch
-  - Then trình tự công đoạn cập nhật ngay, không cần deploy lại phần mềm — *(AC-07 gốc)*
+- **AC6 — Không hồi tố lịch sử scan khi đổi trình tự**
+  - Given Line đang có kế hoạch chạy dở, các lượt scan trước đó đã ghi nhận theo trình tự cũ
+  - When Tổ trưởng/Admin đổi trình tự (thêm/bớt/sắp xếp lại)
+  - Then các lượt scan **đã ghi nhận trước đó giữ nguyên bất biến** (nhất quán FR-10/mục 6 quy tắc 14); trình tự mới chỉ áp dụng cho việc xác định "công đoạn liền trước" (FR-08) từ thời điểm đổi trở đi
+- **AC7 — Thêm công đoạn mới vào Line đang có kế hoạch chạy, hiệu lực ngay** (AC-07 SRS)
+  - Given Line đang có ít nhất 1 kế hoạch active (`Running`/`Paused`) tại 1 hoặc nhiều công đoạn khác
+  - When Tổ trưởng/Admin thêm 1 công đoạn mới vào trình tự của Line
+  - Then trình tự cập nhật ngay, không cần deploy lại phần mềm — *(AC-07 gốc)*
+- **AC8 — Hiển thị tên Line cố định, không cho chọn** *(bổ sung 17/08/2026 — cùng đợt sửa gap "hiển thị Id thay vì tên" ở US-05 AC1a)*
+  - Given Tổ trưởng đang ở màn hình "Trình tự công đoạn (Line)" tại 1 trạm cụ thể
+  - When màn hình được tải
+  - Then hiển thị rõ **Tên** Line đang cấu hình (lấy theo Line cố định của trạm, FR-04), ở dạng chỉ đọc (không phải ô nhập/combobox) — không hiển thị Id thô, không cho gõ tay đổi sang Line khác từ màn hình này (khác US-05b, nơi Tổ trưởng được phép thao tác công đoạn khác từ xa — ở đây trình tự luôn gắn với đúng Line của trạm)
 
 **Nguồn FR:** FR-03
-**Phụ thuộc:** US-02 (danh mục công đoạn master), US-05 (kế hoạch sản xuất phải tồn tại trước khi cấu hình công đoạn cho kế hoạch đó)
+**Phụ thuộc:** US-01 (Line phải tồn tại), US-02 (danh mục công đoạn master). KHÔNG còn phụ thuộc US-05 — trình tự là cấu hình của Line, không cần kế hoạch tồn tại trước.
 **Cờ cảnh báo mục 8.2:** Không trực tiếp, nhưng phụ thuộc gián tiếp vào danh sách công đoạn thực tế từng Line (điểm mở #1).
-**UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026).
+**UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — KHÔNG phải `web-admin`, xem ADR-002 mục "Cập nhật phạm vi" (12/08/2026). Giữ ở Station.Wpf theo xác nhận người dùng 17/08/2026 (Tổ trưởng thao tác tại xưởng, không cần máy admin riêng) — nhưng tách thành màn hình cấu hình cấp Line riêng, KHÔNG còn nằm trong màn "Cài đặt kế hoạch" (US-05) như bản implement cũ.
 
 ---
 
@@ -249,6 +259,18 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
   - Given Line đã tồn tại và đang hoạt động
   - When Tổ trưởng nhập đầy đủ: Line áp dụng, Khách hàng, Model, Lot, số lượng kế hoạch (theo Lot), takt time, thời gian bắt đầu (ngày + giờ), tên nhân viên vận hành tại trạm/công đoạn phụ trách lô này (có thể nhiều người), và lưu
   - Then kế hoạch được tạo ở trạng thái `Draft` (chưa chạy công đoạn nào — xem US-05a để áp dụng vào công đoạn cụ thể)
+- **AC1a — Chọn Line từ danh mục, không gõ tay Id** *(bổ sung 17/08/2026 — sửa gap UI phát hiện: màn hình đang để gõ tay số Id)*
+  - Given danh mục Line (US-01) đã có ít nhất 1 Line đang hoạt động (`IsActive = true`)
+  - When Tổ trưởng mở màn hình "Cài đặt kế hoạch" để tạo/sửa kế hoạch
+  - Then ô "Line áp dụng" hiển thị dạng combobox liệt kê Line theo **Tên**, chỉ hiển thị các Line đang hoạt động (giống cách chọn Công đoạn ở US-05b AC1) — không có ô nhập tay số Id
+- **AC1b — Line đã vô hiệu hóa vẫn hiển thị đúng tên cho kế hoạch cũ**
+  - Given 1 kế hoạch cũ đang gán cho Line đã bị vô hiệu hóa (US-01 AC3) sau khi kế hoạch được tạo
+  - When Tổ trưởng mở lại kế hoạch đó để xem/sửa
+  - Then combobox vẫn hiển thị đúng Tên Line đó (dù không còn active) để không gây hiểu nhầm dữ liệu bị mất, nhưng Line này không xuất hiện trong danh sách chọn cho kế hoạch MỚI
+- **AC1c — Danh sách kế hoạch hiển thị tên Line**
+  - Given danh sách kế hoạch đang hiển thị trên màn hình "Cài đặt kế hoạch"
+  - When Tổ trưởng xem cột "Line"
+  - Then hiển thị **Tên Line**, không hiển thị số Id thô
 - **AC2 — Revision được để trống**
   - Given Tổ trưởng đang nhập kế hoạch mới
   - When để trống ô Revision
@@ -315,7 +337,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
   - Then cặp đó không xuất hiện trong danh sách áp dụng mặc định (US-05b AC2) — coi như đã kết thúc vòng đời tại công đoạn đó
 
 **Nguồn FR:** FR-05a, mục 6 quy tắc 12
-**Phụ thuộc:** US-05 (kế hoạch phải được tạo trước), US-03 (cần biết công đoạn nào thuộc kế hoạch, theo trình tự cấu hình), US-08 (nguồn dữ liệu scan OK để tính tiến độ động)
+**Phụ thuộc:** US-05 (kế hoạch phải được tạo trước), US-03 (cần biết công đoạn nào thuộc trình tự của Line, để suy ra danh sách (Kế hoạch, Công đoạn) cần theo dõi vòng đời), US-08 (nguồn dữ liệu scan OK để tính tiến độ động)
 **Cờ cảnh báo mục 8.2:** Không (đã chốt đầy đủ với người dùng ngày 13/08/2026).
 **Lưu ý kỹ thuật:** Thay đổi so với thiết kế backend ban đầu (`ProductionPlanService.ActivateAsync`/`DeactivateAsync` hiện chỉ kiểm tra duy nhất theo `LineId`, cờ `IsActive` dạng bool) — cần đổi model sang trạng thái theo cặp `(LineId, StageId)` khi implement, không chỉ đổi UI.
 
@@ -331,10 +353,11 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
   - Given Tổ trưởng đang ở chế độ nâng quyền tại bất kỳ trạm nào thuộc Line Y
   - When mở màn hình "Chọn kế hoạch"
   - Then combobox Công đoạn liệt kê **mọi công đoạn đã cấu hình cho Line Y** (không chỉ công đoạn vật lý của trạm đang đứng), cho phép cấu hình kế hoạch cho công đoạn khác từ xa (mục 6 quy tắc 13)
+  - **Bug phát hiện 17/08/2026** (cùng đợt rà soát gap "hiển thị Id thay vì tên Line" ở US-05 AC1a): `PlanSelectionPage.xaml` đang hiển thị dòng chữ **hardcode cứng** "Line 1 (theo trạm đang đăng nhập)..." thay vì bind đúng Tên Line thật của trạm — cần sửa thành bind động lấy từ Line thật của `StationOptions.LineId` (qua danh mục Line, hiển thị Tên, không phải số Id lẫn không phải chuỗi tĩnh sai)
 - **AC2 — Danh sách kế hoạch lọc theo Line + Công đoạn đã chọn**
   - Given đã chọn Công đoạn X (thuộc Line Y)
   - When mở combobox "Kế hoạch sản xuất"
-  - Then chỉ hiển thị các kế hoạch có cấu hình áp dụng công đoạn X (qua `ProductionPlanStage`, US-03) trong đúng Line Y; mặc định **ẩn** các kế hoạch đã `Completed`/`Cancelled` tại công đoạn X (US-05a AC7)
+  - Then chỉ hiển thị các kế hoạch thuộc đúng Line Y (mọi kế hoạch của Line Y đều tự động áp dụng công đoạn X nếu X thuộc trình tự đã cấu hình cho Line Y — US-03); mặc định **ẩn** các kế hoạch đã `Completed`/`Cancelled` tại công đoạn X (US-05a AC7)
 - **AC3 — Hiển thị tiến độ cho kế hoạch đang tạm dừng**
   - Given trong danh sách có 1 kế hoạch đang `Paused` tại công đoạn X
   - When hiển thị trong combobox/danh sách chọn
@@ -349,7 +372,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
   - Then kế hoạch chuyển `Running` cho đúng (Line, Công đoạn) đó (US-05a AC1); màn hình chính của trạm tương ứng công đoạn đó cập nhật hiển thị đúng kế hoạch vừa áp dụng ngay lập tức (real-time nếu trạm đang mở sẵn)
 
 **Nguồn FR:** FR-05a (phần UI màn hình chọn kế hoạch), mục 6 quy tắc 13
-**Phụ thuộc:** US-05 (kế hoạch phải tồn tại), US-05a (trạng thái & tiến độ động), US-03 (cấu hình công đoạn theo kế hoạch)
+**Phụ thuộc:** US-05 (kế hoạch phải tồn tại), US-05a (trạng thái & tiến độ động), US-03 (trình tự công đoạn của Line — xác định công đoạn nào áp dụng cho mọi kế hoạch của Line đó)
 **Cờ cảnh báo mục 8.2:** Không.
 **UI:** `Station.Wpf` (chế độ Tổ trưởng đăng nhập nâng quyền tại trạm) — màn hình "Chọn kế hoạch", tách riêng khỏi màn hình "Cài đặt kế hoạch" (US-05).
 
@@ -913,8 +936,8 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 4. US-04 (Trạm làm việc) — cần Line + Công đoạn xong trước
 5. US-04a (API Key theo trạm) — cần US-04 xong trước; là điều kiện tiên quyết bắt buộc cho US-07/US-08 (`Station.Wpf` không xác thực được nếu thiếu story này)
 6. US-05 (Kế hoạch sản xuất — màn hình Cài đặt kế hoạch)
-7. US-03 (Cấu hình trình tự công đoạn theo kế hoạch)
-8. US-05a (Vòng đời trạng thái kế hoạch theo từng công đoạn) — cần US-03 xong trước (cần biết công đoạn nào thuộc kế hoạch)
+7. US-03 (Cấu hình trình tự công đoạn cho Line) — thực ra chỉ cần US-01/US-02 xong trước (không phụ thuộc US-05 nữa, xem sửa 17/08/2026), đặt sau US-05 trong danh sách này chỉ vì lý do lịch sử triển khai
+8. US-05a (Vòng đời trạng thái kế hoạch theo từng công đoạn) — cần US-03 xong trước (cần biết công đoạn nào thuộc trình tự của Line để suy ra các cặp (Kế hoạch, Công đoạn) cần theo dõi)
 9. US-05b (Chọn & áp dụng kế hoạch — màn hình Chọn kế hoạch) — cần US-05a xong trước
 10. US-06 (Tính sản lượng chuẩn theo giờ)
 11. US-22 (Quản lý người dùng & phân quyền)

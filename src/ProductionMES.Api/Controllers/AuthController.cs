@@ -86,6 +86,51 @@ public class AuthController : ControllerBase
         return Ok(new { csrfToken = tokens.RequestToken });
     }
 
+    /// <summary>
+    /// Đăng nhập Supervisor tại <c>Station.Wpf</c> (ADR-005) — validate credentials qua cùng <see cref="IAuthService"/>
+    /// như <see cref="Login"/>, nhưng trả access/refresh token trong JSON body thay vì set cookie (desktop client
+    /// không có DOM/JS nên không cần né XSS bằng HttpOnly cookie như ADR-003).
+    /// </summary>
+    [HttpPost("station-login")]
+    [IgnoreAntiforgeryToken]
+    public async Task<ActionResult<StationLoginResponse>> StationLogin([FromBody] LoginRequest request, CancellationToken cancellationToken)
+    {
+        var tokens = await _authService.LoginAsync(request, cancellationToken);
+        if (tokens is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(ToStationLoginResponse(tokens));
+    }
+
+    /// <summary>Đổi cặp access/refresh token mới cho luồng Station.Wpf — refresh token đọc từ body, không phải cookie.</summary>
+    [HttpPost("station-refresh")]
+    [IgnoreAntiforgeryToken]
+    public async Task<ActionResult<StationLoginResponse>> StationRefresh([FromBody] StationRefreshRequest request, CancellationToken cancellationToken)
+    {
+        var tokens = await _authService.RefreshAsync(request.RefreshToken, cancellationToken);
+        if (tokens is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(ToStationLoginResponse(tokens));
+    }
+
+    /// <summary>Đăng xuất Supervisor tại Station.Wpf — thu hồi refresh token gửi trong body (không có cookie để tự đọc).</summary>
+    [HttpPost("station-logout")]
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> StationLogout([FromBody] StationRefreshRequest request, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(request.RefreshToken))
+        {
+            await _authService.LogoutAsync(request.RefreshToken, cancellationToken);
+        }
+
+        return NoContent();
+    }
+
     private void SetAuthCookies(AuthTokensResult tokens)
     {
         Response.Cookies.Append(AccessTokenCookieName, tokens.AccessToken, new CookieOptions
@@ -116,6 +161,18 @@ public class AuthController : ControllerBase
     private static LoginResponse ToLoginResponse(AuthTokensResult tokens) => new()
     {
         AccessTokenExpiresAtUtc = tokens.AccessTokenExpiresAtUtc,
+        Username = tokens.Username,
+        FullName = tokens.FullName,
+        UserRole = tokens.UserRole,
+        Permissions = tokens.Permissions,
+    };
+
+    private static StationLoginResponse ToStationLoginResponse(AuthTokensResult tokens) => new()
+    {
+        AccessToken = tokens.AccessToken,
+        AccessTokenExpiresAtUtc = tokens.AccessTokenExpiresAtUtc,
+        RefreshToken = tokens.RefreshToken,
+        RefreshTokenExpiresAtUtc = tokens.RefreshTokenExpiresAtUtc,
         Username = tokens.Username,
         FullName = tokens.FullName,
         UserRole = tokens.UserRole,

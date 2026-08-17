@@ -1,11 +1,11 @@
 using FluentValidation;
-using ProductionMES.Application.DTOs.ProductionPlanStages;
+using ProductionMES.Application.DTOs.LineStageSequences;
 
-namespace ProductionMES.Application.Validators.ProductionPlanStages;
+namespace ProductionMES.Application.Validators.LineStageSequences;
 
-public class AddStageToProductionPlanRequestValidator : AbstractValidator<AddStageToProductionPlanRequest>
+public class AddStageToLineRequestValidator : AbstractValidator<AddStageToLineRequest>
 {
-    public AddStageToProductionPlanRequestValidator()
+    public AddStageToLineRequestValidator()
     {
         RuleFor(x => x.StageId)
             .GreaterThan(0).WithMessage("Phải chọn 1 công đoạn hợp lệ.");

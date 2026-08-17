@@ -1,0 +1,32 @@
+<Window x:Class="ProductionMES.Station.Wpf.Views.AndonBoardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Andon Board"
+        WindowStyle="None"
+        WindowState="Maximized"
+        ResizeMode="NoResize"
+        Background="#0B0E13"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24">
+            <TextBlock x:Name="StationLabel" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,24,0"/>
+            <TextBlock x:Name="StageLabel" FontSize="24" FontWeight="Bold" Foreground="#FFAB1F"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock Text="Andon Board" FontSize="20" Foreground="#8D96A8" HorizontalAlignment="Center"/>
+            <TextBlock Text="Bảng theo dõi PLAN/ACTUAL/BALANCE và popup kết quả scan thuộc US-07/US-09 (chưa triển khai)."
+                       Foreground="#5C6577" Margin="0,10,0,0" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"/>
+            <TextBlock Text="Xem mockup tham khảo: artifact &quot;Station Andon Board&quot;." Foreground="#5C6577" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="12"
+                    Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
+    </Grid>
+</Window>

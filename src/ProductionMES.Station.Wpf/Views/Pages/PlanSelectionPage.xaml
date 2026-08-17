@@ -1,0 +1,101 @@
+<Page x:Class="ProductionMES.Station.Wpf.Views.Pages.PlanSelectionPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Chọn kế hoạch"
+      Background="#161B23"
+      Loaded="Page_Loaded">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button Content="← Trang chủ" Click="HomeButton_Click" Margin="0,0,12,0"/>
+                <TextBlock Text="Chọn kế hoạch" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
+            <Button Content="Cài đặt kế hoạch" Click="PlanSettingsButton_Click" Margin="0,0,8,0"/>
+            <Button Content="Chọn kế hoạch" IsEnabled="False" Margin="0,0,8,0"/>
+            <Button Content="Trình tự công đoạn (Line)" Click="LineStageSequenceButton_Click"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#E8A23D" Margin="16,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,14">
+            <TextBlock Foreground="#8D96A8" VerticalAlignment="Center" Margin="0,0,8,0">
+                <Run Text="{Binding LineName, Mode=OneWay}"/><Run Text=" (theo trạm đang đăng nhập) — Công đoạn:"/>
+            </TextBlock>
+            <ComboBox SelectedIndex="0" Width="180" IsEnabled="False">
+                <ComboBoxItem Content="{Binding StageName}"/>
+            </ComboBox>
+            <CheckBox Content="Hiện cả kế hoạch đã Completed/Cancelled" IsChecked="{Binding IncludeClosed}"
+                      Foreground="#8D96A8" VerticalAlignment="Center" Margin="20,0,0,0"/>
+        </StackPanel>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.3*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <DataGrid Grid.Column="0" ItemsSource="{Binding Plans}" SelectedItem="{Binding SelectedPlan, Mode=TwoWay}"
+                      AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" CanUserAddRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Lot" Binding="{Binding Lot}"/>
+                    <DataGridTextColumn Header="Khách hàng" Binding="{Binding Customer}"/>
+                    <DataGridTextColumn Header="Model" Binding="{Binding Model}"/>
+                    <DataGridTextColumn Header="Trạng thái" Binding="{Binding PlanStatus}"/>
+                    <DataGridTextColumn Header="Đã chạy" Binding="{Binding RunCount}"/>
+                    <DataGridTextColumn Header="Còn lại" Binding="{Binding RemainingCount}"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel DataContext="{Binding SelectedPlan}" Margin="0,0,10,20">
+                <TextBlock Text="Chi tiết kế hoạch" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Khách hàng" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Text="{Binding Customer}" Foreground="White" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Model" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Text="{Binding Model}" Foreground="White" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Lot / Revision" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Foreground="White" Margin="0,0,0,8">
+                    <Run Text="{Binding Lot, Mode=OneWay}"/> / <Run Text="{Binding Revision, Mode=OneWay}"/>
+                </TextBlock>
+
+                <TextBlock Text="Số lượng / Takt time" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Margin="0,0,0,8" Foreground="White">
+                    <Run Text="{Binding PlannedQuantity, Mode=OneWay}"/> sp · <Run Text="{Binding TaktTimeSeconds, Mode=OneWay}"/> s
+                    (≈ <Run Text="{Binding StandardQuantityPerHour, Mode=OneWay}"/> sp/giờ)
+                </TextBlock>
+
+                <TextBlock Text="Thời gian bắt đầu" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Text="{Binding StartTime}" Foreground="White" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Nhân viên vận hành" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Text="{Binding OperatorNames}" Foreground="White" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Trạng thái / Tiến độ" Foreground="#5C6577" FontSize="10"/>
+                <TextBlock Foreground="#F4B55A" Margin="0,0,0,16">
+                    <Run Text="{Binding PlanStatus, Mode=OneWay}"/> — đã chạy <Run Text="{Binding RunCount, Mode=OneWay}"/>/<Run Text="{Binding PlannedQuantity, Mode=OneWay}"/>
+                    (còn <Run Text="{Binding RemainingCount, Mode=OneWay}"/>)
+                </TextBlock>
+
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="▶ Áp dụng" Command="{Binding DataContext.ApplyCommand, RelativeSource={RelativeSource AncestorType=Page}}" Margin="0,0,8,0" Padding="12,6"/>
+                    <Button Content="⏸ Tạm dừng" Command="{Binding DataContext.PauseCommand, RelativeSource={RelativeSource AncestorType=Page}}" Margin="0,0,8,0" Padding="12,6"/>
+                    <Button Content="✕ Đóng kế hoạch" Command="{Binding DataContext.CloseCommand, RelativeSource={RelativeSource AncestorType=Page}}" Padding="12,6"/>
+                </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>

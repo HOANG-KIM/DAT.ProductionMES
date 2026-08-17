@@ -7,15 +7,16 @@ using ProductionMES.Domain.Exceptions;
 namespace ProductionMES.Application.Services.ProductionPlanStages;
 
 /// <summary>
-/// Implementation IProductionPlanStageService (US-03/FR-03, US-05a/FR-05a).
-/// Mô hình dữ liệu: danh sách tuyến tính (ProductionPlanStage.SequenceNumber duy nhất trong phạm vi 1 kế hoạch), "công đoạn
-/// liền trước" suy ra từ SequenceNumber - 1 (xem lý do thiết kế đầy đủ tại <see cref="ProductionPlanStage"/>). Ràng buộc
-/// "1 công đoạn không xuất hiện quá 1 lần trong cùng kế hoạch" (kiểm tra ở AddAsync) là điều kiện đảm bảo AC5
-/// (không thể tạo vòng lặp) đúng cấu trúc, không cần thuật toán phát hiện chu trình riêng.
+/// Implementation IProductionPlanStageService (US-05a/FR-05a). Trình tự công đoạn (Stage nào, thứ tự nào) KHÔNG
+/// còn thuộc phạm vi service này — đã chuyển hẳn sang <c>LineStageSequenceService</c> (US-03/FR-03, cấu hình
+/// của Line, dùng chung mọi kế hoạch). Service này giờ chỉ quản lý vòng đời trạng thái
+/// (<see cref="ProductionPlanStage.PlanStatus"/>) và tiến độ "đã chạy/còn lại" (tính động từ lịch sử
+/// <see cref="Scan"/> kết quả OK, KHÔNG lưu số liệu tĩnh) của từng cặp (Kế hoạch, Công đoạn).
 ///
-/// US-05a: vòng đời trạng thái (<see cref="ProductionPlanStage.PlanStatus"/>) và tiến độ "đã chạy/còn lại" (tính động từ
-/// lịch sử <see cref="Scan"/> kết quả OK, KHÔNG lưu số liệu tĩnh) đều được quản lý ở đây, vì ProductionPlanStage là entity
-/// đại diện đúng cặp (Kế hoạch, Công đoạn) mô tả trong FR-05a.
+/// Cơ chế "lazy get-or-create": bản ghi <see cref="ProductionPlanStage"/> của 1 cặp (Kế hoạch, Công đoạn) chỉ
+/// được tạo (persist, trạng thái <c>Draft</c>) khi lần đầu cần đọc/thao tác tới đúng cặp đó — vì MỌI Stage trong
+/// trình tự của Line đã tự động áp dụng cho MỌI kế hoạch trên Line đó (US-03), không cần bước "gắn công đoạn vào
+/// kế hoạch" thủ công như thiết kế cũ.
 /// </summary>
 public class ProductionPlanStageService : IProductionPlanStageService
 {
@@ -26,158 +27,43 @@ public class ProductionPlanStageService : IProductionPlanStageService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<ProductionPlanStageDto> AddAsync(int productionPlanId, AddStageToProductionPlanRequest request, CancellationToken cancellationToken = default)
-    {
-        var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
-
-        var stage = await _unitOfWork.Repository<Stage>().GetByIdAsync(request.StageId, cancellationToken)
-            ?? throw new EntityNotFoundException($"Không tìm thấy công đoạn với Id = {request.StageId}.");
-
-        var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var existingItems = await repository.FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken);
-
-        // AC5: 1 công đoạn không được xuất hiện quá 1 lần trong cùng 1 kế hoạch — điều kiện cấu trúc đảm bảo
-        // không thể hình thành vòng lặp khi suy ra "liền trước" từ SequenceNumber - 1 (xem remarks tại entity).
-        if (existingItems.Any(x => x.StageId == request.StageId))
-        {
-            throw new BusinessRuleException(
-                $"Công đoạn \"{stage.Name}\" đã có trong kế hoạch này, không thể thêm trùng (sẽ tạo vòng lặp trình tự).");
-        }
-
-        int sequenceNumber;
-        if (request.SequenceNumber.HasValue)
-        {
-            // AC4: từ chối khi trùng số thứ tự
-            if (existingItems.Any(x => x.SequenceNumber == request.SequenceNumber.Value))
-            {
-                throw new BusinessRuleException($"Số thứ tự {request.SequenceNumber.Value} đã được dùng trong kế hoạch này.");
-            }
-
-            sequenceNumber = request.SequenceNumber.Value;
-        }
-        else
-        {
-            // AC1: chưa chỉ định trình tự -> mặc định thêm vào cuối danh sách
-            sequenceNumber = existingItems.Count == 0 ? 1 : existingItems.Max(x => x.SequenceNumber) + 1;
-        }
-
-        var item = new ProductionPlanStage
-        {
-            ProductionPlanId = productionPlanId,
-            StageId = request.StageId,
-            LineId = productionPlan.LineId, // denormalize từ kế hoạch cha (xem remarks tại entity)
-            SequenceNumber = sequenceNumber,
-            PlanStatus = PlanStatus.Draft,
-        };
-
-        await repository.AddAsync(item, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        var allItems = existingItems.Append(item).ToList();
-        var dtoList = await ToDtoListAsync(allItems, productionPlan, cancellationToken);
-        return dtoList.Single(x => x.Id == item.Id);
-    }
-
-    public async Task RemoveAsync(int productionPlanId, int stageId, CancellationToken cancellationToken = default)
-    {
-        await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
-
-        var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var existingItems = await repository.FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken);
-
-        var item = existingItems.FirstOrDefault(x => x.StageId == stageId)
-            ?? throw new EntityNotFoundException($"Công đoạn Id = {stageId} chưa được cấu hình trong kế hoạch Id = {productionPlanId}.");
-
-        repository.Remove(item);
-
-        // AC2: trình tự công đoạn còn lại được điều chỉnh hợp lý — đánh số lại liên tục 1..n theo SequenceNumber hiện tại.
-        var remaining = existingItems.Where(x => x.Id != item.Id).OrderBy(x => x.SequenceNumber).ToList();
-        for (var i = 0; i < remaining.Count; i++)
-        {
-            var newSequenceNumber = i + 1;
-            if (remaining[i].SequenceNumber != newSequenceNumber)
-            {
-                remaining[i].SequenceNumber = newSequenceNumber;
-                repository.Update(remaining[i]);
-            }
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<ProductionPlanStageDto>> ReorderAsync(int productionPlanId, ReorderProductionPlanStageRequest request, CancellationToken cancellationToken = default)
-    {
-        var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
-
-        // AC4: từ chối khi trùng số thứ tự trong danh sách gửi lên
-        if (request.Items.Select(x => x.SequenceNumber).Distinct().Count() != request.Items.Count)
-        {
-            throw new BusinessRuleException("Danh sách trình tự có số thứ tự bị trùng.");
-        }
-
-        // AC5: từ chối nếu 1 công đoạn xuất hiện nhiều lần trong danh sách gửi lên (phòng vệ, tránh phá vỡ
-        // điều kiện cấu trúc "1 công đoạn - tối đa 1 vị trí" đảm bảo không có vòng lặp).
-        if (request.Items.Select(x => x.StageId).Distinct().Count() != request.Items.Count)
-        {
-            throw new BusinessRuleException("Danh sách trình tự có công đoạn bị lặp lại (sẽ tạo vòng lặp trình tự).");
-        }
-
-        var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var existingItems = await repository.FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken);
-
-        if (request.Items.Count != existingItems.Count)
-        {
-            throw new BusinessRuleException(
-                "Danh sách sắp xếp phải bao gồm đầy đủ và chỉ các công đoạn hiện đang thuộc kế hoạch này.");
-        }
-
-        var itemsByStageId = existingItems.ToDictionary(x => x.StageId);
-        foreach (var reorderItem in request.Items)
-        {
-            if (!itemsByStageId.TryGetValue(reorderItem.StageId, out _))
-            {
-                throw new BusinessRuleException(
-                    $"Công đoạn Id = {reorderItem.StageId} chưa thuộc kế hoạch này, không thể sắp xếp trình tự.");
-            }
-        }
-
-        // Cập nhật 2 bước để tránh vi phạm tạm thời ràng buộc unique(ProductionPlanId, SequenceNumber) khi hoán đổi vị
-        // trí (vd đổi chỗ 2 công đoạn cho nhau): bước 1 gán SequenceNumber tạm thời âm và duy nhất (dựa trên Id, vốn đã
-        // unique) để giải phóng toàn bộ giá trị SequenceNumber dương hiện tại; bước 2 mới gán đúng SequenceNumber cuối cùng theo
-        // yêu cầu. Cả 2 bước dùng chung UnitOfWork/DbContext hiện tại của request.
-        foreach (var existing in existingItems)
-        {
-            existing.SequenceNumber = -existing.Id;
-            repository.Update(existing);
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        foreach (var reorderItem in request.Items)
-        {
-            var existing = itemsByStageId[reorderItem.StageId];
-            existing.SequenceNumber = reorderItem.SequenceNumber;
-            repository.Update(existing);
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoListAsync(existingItems, productionPlan, cancellationToken);
-    }
-
     public async Task<IReadOnlyList<ProductionPlanStageDto>> GetByProductionPlanAsync(int productionPlanId, CancellationToken cancellationToken = default)
     {
         var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
+        var lineSequence = await GetLineSequenceAsync(productionPlan.LineId, cancellationToken);
 
-        var items = await _unitOfWork.Repository<ProductionPlanStage>().FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken);
-        return await ToDtoListAsync(items, productionPlan, cancellationToken);
+        var repository = _unitOfWork.Repository<ProductionPlanStage>();
+        var existingItems = (await repository.FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken)).ToList();
+        var existingStageIds = existingItems.Select(x => x.StageId).ToHashSet();
+
+        // Get-or-create: mọi Stage trong trình tự của Line mà kế hoạch này CHƯA có bản ghi vòng đời -> tạo mới Draft.
+        var missing = lineSequence.Where(x => !existingStageIds.Contains(x.StageId)).ToList();
+        if (missing.Count > 0)
+        {
+            foreach (var lineStage in missing)
+            {
+                var newItem = new ProductionPlanStage
+                {
+                    ProductionPlanId = productionPlanId,
+                    StageId = lineStage.StageId,
+                    LineId = productionPlan.LineId,
+                    PlanStatus = PlanStatus.Draft,
+                };
+                await repository.AddAsync(newItem, cancellationToken);
+                existingItems.Add(newItem);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return await ToDtoListAsync(existingItems, lineSequence, productionPlan, cancellationToken);
     }
 
     public async Task<ProductionPlanStageDto> ApplyAsync(int productionPlanId, int stageId, CancellationToken cancellationToken = default)
     {
         var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
         var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var item = await GetPlanStageOrThrowAsync(repository, productionPlanId, stageId, cancellationToken);
+        var (item, lineSequence) = await GetOrCreatePlanStageAsync(productionPlan, stageId, cancellationToken);
 
         // AC7: Completed/Cancelled không tự "Áp dụng" lại được như Paused.
         if (item.PlanStatus is PlanStatus.Completed or PlanStatus.Cancelled)
@@ -189,7 +75,7 @@ public class ProductionPlanStageService : IProductionPlanStageService
         if (item.PlanStatus == PlanStatus.Running)
         {
             // Đã Running sẵn -> coi như idempotent, không cần kiểm tra thêm.
-            return (await ToDtoListAsync(new[] { item }, productionPlan, cancellationToken)).Single();
+            return (await ToDtoListAsync(new[] { item }, lineSequence, productionPlan, cancellationToken)).Single();
         }
 
         // AC1/AC2: chỉ chặn nếu ĐÚNG cặp (Line, Công đoạn) này đang có 1 kế hoạch KHÁC ở Running — không ràng
@@ -210,14 +96,14 @@ public class ProductionPlanStageService : IProductionPlanStageService
         repository.Update(item);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return (await ToDtoListAsync(new[] { item }, productionPlan, cancellationToken)).Single();
+        return (await ToDtoListAsync(new[] { item }, lineSequence, productionPlan, cancellationToken)).Single();
     }
 
     public async Task<ProductionPlanStageDto> PauseAsync(int productionPlanId, int stageId, CancellationToken cancellationToken = default)
     {
         var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
         var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var item = await GetPlanStageOrThrowAsync(repository, productionPlanId, stageId, cancellationToken);
+        var (item, lineSequence) = await GetOrCreatePlanStageAsync(productionPlan, stageId, cancellationToken);
 
         if (item.PlanStatus != PlanStatus.Running)
         {
@@ -230,14 +116,14 @@ public class ProductionPlanStageService : IProductionPlanStageService
         repository.Update(item);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return (await ToDtoListAsync(new[] { item }, productionPlan, cancellationToken)).Single();
+        return (await ToDtoListAsync(new[] { item }, lineSequence, productionPlan, cancellationToken)).Single();
     }
 
     public async Task<ProductionPlanStageDto> CloseAsync(int productionPlanId, int stageId, CloseProductionPlanStageRequest request, CancellationToken cancellationToken = default)
     {
         var productionPlan = await GetProductionPlanOrThrowAsync(productionPlanId, cancellationToken);
         var repository = _unitOfWork.Repository<ProductionPlanStage>();
-        var item = await GetPlanStageOrThrowAsync(repository, productionPlanId, stageId, cancellationToken);
+        var (item, lineSequence) = await GetOrCreatePlanStageAsync(productionPlan, stageId, cancellationToken);
 
         if (item.PlanStatus is PlanStatus.Completed or PlanStatus.Cancelled)
         {
@@ -264,7 +150,64 @@ public class ProductionPlanStageService : IProductionPlanStageService
         repository.Update(item);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return (await ToDtoListAsync(new[] { item }, productionPlan, cancellationToken)).Single();
+        return (await ToDtoListAsync(new[] { item }, lineSequence, productionPlan, cancellationToken)).Single();
+    }
+
+    public async Task<IReadOnlyList<ProductionPlanStageSelectionDto>> GetByLineAndStageAsync(
+        int lineId, int stageId, bool includeClosed = false, CancellationToken cancellationToken = default)
+    {
+        // US-03 (17/08/2026): mọi kế hoạch tạo trên 1 Line đều tự động áp dụng ĐÚNG VÀ ĐỦ toàn bộ trình tự đã
+        // cấu hình cho Line đó — nên liệt kê MỌI ProductionPlan của Line, không còn phụ thuộc việc đã tồn tại
+        // bản ghi ProductionPlanStage hay chưa (left-join "ảo": mặc định Draft nếu chưa có bản ghi thật).
+        var plans = await _unitOfWork.Repository<ProductionPlan>().FindAsync(p => p.LineId == lineId, cancellationToken);
+        if (plans.Count == 0)
+        {
+            return Array.Empty<ProductionPlanStageSelectionDto>();
+        }
+
+        var planIds = plans.Select(p => p.Id).ToList();
+
+        var planStages = await _unitOfWork.Repository<ProductionPlanStage>().FindAsync(
+            x => x.LineId == lineId && x.StageId == stageId, cancellationToken);
+        var planStatusByPlanId = planStages.ToDictionary(x => x.ProductionPlanId, x => x.PlanStatus);
+
+        // US-05a AC4: "đã chạy" tính động từ lịch sử scan OK, đúng công đoạn này, gộp 1 truy vấn cho toàn bộ danh sách.
+        var okScans = await _unitOfWork.Repository<Scan>().FindAsync(
+            s => s.StageId == stageId && s.Result == ScanResult.Ok && planIds.Contains(s.ProductionPlanId), cancellationToken);
+        var runCountByPlanId = okScans.GroupBy(s => s.ProductionPlanId).ToDictionary(g => g.Key, g => g.Count());
+
+        return plans
+            .Select(plan =>
+            {
+                var planStatus = planStatusByPlanId.TryGetValue(plan.Id, out var status) ? status : PlanStatus.Draft;
+                return (plan, planStatus);
+            })
+            // US-05a AC7: mặc định ẩn các cặp đã kết thúc vòng đời tại công đoạn này.
+            .Where(x => includeClosed || x.planStatus is not (PlanStatus.Completed or PlanStatus.Cancelled))
+            .OrderBy(x => x.plan.StartTime)
+            .Select(x =>
+            {
+                var runCount = runCountByPlanId.TryGetValue(x.plan.Id, out var count) ? count : 0;
+                return new ProductionPlanStageSelectionDto
+                {
+                    ProductionPlanId = x.plan.Id,
+                    StageId = stageId,
+                    LineId = lineId,
+                    Customer = x.plan.Customer,
+                    Model = x.plan.Model,
+                    Lot = x.plan.Lot,
+                    Revision = x.plan.Revision,
+                    PlannedQuantity = x.plan.PlannedQuantity,
+                    TaktTimeSeconds = x.plan.TaktTimeSeconds,
+                    StandardQuantityPerHour = x.plan.TaktTimeSeconds > 0 ? Math.Round(3600m / x.plan.TaktTimeSeconds, 2) : 0,
+                    StartTime = x.plan.StartTime,
+                    OperatorNames = x.plan.OperatorNames,
+                    PlanStatus = x.planStatus,
+                    RunCount = runCount,
+                    RemainingCount = Math.Max(0, x.plan.PlannedQuantity - runCount),
+                };
+            })
+            .ToList();
     }
 
     private async Task<ProductionPlan> GetProductionPlanOrThrowAsync(int productionPlanId, CancellationToken cancellationToken)
@@ -273,12 +216,45 @@ public class ProductionPlanStageService : IProductionPlanStageService
         return productionPlan ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {productionPlanId}.");
     }
 
-    private static async Task<ProductionPlanStage> GetPlanStageOrThrowAsync(
-        IRepository<ProductionPlanStage> repository, int productionPlanId, int stageId, CancellationToken cancellationToken)
+    /// <summary>Trình tự công đoạn của Line (US-03), sắp theo SequenceNumber — nguồn sự thật cho "Stage nào thuộc Line này".</summary>
+    private async Task<List<LineStageSequence>> GetLineSequenceAsync(int lineId, CancellationToken cancellationToken)
     {
-        var items = await repository.FindAsync(x => x.ProductionPlanId == productionPlanId, cancellationToken);
-        return items.FirstOrDefault(x => x.StageId == stageId)
-            ?? throw new EntityNotFoundException($"Công đoạn Id = {stageId} chưa được cấu hình trong kế hoạch Id = {productionPlanId}.");
+        var items = await _unitOfWork.Repository<LineStageSequence>().FindAsync(x => x.LineId == lineId, cancellationToken);
+        return items.OrderBy(x => x.SequenceNumber).ToList();
+    }
+
+    /// <summary>
+    /// Lazy get-or-create: trả về bản ghi vòng đời của cặp (Kế hoạch, Công đoạn), tạo mới Draft nếu chưa có, kèm
+    /// toàn bộ trình tự công đoạn của Line (dùng suy PreviousStageId). Ném <see cref="EntityNotFoundException"/>
+    /// nếu <paramref name="stageId"/> không thuộc trình tự đã cấu hình cho Line của kế hoạch này.
+    /// </summary>
+    private async Task<(ProductionPlanStage Item, List<LineStageSequence> LineSequence)> GetOrCreatePlanStageAsync(
+        ProductionPlan productionPlan, int stageId, CancellationToken cancellationToken)
+    {
+        var lineSequence = await GetLineSequenceAsync(productionPlan.LineId, cancellationToken);
+        if (lineSequence.All(x => x.StageId != stageId))
+        {
+            throw new EntityNotFoundException("Công đoạn này không thuộc trình tự cấu hình của Line.");
+        }
+
+        var repository = _unitOfWork.Repository<ProductionPlanStage>();
+        var existingItems = await repository.FindAsync(x => x.ProductionPlanId == productionPlan.Id, cancellationToken);
+        var item = existingItems.FirstOrDefault(x => x.StageId == stageId);
+
+        if (item is null)
+        {
+            item = new ProductionPlanStage
+            {
+                ProductionPlanId = productionPlan.Id,
+                StageId = stageId,
+                LineId = productionPlan.LineId,
+                PlanStatus = PlanStatus.Draft,
+            };
+            await repository.AddAsync(item, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return (item, lineSequence);
     }
 
     /// <summary>US-05a AC4: "đã chạy" = tổng số lượt scan kết quả OK theo đúng cặp (Kế hoạch, Công đoạn), tính động.</summary>
@@ -291,33 +267,38 @@ public class ProductionPlanStageService : IProductionPlanStageService
     }
 
     /// <summary>
-    /// Suy ra PreviousStageId từ SequenceNumber - 1 trong cùng kế hoạch (FR-03/FR-08) và tính tiến độ "đã
-    /// chạy/còn lại" động cho từng công đoạn (US-05a AC4) — 1 truy vấn Scan duy nhất cho toàn bộ danh sách.
+    /// Suy ra PreviousStageId từ trình tự công đoạn CỦA LINE (<paramref name="lineSequence"/>, FR-03/FR-08) và
+    /// tính tiến độ "đã chạy/còn lại" động cho từng công đoạn (US-05a AC4) — 1 truy vấn Scan duy nhất cho toàn bộ
+    /// danh sách công đoạn của kế hoạch.
     /// </summary>
     private async Task<List<ProductionPlanStageDto>> ToDtoListAsync(
-        IEnumerable<ProductionPlanStage> items, ProductionPlan productionPlan, CancellationToken cancellationToken)
+        IEnumerable<ProductionPlanStage> items, List<LineStageSequence> lineSequence, ProductionPlan productionPlan, CancellationToken cancellationToken)
     {
-        var ordered = items.OrderBy(x => x.SequenceNumber).ToList();
-        var bySequenceNumber = ordered.ToDictionary(x => x.SequenceNumber);
+        var sequenceByStageId = lineSequence.ToDictionary(x => x.StageId, x => x.SequenceNumber);
+        var stageIdBySequenceNumber = lineSequence.ToDictionary(x => x.SequenceNumber, x => x.StageId);
 
         var okScans = await _unitOfWork.Repository<Scan>().FindAsync(
             s => s.ProductionPlanId == productionPlan.Id && s.Result == ScanResult.Ok, cancellationToken);
         var runCountByStageId = okScans.GroupBy(s => s.StageId).ToDictionary(g => g.Key, g => g.Count());
 
-        return ordered.Select(x =>
-        {
-            var runCount = runCountByStageId.TryGetValue(x.StageId, out var count) ? count : 0;
-            return new ProductionPlanStageDto
+        return items
+            .OrderBy(x => sequenceByStageId.TryGetValue(x.StageId, out var seq) ? seq : int.MaxValue)
+            .Select(x =>
             {
-                Id = x.Id,
-                ProductionPlanId = x.ProductionPlanId,
-                StageId = x.StageId,
-                SequenceNumber = x.SequenceNumber,
-                PreviousStageId = bySequenceNumber.TryGetValue(x.SequenceNumber - 1, out var previous) ? previous.StageId : null,
-                PlanStatus = x.PlanStatus,
-                RunCount = runCount,
-                RemainingCount = Math.Max(0, productionPlan.PlannedQuantity - runCount),
-            };
-        }).ToList();
+                var runCount = runCountByStageId.TryGetValue(x.StageId, out var count) ? count : 0;
+                var sequenceNumber = sequenceByStageId.TryGetValue(x.StageId, out var seq) ? seq : 0;
+                var previousStageId = stageIdBySequenceNumber.TryGetValue(sequenceNumber - 1, out var previous) ? previous : (int?)null;
+                return new ProductionPlanStageDto
+                {
+                    Id = x.Id,
+                    ProductionPlanId = x.ProductionPlanId,
+                    StageId = x.StageId,
+                    SequenceNumber = sequenceNumber,
+                    PreviousStageId = previousStageId,
+                    PlanStatus = x.PlanStatus,
+                    RunCount = runCount,
+                    RemainingCount = Math.Max(0, productionPlan.PlannedQuantity - runCount),
+                };
+            }).ToList();
     }
 }

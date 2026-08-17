@@ -5,9 +5,9 @@ using ProductionMES.Domain.Entities;
 namespace ProductionMES.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// Fluent API configuration cho entity ProductionPlanStage (FR-03/US-03, FR-05a/US-05a). Ràng buộc unique ở DB
-/// đóng vai trò lưới an toàn bổ sung cho validate đã thực hiện ở Service (AC4 — không trùng số thứ tự; AC5 —
-/// không trùng công đoạn trong cùng kế hoạch, đảm bảo không thể tạo vòng lặp).
+/// Fluent API configuration cho entity ProductionPlanStage (FR-05a/US-05a) — entity này giờ CHỈ đại diện vòng
+/// đời <see cref="ProductionPlanStage.PlanStatus"/> của 1 cặp (Kế hoạch, Công đoạn), không còn mang trình tự
+/// (đã chuyển sang <see cref="ProductionMES.Domain.Entities.LineStageSequence"/>, xem remarks tại entity).
 /// </summary>
 public class ProductionPlanStageConfiguration : IEntityTypeConfiguration<ProductionPlanStage>
 {
@@ -18,7 +18,7 @@ public class ProductionPlanStageConfiguration : IEntityTypeConfiguration<Product
         builder.HasKey(k => k.Id);
 
         // Không dùng khoá ngoại ở DB (ProductionPlanId/StageId/LineId là cột tham chiếu thuần) — toàn vẹn quan
-        // hệ (AC5 không tạo vòng lặp, "tối đa 1 kế hoạch Running" ở PlanStatus) xử lý ở Service.
+        // hệ ("tối đa 1 kế hoạch Running" ở PlanStatus) xử lý ở Service.
 
         // Lưu PlanStatus dạng chuỗi — cùng nguyên tắc đã áp dụng cho Scan.Result/User.UserRole (dễ đọc/truy vấn
         // trực tiếp trên DB, ổn định khi thêm giá trị enum mới ở giữa).
@@ -27,10 +27,7 @@ public class ProductionPlanStageConfiguration : IEntityTypeConfiguration<Product
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        // AC4: không trùng số thứ tự trong cùng 1 kế hoạch.
-        builder.HasIndex(k => new { k.ProductionPlanId, k.SequenceNumber }).IsUnique();
-
-        // AC5: không trùng công đoạn trong cùng 1 kế hoạch — điều kiện cấu trúc đảm bảo không có vòng lặp.
+        // Không trùng công đoạn trong cùng 1 kế hoạch — mỗi cặp (Kế hoạch, Công đoạn) chỉ có đúng 1 bản ghi vòng đời.
         builder.HasIndex(k => new { k.ProductionPlanId, k.StageId }).IsUnique();
 
         // US-05a AC1/AC2: hỗ trợ tra cứu nhanh "cặp (Line, Công đoạn) này đang có kế hoạch nào Running" khi Áp

@@ -14,6 +14,7 @@ Trước khi implement bất kỳ tính năng nào liên quan đến business ru
 - `Documents/ADR-003-httponly-cookie-refresh-token.md` — quyết định dùng HttpOnly Cookie + Refresh Token (thay Bearer token thuần) cho auth, vì hệ thống sẽ mở ra public internet.
 - `Documents/ADR-004-role-permission-dong.md` — quyết định chuyển phân quyền từ `[Authorize(Roles=...)]` hardcode sang permission `Resource.Action` lưu DB, Admin quản lý runtime qua UI. Đọc trước khi thêm Controller/action mới hoặc đổi phân quyền.
 - `Documents/ADR-005-auth-station-wpf.md` — quyết định auth riêng cho `Station.Wpf`: API Key theo từng trạm (scheme `StationApiKey`) cho luồng scan thường (Operator không đăng nhập cá nhân), Bearer + Refresh Token (JSON body, không cookie) cho luồng Supervisor nâng quyền tại trạm. Đọc trước khi implement US-07/US-08 hoặc bất kỳ endpoint nào `Station.Wpf` gọi.
+- `Documents/ADR-006-dieu-huong-2-cua-so-station-wpf.md` — quyết định kiến trúc điều hướng `Station.Wpf`: 2 `Window` riêng biệt (`AndonBoardWindow` fullscreen luôn hiển thị, `MainWindow` chứa các trang Tổ trưởng US-05/US-05a/US-05b), `Esc` 1 chiều (đóng popup trước, chuyển cửa sổ sau), `Alt+Tab` để nguyên cho Windows xử lý. Đọc trước khi tạo Window/Page mới hoặc đổi luồng điều hướng trong `Station.Wpf`.
 
 ## Theo dõi tiến độ backlog
 

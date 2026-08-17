@@ -77,6 +77,34 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.ToTable("Line", (string)null);
                 });
 
+            modelBuilder.Entity("ProductionMES.Domain.Entities.LineStageSequence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LineId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StageId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LineId", "SequenceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("LineId", "StageId")
+                        .IsUnique();
+
+                    b.ToTable("LineStageSequence", (string)null);
+                });
+
             modelBuilder.Entity("ProductionMES.Domain.Entities.Permission", b =>
                 {
                     b.Property<int>("Id")
@@ -173,16 +201,10 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.Property<int>("ProductionPlanId")
                         .HasColumnType("int");
 
-                    b.Property<int>("SequenceNumber")
-                        .HasColumnType("int");
-
                     b.Property<int>("StageId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ProductionPlanId", "SequenceNumber")
-                        .IsUnique();
 
                     b.HasIndex("ProductionPlanId", "StageId")
                         .IsUnique();

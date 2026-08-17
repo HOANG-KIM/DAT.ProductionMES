@@ -9,14 +9,16 @@ using ProductionMES.Domain.Exceptions;
 namespace ProductionMES.Application.Tests.Services;
 
 /// <summary>
-/// Unit test cho ProductionPlanStageService, bám theo AC1-AC5 của US-03 và AC1-AC7 của US-05a
-/// (Documents/BACKLOG-user-story.md).
+/// Unit test cho ProductionPlanStageService, bám theo AC1-AC7 của US-05a (Documents/BACKLOG-user-story.md).
+/// Trình tự công đoạn (US-03) đã chuyển hẳn sang LineStageSequenceService (xem LineStageSequenceServiceTests) —
+/// các test dưới đây setup mock LineStageSequence thay vì set SequenceNumber trực tiếp trên ProductionPlanStage
+/// (đã bỏ property này, xem remarks tại entity), phản ánh đúng cơ chế "lazy get-or-create" mới.
 /// </summary>
 public class ProductionPlanStageServiceTests
 {
     private readonly Mock<IRepository<ProductionPlanStage>> _repositoryMock = new();
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
-    private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
+    private readonly Mock<IRepository<LineStageSequence>> _lineStageSequenceRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly ProductionPlanStageService _sut;
@@ -25,17 +27,17 @@ public class ProductionPlanStageServiceTests
     {
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_repositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
-        _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<LineStageSequence>()).Returns(_lineStageSequenceRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _sut = new ProductionPlanStageService(_unitOfWorkMock.Object);
 
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProductionPlan { Id = 1, LineId = 1, PlannedQuantity = 1000 });
-        _stageRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<object>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((object id, CancellationToken _) => new Stage { Id = (int)id, Name = $"Stage {id}", IsActive = true });
 
         // Mặc định không có lượt scan OK nào — từng test override qua SetupOkScans khi cần kiểm tra RunCount/RemainingCount.
         SetupOkScans(new List<Scan>());
+        // Mặc định trình tự Line trống — từng test override qua SetupLineSequence.
+        SetupLineSequence(new List<LineStageSequence>());
     }
 
     private void SetupOkScans(List<Scan> okScans)
@@ -54,175 +56,30 @@ public class ProductionPlanStageServiceTests
                 items.Where(predicate.Compile()).ToList());
     }
 
-    // AC1 — Thêm công đoạn vào kế hoạch: chưa có SequenceNumber -> thêm vào cuối danh sách (mặc định).
-    [Fact]
-    public async Task AddAsync_ChuaCoCongDoanNao_ThemVaoViTri1()
+    private void SetupProductionPlans(List<ProductionPlan> plans)
     {
-        SetupPlanStages(new List<ProductionPlanStage>());
-
-        var result = await _sut.AddAsync(1, new AddStageToProductionPlanRequest { StageId = 10 });
-
-        Assert.Equal(1, result.SequenceNumber);
-        Assert.Null(result.PreviousStageId);
-        Assert.Equal(PlanStatus.Draft, result.PlanStatus);
-        _repositoryMock.Verify(r => r.AddAsync(It.Is<ProductionPlanStage>(x => x.LineId == 1 && x.PlanStatus == PlanStatus.Draft), It.IsAny<CancellationToken>()), Times.Once);
+        _productionPlanRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlan, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((System.Linq.Expressions.Expression<Func<ProductionPlan, bool>> predicate, CancellationToken _) =>
+                plans.Where(predicate.Compile()).ToList());
     }
 
-    [Fact]
-    public async Task AddAsync_DaCo2CongDoan_ThemVaoCuoiDanhSachTheoMacDinh()
+    private void SetupLineSequence(List<LineStageSequence> items)
     {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-            new() { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 2 },
-        };
-        SetupPlanStages(existing);
-
-        var result = await _sut.AddAsync(1, new AddStageToProductionPlanRequest { StageId = 30 });
-
-        Assert.Equal(3, result.SequenceNumber);
-        Assert.Equal(20, result.PreviousStageId); // liền trước = công đoạn có SequenceNumber = 3 - 1 = 2
-    }
-
-    // AC5 — Từ chối khi tạo vòng lặp: mô hình đảm bảo qua ràng buộc "1 công đoạn không lặp lại trong 1 kế hoạch".
-    [Fact]
-    public async Task AddAsync_CongDoanDaCoTrongKeHoach_NemBusinessRuleException()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-        };
-        SetupPlanStages(existing);
-
-        await Assert.ThrowsAsync<BusinessRuleException>(
-            () => _sut.AddAsync(1, new AddStageToProductionPlanRequest { StageId = 10 }));
-    }
-
-    // AC4 — Từ chối khi trùng số thứ tự.
-    [Fact]
-    public async Task AddAsync_TrungSoThuTuDaChiDinh_NemBusinessRuleException()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-        };
-        SetupPlanStages(existing);
-
-        await Assert.ThrowsAsync<BusinessRuleException>(
-            () => _sut.AddAsync(1, new AddStageToProductionPlanRequest { StageId = 20, SequenceNumber = 1 }));
-    }
-
-    // AC2 — Gỡ công đoạn khỏi kế hoạch: trình tự còn lại được đánh số lại liên tục.
-    [Fact]
-    public async Task RemoveAsync_GoCongDoanODau_ConLaiDuocDanhSoLaiLienTuc()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-            new() { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 2 },
-            new() { Id = 3, ProductionPlanId = 1, StageId = 30, LineId = 1, SequenceNumber = 3 },
-        };
-        SetupPlanStages(existing);
-
-        await _sut.RemoveAsync(1, 10);
-
-        _repositoryMock.Verify(r => r.Remove(existing[0]), Times.Once);
-        Assert.Equal(1, existing[1].SequenceNumber); // công đoạn 20 từ vị trí 2 -> 1
-        Assert.Equal(2, existing[2].SequenceNumber); // công đoạn 30 từ vị trí 3 -> 2
-    }
-
-    [Fact]
-    public async Task RemoveAsync_CongDoanKhongThuocKeHoach_NemEntityNotFoundException()
-    {
-        SetupPlanStages(new List<ProductionPlanStage>());
-
-        await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.RemoveAsync(1, 999));
-    }
-
-    // AC3 — Sắp xếp lại trình tự: lưu đúng trình tự mới, tự xác định lại công đoạn liền trước.
-    [Fact]
-    public async Task ReorderAsync_HoanDoi2ViTri_LuuDungTrinhTuMoiVaSuyRaLienTruocDung()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-            new() { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 2 },
-        };
-        SetupPlanStages(existing);
-
-        var request = new ReorderProductionPlanStageRequest
-        {
-            Items = new List<ReorderProductionPlanStageItem>
-            {
-                new() { StageId = 20, SequenceNumber = 1 },
-                new() { StageId = 10, SequenceNumber = 2 },
-            },
-        };
-
-        var result = await _sut.ReorderAsync(1, request);
-
-        var stage20 = result.Single(x => x.StageId == 20);
-        var stage10 = result.Single(x => x.StageId == 10);
-        Assert.Equal(1, stage20.SequenceNumber);
-        Assert.Null(stage20.PreviousStageId);
-        Assert.Equal(2, stage10.SequenceNumber);
-        Assert.Equal(20, stage10.PreviousStageId);
-    }
-
-    // AC4 — Từ chối khi trùng số thứ tự trong danh sách sắp xếp.
-    [Fact]
-    public async Task ReorderAsync_TrungSoThuTu_NemBusinessRuleException()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-            new() { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 2 },
-        };
-        SetupPlanStages(existing);
-
-        var request = new ReorderProductionPlanStageRequest
-        {
-            Items = new List<ReorderProductionPlanStageItem>
-            {
-                new() { StageId = 10, SequenceNumber = 1 },
-                new() { StageId = 20, SequenceNumber = 1 },
-            },
-        };
-
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ReorderAsync(1, request));
-    }
-
-    // AC5 — Từ chối khi cấu hình dẫn đến vòng lặp: ở đây thể hiện qua việc 1 công đoạn bị lặp lại trong danh
-    // sách gửi lên (vi phạm điều kiện cấu trúc "1 công đoạn - tối đa 1 vị trí").
-    [Fact]
-    public async Task ReorderAsync_CongDoanLapLaiTrongDanhSach_NemBusinessRuleException()
-    {
-        var existing = new List<ProductionPlanStage>
-        {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1 },
-            new() { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 2 },
-        };
-        SetupPlanStages(existing);
-
-        var request = new ReorderProductionPlanStageRequest
-        {
-            Items = new List<ReorderProductionPlanStageItem>
-            {
-                new() { StageId = 10, SequenceNumber = 1 },
-                new() { StageId = 10, SequenceNumber = 2 },
-            },
-        };
-
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ReorderAsync(1, request));
+        _lineStageSequenceRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<LineStageSequence, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((System.Linq.Expressions.Expression<Func<LineStageSequence, bool>> predicate, CancellationToken _) =>
+                items.Where(predicate.Compile()).ToList());
     }
 
     // US-05a AC4 — "Đã chạy"/"còn lại" tính động từ lịch sử scan OK, không đọc từ cột số liệu tĩnh.
     [Fact]
     public async Task GetByProductionPlanAsync_DaCo400ScanOk_TraVeDaChay400ConLai600()
     {
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
         var existing = new List<ProductionPlanStage>
         {
-            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Paused },
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Paused },
         };
         SetupPlanStages(existing);
         SetupOkScans(Enumerable.Range(1, 400)
@@ -234,13 +91,41 @@ public class ProductionPlanStageServiceTests
         var stage = result.Single();
         Assert.Equal(400, stage.RunCount);
         Assert.Equal(600, stage.RemainingCount);
+        Assert.Equal(1, stage.SequenceNumber);
+        Assert.Null(stage.PreviousStageId);
+    }
+
+    // Cơ chế "lazy get-or-create": trình tự Line có 2 công đoạn nhưng kế hoạch chưa có bản ghi vòng đời nào ->
+    // tự động tạo mới 2 bản ghi Draft, trả về ĐẦY ĐỦ theo trình tự Line.
+    [Fact]
+    public async Task GetByProductionPlanAsync_ChuaCoBanGhiVongDoiNao_TuDongTaoDraftChoDuTrinhTuLine()
+    {
+        SetupLineSequence(new List<LineStageSequence>
+        {
+            new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 },
+            new() { Id = 2, LineId = 1, StageId = 20, SequenceNumber = 2 },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>());
+
+        var result = await _sut.GetByProductionPlanAsync(1);
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, x => Assert.Equal(PlanStatus.Draft, x.PlanStatus));
+        var stage10 = result.Single(x => x.StageId == 10);
+        var stage20 = result.Single(x => x.StageId == 20);
+        Assert.Equal(1, stage10.SequenceNumber);
+        Assert.Null(stage10.PreviousStageId);
+        Assert.Equal(2, stage20.SequenceNumber);
+        Assert.Equal(10, stage20.PreviousStageId);
+        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<ProductionPlanStage>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     // US-05a AC1 — Áp dụng kế hoạch (Draft) cho công đoạn, chưa có kế hoạch khác Running cùng (Line, Công đoạn) -> Running.
     [Fact]
     public async Task ApplyAsync_ChuaCoKeHoachKhacRunning_ChuyenRunningThanhCong()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Draft };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Draft };
         SetupPlanStages(new List<ProductionPlanStage> { item });
 
         var result = await _sut.ApplyAsync(1, 10);
@@ -250,12 +135,23 @@ public class ProductionPlanStageServiceTests
         _repositoryMock.Verify(r => r.Update(item), Times.Once);
     }
 
+    // Công đoạn không thuộc trình tự đã cấu hình của Line -> từ chối, không tự tạo bản ghi vòng đời "ảo".
+    [Fact]
+    public async Task ApplyAsync_CongDoanKhongThuocTrinhTuLine_NemEntityNotFoundException()
+    {
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 99, SequenceNumber = 1 } });
+        SetupPlanStages(new List<ProductionPlanStage>());
+
+        await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.ApplyAsync(1, 10));
+    }
+
     // US-05a AC1 — (Line, Công đoạn) đang có kế hoạch KHÁC Running -> từ chối, yêu cầu Tạm dừng/Đóng trước.
     [Fact]
     public async Task ApplyAsync_LineCongDoanDangCoKeHoachKhacRunning_NemBusinessRuleException()
     {
-        var item = new ProductionPlanStage { Id = 2, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Draft };
-        var runningOther = new ProductionPlanStage { Id = 1, ProductionPlanId = 99, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Running };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 2, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Draft };
+        var runningOther = new ProductionPlanStage { Id = 1, ProductionPlanId = 99, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running };
 
         // Repository FindAsync trả về dữ liệu tùy theo productionPlanId trong predicate — mô phỏng 2 truy vấn khác nhau
         // trong ApplyAsync: 1) lấy item theo (ProductionPlanId=1), 2) tìm Running theo (LineId, StageId) toàn hệ thống.
@@ -272,8 +168,13 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task ApplyAsync_CongDoanKhacCungLineDangRunning_KhongBiChan()
     {
-        var item = new ProductionPlanStage { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Draft };
-        var runningStageA = new ProductionPlanStage { Id = 1, ProductionPlanId = 99, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Running };
+        SetupLineSequence(new List<LineStageSequence>
+        {
+            new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 },
+            new() { Id = 2, LineId = 1, StageId = 20, SequenceNumber = 2 },
+        });
+        var item = new ProductionPlanStage { Id = 2, ProductionPlanId = 1, StageId = 20, LineId = 1, PlanStatus = PlanStatus.Draft };
+        var runningStageA = new ProductionPlanStage { Id = 1, ProductionPlanId = 99, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running };
 
         _repositoryMock
             .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
@@ -291,7 +192,8 @@ public class ProductionPlanStageServiceTests
     [InlineData(PlanStatus.Cancelled)]
     public async Task ApplyAsync_DaCompletedHoacCancelled_NemBusinessRuleException(PlanStatus status)
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = status };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = status };
         SetupPlanStages(new List<ProductionPlanStage> { item });
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ApplyAsync(1, 10));
@@ -301,7 +203,8 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task PauseAsync_DangRunning_ChuyenPausedThanhCong()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Running };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running };
         SetupPlanStages(new List<ProductionPlanStage> { item });
 
         var result = await _sut.PauseAsync(1, 10);
@@ -313,7 +216,8 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task PauseAsync_KhongPhaiRunning_NemBusinessRuleException()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Draft };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Draft };
         SetupPlanStages(new List<ProductionPlanStage> { item });
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.PauseAsync(1, 10));
@@ -323,7 +227,8 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task CloseAsync_ChuaDuSoLuongChuaConfirm_NemBusinessRuleException()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Running };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running };
         SetupPlanStages(new List<ProductionPlanStage> { item });
         SetupOkScans(Enumerable.Range(1, 400)
             .Select(i => new Scan { ProductionPlanId = 1, StageId = 10, Result = ScanResult.Ok, TagCode = $"TAG{i}" })
@@ -337,7 +242,8 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task CloseAsync_ChuaDuSoLuongDaConfirm_ChuyenCancelledThanhCong()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Running };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running };
         SetupPlanStages(new List<ProductionPlanStage> { item });
         SetupOkScans(Enumerable.Range(1, 400)
             .Select(i => new Scan { ProductionPlanId = 1, StageId = 10, Result = ScanResult.Ok, TagCode = $"TAG{i}" })
@@ -352,9 +258,112 @@ public class ProductionPlanStageServiceTests
     [Fact]
     public async Task CloseAsync_DaCompleted_NemBusinessRuleException()
     {
-        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, SequenceNumber = 1, PlanStatus = PlanStatus.Completed };
+        SetupLineSequence(new List<LineStageSequence> { new() { Id = 1, LineId = 1, StageId = 10, SequenceNumber = 1 } });
+        var item = new ProductionPlanStage { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Completed };
         SetupPlanStages(new List<ProductionPlanStage> { item });
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CloseAsync(1, 10, new CloseProductionPlanStageRequest { Confirm = true }));
+    }
+
+    // US-03 (17/08/2026) — mọi kế hoạch trên Line tự động áp dụng mọi Stage trong trình tự Line: liệt kê MỌI
+    // ProductionPlan có LineId khớp, mặc định ẩn các cặp đã Completed/Cancelled tại đúng công đoạn đang lọc.
+    [Fact]
+    public async Task GetByLineAndStageAsync_MacDinh_AnKeHoachDaCompletedHoacCancelled()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Customer = "Samsung", PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+            new() { Id = 2, LineId = 1, Customer = "Samsung", PlannedQuantity = 500, TaktTimeSeconds = 9, StartTime = new DateTime(2026, 8, 1) },
+            new() { Id = 3, LineId = 1, Customer = "LG", PlannedQuantity = 500, TaktTimeSeconds = 9, StartTime = new DateTime(2026, 8, 2) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running },
+            new() { Id = 2, ProductionPlanId = 2, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Completed },
+            new() { Id = 3, ProductionPlanId = 3, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Cancelled },
+        });
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10);
+
+        var plan = Assert.Single(result);
+        Assert.Equal(1, plan.ProductionPlanId);
+    }
+
+    // US-05b AC2 — includeClosed = true hiển thị đầy đủ, kể cả Completed/Cancelled.
+    [Fact]
+    public async Task GetByLineAndStageAsync_IncludeClosedTrue_HienDayDuKeCaDaDong()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+            new() { Id = 2, LineId = 1, PlannedQuantity = 500, TaktTimeSeconds = 9, StartTime = new DateTime(2026, 8, 1) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running },
+            new() { Id = 2, ProductionPlanId = 2, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Completed },
+        });
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10, includeClosed: true);
+
+        Assert.Equal(2, result.Count);
+    }
+
+    // US-03 — kế hoạch trên Line tự động áp dụng mọi Stage trong trình tự Line kể cả khi CHƯA có bản ghi vòng
+    // đời thật nào được persist (chưa từng Áp dụng/Tạm dừng/Đóng) -> mặc định hiển thị Draft, không lỗi.
+    [Fact]
+    public async Task GetByLineAndStageAsync_ChuaCoBanGhiVongDoiThat_MacDinhDraft()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>());
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10);
+
+        var plan = Assert.Single(result);
+        Assert.Equal(PlanStatus.Draft, plan.PlanStatus);
+        Assert.Equal(0, plan.RunCount);
+    }
+
+    // US-05a AC4 — RunCount tính động, đúng theo StageId đang lọc, không lẫn lượt scan ở công đoạn khác của cùng kế hoạch.
+    [Fact]
+    public async Task GetByLineAndStageAsync_CoScanOkODungCongDoan_TinhRunCountVaRemainingCountDung()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running },
+        });
+        SetupOkScans(new List<Scan>
+        {
+            new() { ProductionPlanId = 1, StageId = 10, Result = ScanResult.Ok, TagCode = "TAG1" },
+            new() { ProductionPlanId = 1, StageId = 10, Result = ScanResult.Ok, TagCode = "TAG2" },
+            // Lượt scan OK ở công đoạn KHÁC (StageId = 20) của cùng kế hoạch — không được tính vào RunCount ở đây.
+            new() { ProductionPlanId = 1, StageId = 20, Result = ScanResult.Ok, TagCode = "TAG3" },
+        });
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10);
+
+        var plan = Assert.Single(result);
+        Assert.Equal(2, plan.RunCount);
+        Assert.Equal(998, plan.RemainingCount);
+        Assert.Equal(300, plan.StandardQuantityPerHour); // 3600 / 12
+    }
+
+    // US-05b — Line chưa có kế hoạch nào -> trả về danh sách rỗng, không lỗi.
+    [Fact]
+    public async Task GetByLineAndStageAsync_ChuaCoKeHoachNaoTrenLine_TraVeDanhSachRong()
+    {
+        SetupProductionPlans(new List<ProductionPlan>());
+        SetupPlanStages(new List<ProductionPlanStage>());
+
+        var result = await _sut.GetByLineAndStageAsync(1, 99);
+
+        Assert.Empty(result);
     }
 }

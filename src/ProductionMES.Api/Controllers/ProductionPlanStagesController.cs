@@ -7,10 +7,10 @@ using ProductionMES.Application.Services.ProductionPlanStages;
 namespace ProductionMES.Api.Controllers;
 
 /// <summary>
-/// Cấu hình công đoạn áp dụng cho từng kế hoạch sản xuất, kèm trình tự (US-03/FR-03) VÀ vòng đời trạng thái
-/// theo cặp (Kế hoạch, Công đoạn) — Áp dụng/Tạm dừng/Đóng (US-05a/FR-05a). Phân quyền theo permission động
-/// (ADR-004) — mỗi action tự khai báo policy riêng; <see cref="Remove"/> dùng HTTP DELETE thật nên gắn
-/// permission <c>Delete</c> (khác các resource còn lại dùng <c>Deactivate</c> soft-delete).
+/// Vòng đời trạng thái theo cặp (Kế hoạch, Công đoạn) — Áp dụng/Tạm dừng/Đóng (US-05a/FR-05a). Trình tự công
+/// đoạn (US-03/FR-03) KHÔNG còn cấu hình ở đây — xem <c>LineStageSequencesController</c>
+/// (<c>api/v1/lines/{lineId}/stage-sequence</c>). Phân quyền theo permission động (ADR-004) — mỗi action tự
+/// khai báo policy riêng.
 /// </summary>
 [ApiController]
 [Route("api/v1/production-plans/{productionPlanId:int}/stages")]
@@ -23,40 +23,13 @@ public class ProductionPlanStagesController : ControllerBase
         _productionPlanStageService = productionPlanStageService;
     }
 
-    /// <summary>Lấy danh sách công đoạn (kèm trình tự) đã cấu hình cho kế hoạch, sắp theo SequenceNumber.</summary>
+    /// <summary>Lấy danh sách công đoạn (kèm trình tự, suy từ trình tự cấu hình của Line) áp dụng cho kế hoạch, sắp theo SequenceNumber.</summary>
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.ProductionPlanStageView)]
     public async Task<ActionResult<IReadOnlyList<ProductionPlanStageDto>>> GetAll(int productionPlanId, CancellationToken cancellationToken)
     {
         var items = await _productionPlanStageService.GetByProductionPlanAsync(productionPlanId, cancellationToken);
         return Ok(items);
-    }
-
-    /// <summary>Thêm 1 công đoạn từ danh mục master vào kế hoạch (AC1).</summary>
-    [HttpPost]
-    [Authorize(Policy = PermissionPolicies.ProductionPlanStageCreate)]
-    public async Task<ActionResult<ProductionPlanStageDto>> Add(int productionPlanId, [FromBody] AddStageToProductionPlanRequest request, CancellationToken cancellationToken)
-    {
-        var created = await _productionPlanStageService.AddAsync(productionPlanId, request, cancellationToken);
-        return CreatedAtAction(nameof(GetAll), new { productionPlanId }, created);
-    }
-
-    /// <summary>Gỡ 1 công đoạn khỏi kế hoạch, tự động điều chỉnh lại trình tự còn lại (AC2).</summary>
-    [HttpDelete("{stageId:int}")]
-    [Authorize(Policy = PermissionPolicies.ProductionPlanStageDelete)]
-    public async Task<IActionResult> Remove(int productionPlanId, int stageId, CancellationToken cancellationToken)
-    {
-        await _productionPlanStageService.RemoveAsync(productionPlanId, stageId, cancellationToken);
-        return NoContent();
-    }
-
-    /// <summary>Sắp xếp lại toàn bộ trình tự công đoạn của kế hoạch — từ chối nếu trùng thứ tự (AC4) hoặc tạo vòng lặp (AC5) (AC3).</summary>
-    [HttpPut("reorder")]
-    [Authorize(Policy = PermissionPolicies.ProductionPlanStageUpdate)]
-    public async Task<ActionResult<IReadOnlyList<ProductionPlanStageDto>>> Reorder(int productionPlanId, [FromBody] ReorderProductionPlanStageRequest request, CancellationToken cancellationToken)
-    {
-        var result = await _productionPlanStageService.ReorderAsync(productionPlanId, request, cancellationToken);
-        return Ok(result);
     }
 
     /// <summary>
@@ -87,5 +60,35 @@ public class ProductionPlanStagesController : ControllerBase
     {
         var result = await _productionPlanStageService.CloseAsync(productionPlanId, stageId, request, cancellationToken);
         return Ok(result);
+    }
+}
+
+/// <summary>
+/// Truy vấn kế hoạch sản xuất theo (Line, Công đoạn) — phục vụ màn hình "Chọn kế hoạch" (US-05b), nơi Tổ trưởng
+/// chọn 1 Công đoạn rồi xem danh sách mọi kế hoạch đã cấu hình áp dụng cho đúng cặp đó. Route phẳng (không lồng
+/// theo <c>productionPlanId</c>) vì truy vấn xuyên nhiều kế hoạch, không thuộc về 1 kế hoạch cụ thể.
+/// </summary>
+[ApiController]
+[Route("api/v1/production-plan-stages")]
+public class ProductionPlanStageSelectionController : ControllerBase
+{
+    private readonly IProductionPlanStageService _productionPlanStageService;
+
+    public ProductionPlanStageSelectionController(IProductionPlanStageService productionPlanStageService)
+    {
+        _productionPlanStageService = productionPlanStageService;
+    }
+
+    /// <summary>
+    /// Danh sách kế hoạch áp dụng cho (Line, Công đoạn) (US-05b AC2), kèm trạng thái/tiến độ động (US-05a AC3/AC4).
+    /// Mặc định ẩn các cặp đã Completed/Cancelled (US-05a AC7) — truyền <paramref name="includeClosed"/> = true để xem lại.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Policy = PermissionPolicies.ProductionPlanStageView)]
+    public async Task<ActionResult<IReadOnlyList<ProductionPlanStageSelectionDto>>> GetByLineAndStage(
+        [FromQuery] int lineId, [FromQuery] int stageId, [FromQuery] bool includeClosed, CancellationToken cancellationToken)
+    {
+        var items = await _productionPlanStageService.GetByLineAndStageAsync(lineId, stageId, includeClosed, cancellationToken);
+        return Ok(items);
     }
 }

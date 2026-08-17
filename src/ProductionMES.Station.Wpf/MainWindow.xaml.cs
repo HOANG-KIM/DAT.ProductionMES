@@ -1,23 +1,33 @@
-﻿using System.Text;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using Microsoft.Extensions.DependencyInjection;
+using ProductionMES.Station.Wpf.Configuration;
+using ProductionMES.Station.Wpf.Views.Pages;
 
 namespace ProductionMES.Station.Wpf;
 
 /// <summary>
-/// Interaction logic for MainWindow.xaml
+/// Cửa sổ chứa các trang chế độ Tổ trưởng (ADR-006): Trang chủ ⇄ Cài đặt kế hoạch (US-05) ⇄ Chọn kế hoạch
+/// (US-05b) ⇄ Trình tự công đoạn của Line (US-03), điều hướng nội bộ qua <see cref="Frame"/>, không mở thêm
+/// Window riêng cho từng trang.
 /// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly IServiceProvider _serviceProvider;
+
+    public MainWindow(IServiceProvider serviceProvider, StationOptions options)
     {
         InitializeComponent();
+        _serviceProvider = serviceProvider;
+        Title = $"DAT ProductionMES — Trạm {options.WorkStationName}";
+
+        NavigateToHome();
     }
+
+    public void NavigateToHome() => MainFrame.Navigate(_serviceProvider.GetRequiredService<HomePage>());
+
+    public void NavigateToPlanSettings() => MainFrame.Navigate(_serviceProvider.GetRequiredService<PlanSettingsPage>());
+
+    public void NavigateToPlanSelection() => MainFrame.Navigate(_serviceProvider.GetRequiredService<PlanSelectionPage>());
+
+    public void NavigateToLineStageSequence() => MainFrame.Navigate(_serviceProvider.GetRequiredService<LineStageSequencePage>());
 }

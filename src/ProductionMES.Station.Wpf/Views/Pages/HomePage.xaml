@@ -1,0 +1,61 @@
+<Page x:Class="ProductionMES.Station.Wpf.Views.Pages.HomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Trang chủ"
+      Background="#161B23">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#1D2430" CornerRadius="8" Padding="16" Margin="0,0,0,28">
+            <StackPanel Orientation="Horizontal">
+                <StackPanel Margin="0,0,26,0">
+                    <TextBlock Text="TRẠM" Foreground="#5C6577" FontSize="10"/>
+                    <TextBlock Text="{Binding WorkStationName}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                </StackPanel>
+                <StackPanel Margin="0,0,26,0">
+                    <TextBlock Text="LINE" Foreground="#5C6577" FontSize="10"/>
+                    <TextBlock Text="{Binding LineName}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="CÔNG ĐOẠN" Foreground="#5C6577" FontSize="10"/>
+                    <TextBlock Text="{Binding StageName}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <UniformGrid Grid.Row="1" Columns="3" Rows="1">
+            <Button x:Name="PlanSettingsTile" Margin="0,0,7,0" Padding="18" HorizontalContentAlignment="Left" Click="PlanSettingsTile_Click">
+                <StackPanel>
+                    <TextBlock Text="⚙  Cài đặt kế hoạch sản xuất" FontWeight="Bold" Foreground="White" FontSize="14"/>
+                    <TextBlock Text="Tạo/sửa kế hoạch: Khách hàng, Model, Lot, số lượng, takt time…"
+                               Foreground="#8D96A8" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="PlanSelectionTile" Margin="7,0,7,0" Padding="18" HorizontalContentAlignment="Left" Click="PlanSelectionTile_Click">
+                <StackPanel>
+                    <TextBlock Text="📋  Chọn kế hoạch" FontWeight="Bold" Foreground="White" FontSize="14"/>
+                    <TextBlock Text="Áp dụng / tạm dừng / đóng kế hoạch cho từng công đoạn của Line"
+                               Foreground="#8D96A8" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="LineStageSequenceTile" Margin="7,0,0,0" Padding="18" HorizontalContentAlignment="Left" Click="LineStageSequenceTile_Click">
+                <StackPanel>
+                    <TextBlock Text="🔗  Trình tự công đoạn của Line" FontWeight="Bold" Foreground="White" FontSize="14"/>
+                    <TextBlock Text="Thêm/bớt/sắp xếp công đoạn cho Line — dùng chung mọi kế hoạch chạy trên Line đó"
+                               Foreground="#8D96A8" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
+                </StackPanel>
+            </Button>
+        </UniformGrid>
+
+        <TextBlock Grid.Row="2" Text="Yêu cầu đăng nhập Tổ trưởng — thao tác được ghi audit theo tài khoản"
+                   Foreground="#5C6577" FontSize="11" HorizontalAlignment="Center" Margin="0,14,0,0"/>
+
+        <Button Grid.Row="3" x:Name="BackToAndonButton" Content="◧ Quay lại Andon Board (Alt+Tab)"
+                HorizontalAlignment="Center" Padding="16,9" Margin="0,26,0,0" Click="BackToAndonButton_Click"/>
+    </Grid>
+</Page>

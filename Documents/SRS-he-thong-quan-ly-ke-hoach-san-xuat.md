@@ -82,13 +82,16 @@ Một server trung tâm (Web API + MySQL) phục vụ toàn bộ nhà máy, gồ
 - Thêm/sửa/vô hiệu hóa công đoạn dùng chung cho toàn hệ thống (vd: Lắp ráp, Thông điện, Ngoại quan).
 - Công đoạn không gắn cố định với 1 Line — cùng 1 công đoạn có thể được áp dụng ở nhiều Line khác nhau.
 
-**FR-03 — Cấu hình công đoạn áp dụng cho từng kế hoạch/Line**
-- Với mỗi kế hoạch sản xuất (= 1 Line, 1 lô/ca), người dùng có quyền (Tổ trưởng/Admin) có thể:
-  - Thêm công đoạn từ danh mục master vào kế hoạch.
-  - Bớt (gỡ) công đoạn khỏi kế hoạch.
+**FR-03 — Cấu hình trình tự công đoạn cho từng Line**
+- Trình tự công đoạn (Stage nào thuộc Line, theo thứ tự nào) là **cấu hình của Line**, thiết lập 1 lần và dùng chung cho **mọi** kế hoạch sản xuất chạy trên Line đó — **không** cấu hình lại riêng cho từng kế hoạch. Sửa trình tự (thêm/bớt/sắp xếp lại) có hiệu lực **ngay lập tức** cho mọi kế hoạch đang chạy trên Line, không cần deploy lại phần mềm.
+- Với mỗi Line, người dùng có quyền (Tổ trưởng/Admin) có thể:
+  - Thêm công đoạn từ danh mục master vào trình tự của Line.
+  - Bớt (gỡ) công đoạn khỏi trình tự của Line — **chặn hẳn (từ chối)** nếu đang có bất kỳ kế hoạch nào của Line đó ở trạng thái `Running`/`Paused` tại đúng công đoạn sắp gỡ (xem FR-05a); phải Tạm dừng/Đóng kế hoạch tại công đoạn đó trước.
   - Sắp xếp lại **trình tự** các công đoạn (kéo-thả hoặc nhập số thứ tự).
-- Hệ thống lưu công đoạn "liền trước" của mỗi công đoạn dựa trên trình tự đã cấu hình, dùng cho FR-08.
-- **Điều kiện**: không cho lưu nếu trình tự bị trùng số thứ tự hoặc tạo vòng lặp.
+- Hệ thống lưu công đoạn "liền trước" của mỗi công đoạn dựa trên trình tự đã cấu hình **của Line**, dùng cho FR-08.
+- **Điều kiện**: không cho lưu nếu trình tự bị trùng số thứ tự hoặc 1 công đoạn xuất hiện quá 1 lần trong trình tự (gây vòng lặp khi suy "liền trước").
+- **Mọi kế hoạch sản xuất tạo trên 1 Line đều đi qua đúng và đủ toàn bộ các công đoạn đã cấu hình cho Line đó, theo đúng thứ tự** — không có khái niệm 1 kế hoạch chỉ áp dụng 1 tập con công đoạn của Line.
+- **Không hồi tố lịch sử scan**: khi trình tự Line thay đổi lúc đang có kế hoạch chạy dở, các lượt scan **đã ghi nhận trước đó** giữ nguyên bất biến (nhất quán với nguyên tắc snapshot ở FR-10/mục 6 quy tắc 14) — trình tự mới chỉ áp dụng cho việc kiểm tra "công đoạn liền trước" (FR-08) từ thời điểm đổi trở đi.
 
 **FR-04 — Quản lý trạm làm việc**
 - Mỗi trạm gắn với đúng 1 Line và 1 công đoạn.
@@ -129,7 +132,7 @@ Một server trung tâm (Web API + MySQL) phục vụ toàn bộ nhà máy, gồ
 **FR-08 — Kiểm tra hợp lệ khi scan (business rule đã chốt)**
 Khi nhận 1 lượt scan, hệ thống thực hiện tuần tự:
 1. **Kiểm tra trùng tem theo công đoạn — phạm vi toàn hệ thống, không phân biệt Line**: nếu tem đã được scan OK tại **cùng loại công đoạn này** ở bất kỳ Line nào (kể cả Line hiện tại) → từ chối, báo lỗi "Trùng tem tại công đoạn này".
-2. **Kiểm tra đã qua công đoạn liền trước hay chưa** (theo trình tự cấu hình ở FR-03), cũng tra cứu trên toàn hệ thống (không giới hạn theo Line, vì công đoạn trước có thể đã thực hiện ở Line khác) → nếu chưa, từ chối và nêu rõ tên công đoạn còn thiếu.
+2. **Kiểm tra đã qua công đoạn liền trước hay chưa** (theo trình tự cấu hình **của Line** ở FR-03 — "liền trước" suy ra từ trình tự của đúng Line nơi đang scan), việc tra cứu "đã qua chưa" thì trên toàn hệ thống (không giới hạn theo Line, vì công đoạn trước có thể đã thực hiện ở Line khác) → nếu chưa, từ chối và nêu rõ tên công đoạn còn thiếu.
 3. Nếu qua cả 2 bước kiểm tra → ghi nhận lượt scan là hợp lệ (OK).
 
 > **Ví dụ minh họa rule đã thống nhất**: Tem A đã "Lắp ráp" ở Line 1 → không thể "Lắp ráp" lại ở Line 2/3 (kể cả Line 1 lần 2). Nhưng tem A có thể "Thông điện" ở Line 2 hoặc Line 3 bình thường, dù trước đó lắp ráp ở Line 1.
@@ -276,7 +279,7 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 
 Đây là các quyết định nghiệp vụ đã thống nhất qua quá trình trao đổi, liệt kê lại để tránh hiểu sai:
 
-1. Một server trung tâm phục vụ nhiều Line; mỗi Line có bộ công đoạn và trình tự cấu hình độc lập.
+1. Một server trung tâm phục vụ nhiều Line; mỗi Line có bộ công đoạn và trình tự cấu hình độc lập — **trình tự này thuộc về Line (FR-03), cấu hình 1 lần, dùng chung cho mọi kế hoạch sản xuất chạy trên Line đó, KHÔNG cấu hình lại riêng theo từng kế hoạch** (chốt lại 17/08/2026, sửa hiểu sai trước đó khi FR-03/US-03 bản đầu viết nhầm thành "áp dụng cho từng kế hoạch").
 2. Công đoạn là danh mục dùng chung (master) cho toàn hệ thống, không thuộc riêng 1 Line.
 3. **Chống trùng tem xét theo `(Mã tem, Công đoạn)` trên toàn hệ thống** — không theo Line/kế hoạch. Cùng 1 công đoạn không được scan 2 lần dù ở Line khác nhau; khác công đoạn thì Line nào cũng được.
 4. Kiểm tra "đã qua công đoạn liền trước" cũng tra cứu toàn hệ thống, không giới hạn theo Line.

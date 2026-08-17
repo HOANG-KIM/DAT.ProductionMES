@@ -1,11 +1,11 @@
 using FluentValidation;
-using ProductionMES.Application.DTOs.ProductionPlanStages;
+using ProductionMES.Application.DTOs.LineStageSequences;
 
-namespace ProductionMES.Application.Validators.ProductionPlanStages;
+namespace ProductionMES.Application.Validators.LineStageSequences;
 
-public class ReorderProductionPlanStageRequestValidator : AbstractValidator<ReorderProductionPlanStageRequest>
+public class ReorderLineStageSequenceRequestValidator : AbstractValidator<ReorderLineStageSequenceRequest>
 {
-    public ReorderProductionPlanStageRequestValidator()
+    public ReorderLineStageSequenceRequestValidator()
     {
         RuleFor(x => x.Items)
             .NotEmpty().WithMessage("Danh sách trình tự công đoạn không được để trống.");
