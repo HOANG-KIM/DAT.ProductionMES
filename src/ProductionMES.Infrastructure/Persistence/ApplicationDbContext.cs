@@ -32,6 +32,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Scan> Scans => Set<Scan>();
 
+    public DbSet<ReworkUnlock> ReworkUnlocks => Set<ReworkUnlock>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

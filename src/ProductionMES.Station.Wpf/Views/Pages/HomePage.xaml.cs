@@ -8,7 +8,7 @@ using ProductionMES.Station.Wpf.ViewModels;
 namespace ProductionMES.Station.Wpf.Views.Pages;
 
 /// <summary>
-/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 3 lối vào chế độ Tổ trưởng, mỗi lối yêu cầu
+/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 4 lối vào chế độ Tổ trưởng, mỗi lối yêu cầu
 /// đăng nhập Supervisor nếu chưa có phiên đang mở (ADR-005), rồi điều hướng nội bộ qua <see cref="MainWindow"/>.
 /// </summary>
 public partial class HomePage : Page
@@ -47,6 +47,14 @@ public partial class HomePage : Page
         if (RequireAuth())
         {
             ((MainWindow)Window.GetWindow(this)!).NavigateToLineStageSequence();
+        }
+    }
+
+    private void ReworkUnlockTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (RequireAuth())
+        {
+            ((MainWindow)Window.GetWindow(this)!).NavigateToReworkUnlock();
         }
     }
 

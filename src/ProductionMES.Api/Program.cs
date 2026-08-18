@@ -181,6 +181,8 @@ try
         AddPermissionPolicy(PermissionPolicies.ScanView, PermissionResource.Scan, PermissionAction.View);
         // US-18 (thay đổi yêu cầu 18/08/2026): xác nhận Scan NG tại trạm.
         AddPermissionPolicy(PermissionPolicies.ScanConfirmNg, PermissionResource.Scan, PermissionAction.ConfirmNg);
+        // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG.
+        AddPermissionPolicy(PermissionPolicies.ScanReworkUnlock, PermissionResource.Scan, PermissionAction.ReworkUnlock);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

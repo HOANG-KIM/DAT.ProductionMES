@@ -3,6 +3,7 @@ using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DTOs.Common;
 using ProductionMES.Application.DTOs.Scans;
 using ProductionMES.Application.Services.ProductionPlanStages;
+using ProductionMES.Application.Services.ReworkUnlocks;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
@@ -41,7 +42,16 @@ namespace ProductionMES.Application.Services.Scans;
 /// của người vận hành (đã tự quyết định sản phẩm lỗi qua Chế độ Scan NG ở UI trạm), không phải kết quả suy luận
 /// tự động của FR-08, nên KHÔNG chạy lại 2 bước kiểm tra chống trùng tem/công đoạn liền trước. Vẫn yêu cầu có 1
 /// kế hoạch đang Running cho (Line, Công đoạn) của trạm (giống CreateAsync) để gắn đúng ProductionPlanId + snapshot
-/// 6 field (US-10), phục vụ báo cáo PPM theo kế hoạch sau này (US-20).
+/// 6 field (US-10), phục vụ báo cáo PPM theo kế hoạch sau này (US-20). Cũng KHÔNG kiểm tra "đang khóa rework" (US-19)
+/// — Tổ trưởng có thể chủ động xác nhận NG lần nữa cho 1 tem đang bị khóa/đã Ok, đây là đánh giá chất lượng chủ
+/// động, độc lập với luồng tự động của <see cref="CreateAsync"/>.
+///
+/// US-19 (<see cref="ScanResult.WaitingReworkUnlock"/>): <see cref="CreateAsync"/> nay có thêm bước kiểm tra "tem
+/// có đang bị khóa rework tại công đoạn này hay không" (<see cref="ReworkLockCalculator.IsLocked"/>) — chạy TRƯỚC
+/// bước chống trùng tem (US-08 AC1), vì đây là mô tả trạng thái cụ thể hơn "trùng tem" khi cả 2 điều kiện cùng
+/// đúng (tem có Ok VÀ đang khóa do 1 lần Ng sau đó — hiếm, nhưng ưu tiên thông báo rõ "đang chờ mở khóa rework").
+/// Tái sử dụng CHUNG 1 truy vấn Scan theo (TagCode, StageId) cho cả 2 bước (khóa + trùng tem) để không tăng thêm
+/// số lần gọi <c>IRepository&lt;Scan&gt;.FindAsync</c> so với trước khi có US-19.
 /// </remarks>
 public class ScanService : IScanService
 {
@@ -104,10 +114,27 @@ public class ScanService : IScanService
         var scanRepository = _unitOfWork.Repository<Scan>();
         var nowUtc = DateTime.UtcNow;
 
-        // US-08 AC1 — Bước 1: chống trùng tem theo (TagCode, StageId) TOÀN HỆ THỐNG, không phân biệt Line.
-        var duplicateAtCurrentStage = await scanRepository.FindAsync(
-            s => s.TagCode == tagCode && s.StageId == workStation.StageId && s.Result == ScanResult.Ok,
-            cancellationToken);
+        // US-08 AC1 + US-19 AC1 — Bước 1: tra cứu TOÀN BỘ lượt scan tại (TagCode, StageId) TOÀN HỆ THỐNG (không
+        // phân biệt Line) 1 LẦN DUY NHẤT, dùng chung cho cả 2 kiểm tra bên dưới (khóa rework + trùng tem) — tránh
+        // tăng thêm số lần gọi FindAsync so với trước khi có US-19.
+        var scansAtCurrentStage = await scanRepository.FindAsync(
+            s => s.TagCode == tagCode && s.StageId == workStation.StageId, cancellationToken);
+
+        // US-19 AC1: tem đang bị khóa rework (lượt Ng gần nhất tại công đoạn này chưa được Tổ trưởng mở khóa) ->
+        // từ chối ngay, không scan lại tự động được (FR-19). Kiểm tra TRƯỚC bước chống trùng tem — mô tả trạng
+        // thái cụ thể hơn khi cả 2 điều kiện cùng đúng.
+        var reworkUnlocksAtCurrentStage = await _unitOfWork.Repository<ReworkUnlock>().FindAsync(
+            u => u.TagCode == tagCode && u.StageId == workStation.StageId, cancellationToken);
+
+        if (ReworkLockCalculator.IsLocked(scansAtCurrentStage, reworkUnlocksAtCurrentStage))
+        {
+            var lockedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.WaitingReworkUnlock,
+                "Sản phẩm đang chờ mở khóa rework.", nowUtc);
+            return await SaveAndReturnAsync(lockedScan, cancellationToken);
+        }
+
+        // US-08 AC1 — Bước 2: chống trùng tem theo (TagCode, StageId) TOÀN HỆ THỐNG, không phân biệt Line.
+        var duplicateAtCurrentStage = scansAtCurrentStage.Where(s => s.Result == ScanResult.Ok).ToList();
 
         if (duplicateAtCurrentStage.Count > 0)
         {

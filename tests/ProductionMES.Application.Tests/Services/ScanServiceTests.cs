@@ -26,6 +26,7 @@ public class ScanServiceTests
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
+    private readonly Mock<IRepository<ReworkUnlock>> _reworkUnlockRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IProductionPlanStageService> _productionPlanStageServiceMock = new();
     private readonly Mock<IScanNotifier> _scanNotifierMock = new();
@@ -40,6 +41,7 @@ public class ScanServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<ReworkUnlock>()).Returns(_reworkUnlockRepositoryMock.Object);
 
         _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object);
 
@@ -53,10 +55,24 @@ public class ScanServiceTests
         // FindAsync SAU đó (vd tính RunCount cho US-05a AC5) thấy được bản ghi vừa lưu.
         SetupExistingScans(new List<Scan>());
 
+        // US-19: mặc định không có ReworkUnlock nào — từng test override qua SetupExistingReworkUnlocks.
+        _reworkUnlockRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ReworkUnlock, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ReworkUnlock>());
+
         // Mặc định không có ProductionPlanStage nào Running — từng test override qua SetupRunningPlanStage.
         _productionPlanStageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStage>());
+    }
+
+    /// <summary>US-19: mô phỏng bảng ReworkUnlock hiện có trong DB.</summary>
+    private void SetupExistingReworkUnlocks(List<ReworkUnlock> existingUnlocks)
+    {
+        _reworkUnlockRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ReworkUnlock, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<ReworkUnlock, bool>> predicate, CancellationToken _) =>
+                existingUnlocks.Where(predicate.Compile()).ToList());
     }
 
     /// <summary>Mô phỏng bảng Scan hiện có trong DB — FindAsync sẽ áp đúng predicate của ScanService lên danh sách này.</summary>

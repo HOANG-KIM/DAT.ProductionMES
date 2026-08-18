@@ -7,7 +7,8 @@ namespace ProductionMES.Domain.Enums;
 /// còn lại dùng <c>Deactivate</c> — soft-delete); <c>Apply</c>/<c>Pause</c>/<c>Close</c> chỉ có ở
 /// <c>ProductionPlanStage</c> (US-05a — vòng đời trạng thái theo cặp Kế hoạch/Công đoạn, thay cho
 /// <c>Activate</c>/<c>Deactivate</c> cấp cả kế hoạch trước đây); <c>ConfirmNg</c> chỉ có ở <c>Scan</c> (US-18,
-/// thay đổi yêu cầu 18/08/2026 — bấm nút/quét mã "NG" bắt buộc đăng nhập Tổ trưởng có quyền này).
+/// thay đổi yêu cầu 18/08/2026 — bấm nút/quét mã "NG" bắt buộc đăng nhập Tổ trưởng có quyền này); <c>ReworkUnlock</c>
+/// chỉ có ở <c>Scan</c> (US-19 — "Mở khóa rework" cho tem bị NG, chỉ Tổ trưởng/Admin).
 /// </summary>
 public enum PermissionAction
 {
@@ -29,4 +30,7 @@ public enum PermissionAction
 
     /// <summary>US-18 AC1/AC2/AC2a (thay đổi 18/08/2026): xác nhận Scan NG tại trạm — yêu cầu đăng nhập lại (re-auth) mỗi lần kích hoạt Chế độ Scan NG.</summary>
     ConfirmNg = 9,
+
+    /// <summary>US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG tại 1 công đoạn — chỉ Tổ trưởng/Admin.</summary>
+    ReworkUnlock = 10,
 }

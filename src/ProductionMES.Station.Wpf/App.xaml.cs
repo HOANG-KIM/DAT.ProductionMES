@@ -12,6 +12,7 @@ using ProductionMES.Station.Wpf.Services.Navigation;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
 using ProductionMES.Station.Wpf.Services.Realtime;
+using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
 using ProductionMES.Station.Wpf.Services.Scans;
 using ProductionMES.Station.Wpf.Services.Stages;
 using ProductionMES.Station.Wpf.ViewModels;
@@ -120,6 +121,12 @@ public partial class App : Application
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
+        // US-19: "Mở khóa rework" — Bearer Tổ trưởng (Scan.ReworkUnlock), cùng nhóm với các client MainWindow ở trên.
+        services.AddHttpClient<IReworkUnlockApiClient, ReworkUnlockApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<SupervisorAuthHandler>();
+
         // US-07: xác thực bằng API Key theo trạm (ADR-005, scheme StationApiKey) — KHÔNG dùng SupervisorAuthHandler
         // (Bearer, luồng Tổ trưởng nâng quyền).
         services.AddHttpClient<IScanApiClient, ScanApiClient>((sp, client) =>
@@ -145,6 +152,8 @@ public partial class App : Application
         services.AddTransient<PlanSelectionViewModel>();
         services.AddTransient<LineStageSequencePage>();
         services.AddTransient<LineStageSequenceViewModel>();
+        services.AddTransient<ReworkUnlockPage>();
+        services.AddTransient<ReworkUnlockViewModel>();
         services.AddTransient<LoginDialog>();
         services.AddTransient<LoginDialogViewModel>();
     }

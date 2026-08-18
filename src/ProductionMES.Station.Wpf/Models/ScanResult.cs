@@ -18,4 +18,7 @@ public enum ScanResult
 
     /// <summary>US-18: sản phẩm không đạt chất lượng, xác nhận thủ công ở Chế độ Scan NG.</summary>
     Ng = 3,
+
+    /// <summary>US-19 AC1: bị từ chối vì tem đang bị khóa rework tại công đoạn này, chưa được Tổ trưởng "Mở khóa rework".</summary>
+    WaitingReworkUnlock = 4,
 }

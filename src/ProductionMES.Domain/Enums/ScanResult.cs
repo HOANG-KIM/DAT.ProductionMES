@@ -23,4 +23,15 @@ public enum ScanResult
     /// state "khóa" riêng ở entity <c>Scan</c>. Cần "Mở khóa rework" (US-19) để cho phép scan OK lại.
     /// </summary>
     Ng = 3,
+
+    /// <summary>
+    /// US-19 AC1 (FR-19): bị từ chối vì tem đang bị khóa rework tại đúng công đoạn này (bản ghi <see cref="Ng"/>
+    /// gần nhất tại (TagCode, StageId) CHƯA được Tổ trưởng "Mở khóa rework" — xem
+    /// <c>ProductionMES.Application.Services.ReworkUnlocks.ReworkLockCalculator</c>). Khác <see cref="Ng"/>: đây
+    /// KHÔNG phải lượt xác nhận lỗi chất lượng mới, mà là hệ thống TỰ ĐỘNG từ chối 1 lượt scan bình thường (qua
+    /// <c>ScanService.CreateAsync</c>) vì tem chưa được phép scan lại — cùng nhóm "lỗi thao tác/quy trình" với
+    /// <see cref="DuplicateTag"/>/<see cref="PreviousStageNotPassed"/> (KHÔNG tính vào NG/%NG chất lượng ở Andon
+    /// board, xem <c>AndonBoardService.NgCount</c> chỉ đếm <see cref="Ng"/>).
+    /// </summary>
+    WaitingReworkUnlock = 4,
 }

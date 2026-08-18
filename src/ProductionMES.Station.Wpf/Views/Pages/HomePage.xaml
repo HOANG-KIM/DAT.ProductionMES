@@ -28,7 +28,7 @@
             </StackPanel>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="3" Rows="1">
+        <UniformGrid Grid.Row="1" Columns="4" Rows="1">
             <Button x:Name="PlanSettingsTile" Height="Auto" Margin="0,0,7,0" Padding="18" HorizontalContentAlignment="Left" Click="PlanSettingsTile_Click">
                 <StackPanel>
                     <TextBlock Text="⚙  Cài đặt kế hoạch sản xuất" FontWeight="Bold" FontSize="14"/>
@@ -43,10 +43,17 @@
                                Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
                 </StackPanel>
             </Button>
-            <Button x:Name="LineStageSequenceTile" Height="Auto" Margin="7,0,0,0" Padding="18" HorizontalContentAlignment="Left" Click="LineStageSequenceTile_Click">
+            <Button x:Name="LineStageSequenceTile" Height="Auto" Margin="7,0,7,0" Padding="18" HorizontalContentAlignment="Left" Click="LineStageSequenceTile_Click">
                 <StackPanel>
                     <TextBlock Text="🔗  Trình tự công đoạn của Line" FontWeight="Bold" FontSize="14"/>
                     <TextBlock Text="Thêm/bớt/sắp xếp công đoạn cho Line — dùng chung mọi kế hoạch chạy trên Line đó"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="ReworkUnlockTile" Height="Auto" Margin="7,0,0,0" Padding="18" HorizontalContentAlignment="Left" Click="ReworkUnlockTile_Click">
+                <StackPanel>
+                    <TextBlock Text="🔓  Mở khóa rework" FontWeight="Bold" FontSize="14"/>
+                    <TextBlock Text="Mở khóa cho tem bị NG sau khi xác nhận đã sửa lỗi, để công nhân scan lại"
                                Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"/>
                 </StackPanel>
             </Button>

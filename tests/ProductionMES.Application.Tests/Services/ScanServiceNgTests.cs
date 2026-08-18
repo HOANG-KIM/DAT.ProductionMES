@@ -26,6 +26,7 @@ public class ScanServiceNgTests
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
+    private readonly Mock<IRepository<ReworkUnlock>> _reworkUnlockRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IProductionPlanStageService> _productionPlanStageServiceMock = new();
     private readonly Mock<IScanNotifier> _scanNotifierMock = new();
@@ -40,10 +41,16 @@ public class ScanServiceNgTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<ReworkUnlock>()).Returns(_reworkUnlockRepositoryMock.Object);
 
         _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object);
 
         SetupExistingScans(new List<Scan>());
+
+        // US-19: mặc định không có ReworkUnlock nào — test CreateAsync (vd SauKhiNg_TemBiKhoaKhiScanSangCongDoanKeTiep) cần repo này không null.
+        _reworkUnlockRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ReworkUnlock, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ReworkUnlock>());
 
         _productionPlanStageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))

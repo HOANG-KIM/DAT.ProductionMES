@@ -27,7 +27,9 @@ public enum PermissionResource
     /// <c>View</c>: tra cứu lịch sử scan (US-10 AC2/AC3) — Tổ trưởng (Supervisor)/Admin/Ban quản lý (Manager)
     /// thao tác, KHÔNG dùng scheme <c>StationApiKey</c> (khác endpoint ghi scan <c>ScansController.Create</c> —
     /// xem ADR-005). <c>ConfirmNg</c> (US-18, thay đổi 18/08/2026): xác nhận Scan NG tại trạm, cũng dùng scheme
-    /// Bearer mặc định (KHÔNG dùng <c>StationApiKey</c>) — yêu cầu đăng nhập lại (re-auth) mỗi lần.
+    /// Bearer mặc định (KHÔNG dùng <c>StationApiKey</c>) — yêu cầu đăng nhập lại (re-auth) mỗi lần. <c>ReworkUnlock</c>
+    /// (US-19): "Mở khóa rework" cho tem bị NG — Bearer mặc định, chỉ Tổ trưởng/Admin (KHÔNG cấp Manager, khác
+    /// <c>ConfirmNg</c>/<c>View</c> — xem AC6 US-19).
     /// </summary>
     Scan = 7,
 }
