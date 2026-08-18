@@ -1,9 +1,9 @@
 namespace ProductionMES.Station.Wpf.Models;
 
 /// <summary>
-/// Mirror của <c>ProductionMES.Domain.Enums.ScanResult</c> phía backend (US-07/US-08, FR-08/FR-10) — Station.Wpf
-/// không reference project backend nào (CLAUDE.md), nên định nghĩa lại đúng tên/giá trị để deserialize JSON dạng
-/// chuỗi (API-Conventions.md mục 10).
+/// Mirror của <c>ProductionMES.Domain.Enums.ScanResult</c> phía backend (US-07/US-08/US-18, FR-08/FR-10/FR-18) —
+/// Station.Wpf không reference project backend nào (CLAUDE.md), nên định nghĩa lại đúng tên/giá trị để deserialize
+/// JSON dạng chuỗi (API-Conventions.md mục 10).
 /// </summary>
 public enum ScanResult
 {
@@ -15,4 +15,7 @@ public enum ScanResult
 
     /// <summary>Bị từ chối: tem chưa từng scan OK tại công đoạn liền trước ở bất kỳ Line nào (toàn hệ thống).</summary>
     PreviousStageNotPassed = 2,
+
+    /// <summary>US-18: sản phẩm không đạt chất lượng, xác nhận thủ công ở Chế độ Scan NG.</summary>
+    Ng = 3,
 }

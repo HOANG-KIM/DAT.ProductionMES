@@ -113,6 +113,8 @@ public class AndonBoardServiceTests
     }
 
     // AC1: ACTUAL/NG chỉ tính đúng cặp (ProductionPlanId, StageId) của kế hoạch active, bỏ qua scan của công đoạn/kế hoạch khác.
+    // US-18 (gap đã sửa): NG chỉ tính ScanResult.Ng (lỗi chất lượng, xác nhận thủ công) — KHÔNG tính
+    // DuplicateTag/PreviousStageNotPassed (lỗi thao tác, không phải lỗi chất lượng sản phẩm).
     [Fact]
     public async Task GetForWorkStationAsync_CoKeHoachRunning_TinhDungActualVaNgTheoDungKeHoachVaCongDoan()
     {
@@ -123,7 +125,9 @@ public class AndonBoardServiceTests
         {
             new() { TagCode = "A", ProductionPlanId = 10, StageId = 100, Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
             new() { TagCode = "B", ProductionPlanId = 10, StageId = 100, Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
-            new() { TagCode = "C", ProductionPlanId = 10, StageId = 100, Result = ScanResult.DuplicateTag, ScannedAtUtc = DateTime.UtcNow },
+            new() { TagCode = "C", ProductionPlanId = 10, StageId = 100, Result = ScanResult.Ng, RejectionReason = "Trầy xước vỏ", ScannedAtUtc = DateTime.UtcNow },
+            // Lỗi thao tác (không phải lỗi chất lượng) -> KHÔNG tính vào NG/%NG dù cùng kế hoạch/công đoạn.
+            new() { TagCode = "F", ProductionPlanId = 10, StageId = 100, Result = ScanResult.DuplicateTag, ScannedAtUtc = DateTime.UtcNow },
             // Cùng kế hoạch nhưng khác công đoạn -> KHÔNG tính vào.
             new() { TagCode = "D", ProductionPlanId = 10, StageId = 200, Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
             // Khác kế hoạch -> KHÔNG tính vào.
@@ -142,8 +146,8 @@ public class AndonBoardServiceTests
         Assert.Equal(startTime, result.PlanStartTime);
         Assert.Equal("HOANG, MINH, TUAN", result.OperatorNames);
         Assert.Equal(2, result.ActualCumulative); // A, B
-        Assert.Equal(1, result.NgCount); // C
-        Assert.Equal(Math.Round(1 * 100m / 3, 1), result.NgPercent); // 1 NG / (2 OK + 1 NG) = 33.3%
+        Assert.Equal(1, result.NgCount); // C (F là DuplicateTag, không tính)
+        Assert.Equal(Math.Round(1 * 100m / 3, 1), result.NgPercent); // 1 NG / (2 OK + 1 NG) = 33.3% — F không vào mẫu số
         Assert.Equal(result.ActualCumulative - result.PlanCumulative, result.Balance);
 
         // AC6: dòng cuối cùng luôn là dòng "hiện tại".

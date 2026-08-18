@@ -7,8 +7,17 @@ namespace ProductionMES.Domain.Entities;
 /// (<see cref="Result"/> != <see cref="ScanResult.Ok"/>) — không có khái niệm "return lỗi mà không lưu DB".
 /// </summary>
 /// <remarks>
-/// KHÔNG có field <c>UserId</c>: luồng scan thường không gắn với người dùng cụ thể (Operator không đăng nhập
-/// cá nhân — xem ADR-005 dòng 85).
+/// Luồng scan thường (US-07/US-08, <see cref="ScanResult.Ok"/>/<see cref="ScanResult.DuplicateTag"/>/
+/// <see cref="ScanResult.PreviousStageNotPassed"/>) KHÔNG gắn với người dùng cụ thể (Operator không đăng nhập
+/// cá nhân — ADR-005) — <see cref="ConfirmedByUserId"/>/<see cref="ConfirmedByUserName"/> luôn <c>null</c> cho
+/// các bản ghi này.
+///
+/// US-18 (thay đổi yêu cầu 18/08/2026, xem `Documents/BACKLOG-user-story.md` mục US-18 "Ghi chú (18/08/2026,
+/// thay đổi yêu cầu)"): bấm nút/quét mã "NG" nay BẮT BUỘC đăng nhập Tổ trưởng (re-auth mỗi lần) TRƯỚC khi vào
+/// Chế độ Scan NG — <see cref="ConfirmedByUserId"/>/<see cref="ConfirmedByUserName"/> lưu đúng tài khoản đã
+/// đăng nhập đó khi <see cref="Result"/> = <see cref="ScanResult.Ng"/>. 2 field NULLABLE vì: (a) không backfill
+/// dữ liệu Ng cũ đã ghi trước thay đổi này (chấp nhận thiếu thông tin người xác nhận cho các bản ghi trước
+/// 18/08/2026), (b) giữ đúng bất biến "chỉ Ng mới có người xác nhận" ở trên.
 ///
 /// KHÔNG có ràng buộc UNIQUE(TagCode, StageId) ở DB: 1 tem có thể có nhiều bản ghi bị từ chối tại cùng
 /// (TagCode, StageId), miễn tối đa 1 bản ghi có Result = Ok — ràng buộc "tối đa 1 Ok" xử lý ở ScanService
@@ -73,4 +82,15 @@ public class Scan
     /// mục 7). <c>null</c> khi <see cref="Result"/> = <see cref="ScanResult.Ok"/>.
     /// </summary>
     public string? RejectionReason { get; set; }
+
+    /// <summary>
+    /// US-18 AC5 (thay đổi 18/08/2026): Id tài khoản Tổ trưởng/Admin/Manager đã đăng nhập lại (re-auth) ngay
+    /// trước khi kích hoạt Chế độ Scan NG (AC2a), dùng cho đúng lượt Scan NG này. <c>null</c> cho mọi
+    /// <see cref="Result"/> khác <see cref="ScanResult.Ng"/>, và cho các bản ghi Ng ghi trước 18/08/2026 (không
+    /// backfill — xem remarks).
+    /// </summary>
+    public int? ConfirmedByUserId { get; set; }
+
+    /// <summary>Tên đăng nhập hiển thị của <see cref="ConfirmedByUserId"/> tại thời điểm scan (snapshot, không tra cứu động) — cùng điều kiện null như trên.</summary>
+    public string? ConfirmedByUserName { get; set; }
 }

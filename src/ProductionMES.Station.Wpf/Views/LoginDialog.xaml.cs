@@ -12,6 +12,12 @@ public partial class LoginDialog : Window
 {
     private readonly LoginDialogViewModel _viewModel;
 
+    /// <summary>
+    /// US-18: expose để caller (vd <c>AndonBoardViewModel</c>) cấu hình <see cref="LoginDialogViewModel.RequiredPermission"/>
+    /// trước khi <c>ShowDialog()</c>, và đọc <see cref="LoginDialogViewModel.NgConfirmationLoginResult"/> sau khi đóng.
+    /// </summary>
+    public LoginDialogViewModel ViewModel => _viewModel;
+
     public LoginDialog(LoginDialogViewModel viewModel)
     {
         InitializeComponent();

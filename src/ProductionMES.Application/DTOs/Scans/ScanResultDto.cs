@@ -42,4 +42,10 @@ public class ScanResultDto
 
     /// <summary>Lý do bị từ chối (vd "Chưa qua công đoạn: Lắp ráp") — <c>null</c> khi <see cref="Result"/> = Ok.</summary>
     public string? RejectionReason { get; set; }
+
+    /// <summary>US-18 (thay đổi 18/08/2026): Id tài khoản đã đăng nhập xác nhận Scan NG — <c>null</c> khi <see cref="Result"/> != Ng, hoặc bản ghi Ng cũ trước thay đổi này (không backfill).</summary>
+    public int? ConfirmedByUserId { get; set; }
+
+    /// <summary>Tên đăng nhập của <see cref="ConfirmedByUserId"/> — cùng điều kiện null như trên.</summary>
+    public string? ConfirmedByUserName { get; set; }
 }

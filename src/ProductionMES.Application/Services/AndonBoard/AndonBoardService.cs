@@ -71,8 +71,11 @@ public class AndonBoardService : IAndonBoardService
             .OrderBy(t => t)
             .ToList();
 
-        var ngCount = scans.Count(s => s.Result != ScanResult.Ok);
-        var totalScanCount = scans.Count;
+        // US-18: nguồn đúng cho NG/%NG là ScanResult.Ng (xác nhận thủ công lỗi chất lượng ở Chế độ Scan NG) —
+        // KHÔNG đếm DuplicateTag/PreviousStageNotPassed (lỗi thao tác của operator: quét trùng tem/sai thứ tự
+        // công đoạn, không phải lỗi chất lượng sản phẩm). Xem gap ghi ở BACKLOG-user-story.md US-09/US-18.
+        var ngCount = scans.Count(s => s.Result == ScanResult.Ng);
+        var okCount = scans.Count(s => s.Result == ScanResult.Ok);
 
         var nowLocal = DateTime.Now;
         var standardQuantityPerHourExact = productionPlan.TaktTimeSeconds > 0
@@ -108,7 +111,10 @@ public class AndonBoardService : IAndonBoardService
             PlanCumulative = planNow,
             Balance = actualNow - planNow,
             NgCount = ngCount,
-            NgPercent = totalScanCount > 0 ? Math.Round(ngCount * 100m / totalScanCount, 1) : 0m,
+            // %NG = NG / (OK + NG) — chỉ tính trên các lượt scan phản ánh KẾT QUẢ SẢN PHẨM thật (đạt/không đạt),
+            // loại bỏ DuplicateTag/PreviousStageNotPassed (lỗi thao tác, không phải kết quả kiểm tra sản phẩm)
+            // khỏi cả tử số lẫn mẫu số để không làm sai lệch tỷ lệ lỗi chất lượng thực tế.
+            NgPercent = (okCount + ngCount) > 0 ? Math.Round(ngCount * 100m / (okCount + ngCount), 1) : 0m,
             GeneratedAtLocal = nowLocal,
             Rows = rows,
         };

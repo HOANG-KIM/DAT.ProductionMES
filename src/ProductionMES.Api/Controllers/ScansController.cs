@@ -11,6 +11,13 @@ namespace ProductionMES.Api.Controllers;
 /// (ADR-005) — KHÔNG đi qua hệ permission Resource.Action động (ADR-004), vì không có User nào gắn với request
 /// dùng scheme này.
 /// </summary>
+/// <remarks>
+/// US-18 (thay đổi yêu cầu 18/08/2026): action tạo Scan NG (<c>POST api/v1/scans/ng</c>) đã CHUYỂN sang
+/// <c>ScanNgController</c> riêng — bấm nút "NG" nay bắt buộc đăng nhập Tổ trưởng (Bearer token, ADR-005 mục 2),
+/// khác hẳn Operator không đăng nhập cá nhân của scheme "StationApiKey" ở Controller này. Không thể gộp chung
+/// scheme ở đúng 1 action (class này cần "trạm" qua StationApiKey, action NG cần "người" qua Bearer + permission
+/// <c>Scan.ConfirmNg</c>) — xem lý do tách Controller trong `Documents/BACKLOG-user-story.md` mục US-18.
+/// </remarks>
 [ApiController]
 [Route("api/v1/scans")]
 [Authorize(AuthenticationSchemes = StationApiKeyDefaults.AuthenticationScheme)]
@@ -40,5 +47,16 @@ public class ScansController : ControllerBase
 
         var result = await _scanService.CreateAsync(workStationId, request.TagCode, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>
+    /// US-18 AC4: danh sách lý do lỗi đã từng nhập cho đúng công đoạn <paramref name="stageId"/>, dùng làm gợi ý
+    /// autocomplete khi nhập lý do Scan NG mới — không bắt buộc chọn từ danh sách này (vẫn free text).
+    /// </summary>
+    [HttpGet("ng-reasons")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetNgReasonSuggestions([FromQuery] int stageId, CancellationToken cancellationToken)
+    {
+        var suggestions = await _scanService.GetNgReasonSuggestionsAsync(stageId, cancellationToken);
+        return Ok(suggestions);
     }
 }

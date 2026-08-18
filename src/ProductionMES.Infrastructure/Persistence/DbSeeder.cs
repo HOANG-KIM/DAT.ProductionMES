@@ -93,6 +93,8 @@ public static class DbSeeder
 
             // US-10 AC2/AC3: tra cứu lịch sử scan.
             (PermissionResource.Scan, PermissionAction.View),
+            // US-18 (thay đổi yêu cầu 18/08/2026): xác nhận Scan NG tại trạm.
+            (PermissionResource.Scan, PermissionAction.ConfirmNg),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -125,8 +127,9 @@ public static class DbSeeder
                 || p.Resource == PermissionResource.Scan);
             rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
-            // Manager (US-10): CHỈ Scan.View — Ban quản lý tra cứu lịch sử scan, không có permission nào khác
-            // (đúng vai trò "xem báo cáo" theo mô tả UserRole.Manager, chưa có endpoint nào khác cho phép role này).
+            // Manager: Scan.View (US-10, tra cứu lịch sử scan) + Scan.ConfirmNg (US-18, thay đổi 18/08/2026, xác
+            // nhận Scan NG tại trạm — quyết định nghiệp vụ chốt 18/08/2026: mở rộng quyền xác nhận NG cho cả
+            // Manager, không chỉ Supervisor) — Manager KHÔNG có permission nào khác ngoài nhóm Scan.
             var newManagerPermissions = newPermissions.Where(p => p.Resource == PermissionResource.Scan);
             rolePermissions.AddRange(newManagerPermissions.Select(p => new RolePermission { Role = UserRole.Manager, PermissionId = p.Id }));
 
@@ -138,6 +141,7 @@ public static class DbSeeder
 
         await EnsureSupervisorCatalogViewPermissionsAsync(dbContext, cancellationToken);
         await EnsureScanViewPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsureScanConfirmNgPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -213,6 +217,43 @@ public static class DbSeeder
         }
 
         dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = scanViewPermissionId.Value }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 18/08/2026 (US-18, thay đổi yêu cầu — xác nhận Scan NG tại trạm bắt buộc đăng nhập Tổ trưởng):
+    /// đảm bảo <c>(Scan, ConfirmNg)</c> được cấp cho <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> — cùng lý
+    /// do/idiom phòng gap seed với <see cref="EnsureScanViewPermissionGrantsAsync"/> (dù ở lần đầu triển khai
+    /// permission này thường đã được seed đủ qua nhánh <c>newPermissions</c> ở <see cref="SeedPermissionsAsync"/>,
+    /// giữ bước "Ensure" riêng này làm lưới an toàn cho các kịch bản DB lệch pha khác nhau). Idempotent theo từng
+    /// cặp (Role, PermissionId), chạy MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsureScanConfirmNgPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var scanConfirmNgPermissionId = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.Scan && p.Action == PermissionAction.ConfirmNg)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (scanConfirmNgPermissionId is null)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor, UserRole.Manager };
+
+        var alreadyGrantedRoles = await dbContext.RolePermissions
+            .Where(rp => rp.PermissionId == scanConfirmNgPermissionId.Value && roles.Contains(rp.Role))
+            .Select(rp => rp.Role)
+            .ToListAsync(cancellationToken);
+
+        var missingRoles = roles.Except(alreadyGrantedRoles).ToList();
+        if (missingRoles.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = scanConfirmNgPermissionId.Value }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

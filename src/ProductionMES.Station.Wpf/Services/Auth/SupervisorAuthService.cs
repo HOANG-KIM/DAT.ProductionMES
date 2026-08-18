@@ -31,6 +31,18 @@ public class SupervisorAuthService : ApiClientBase, ISupervisorAuthService
             result.Username, result.FullName);
     }
 
+    public async Task<StationLoginResponse> LoginForNgConfirmationAsync(string username, string password, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/auth/station-login")
+        {
+            Content = JsonContent.Create(new LoginRequest { Username = username, Password = password }, options: JsonDefaults.Options),
+        };
+
+        // US-18: KHÔNG gọi _sessionService.SetSession — đây là token DÙNG RIÊNG cho 1 lượt Scan NG, không phải
+        // phiên Tổ trưởng dùng chung của US-05/05a/05b (xem remarks tại ISupervisorAuthService).
+        return await SendAsync<StationLoginResponse>(request, cancellationToken);
+    }
+
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
         var refreshToken = _sessionService.RefreshToken;

@@ -6,7 +6,8 @@ namespace ProductionMES.Domain.Enums;
 /// <c>DbSeeder</c>): <c>Delete</c> chỉ có ở <c>ProductionPlanStage</c> (HTTP DELETE thật, khác các resource
 /// còn lại dùng <c>Deactivate</c> — soft-delete); <c>Apply</c>/<c>Pause</c>/<c>Close</c> chỉ có ở
 /// <c>ProductionPlanStage</c> (US-05a — vòng đời trạng thái theo cặp Kế hoạch/Công đoạn, thay cho
-/// <c>Activate</c>/<c>Deactivate</c> cấp cả kế hoạch trước đây).
+/// <c>Activate</c>/<c>Deactivate</c> cấp cả kế hoạch trước đây); <c>ConfirmNg</c> chỉ có ở <c>Scan</c> (US-18,
+/// thay đổi yêu cầu 18/08/2026 — bấm nút/quét mã "NG" bắt buộc đăng nhập Tổ trưởng có quyền này).
 /// </summary>
 public enum PermissionAction
 {
@@ -25,4 +26,7 @@ public enum PermissionAction
 
     /// <summary>US-05a AC6: đóng sớm/kết thúc 1 cặp (Kế hoạch, Công đoạn), chuyển sang Cancelled.</summary>
     Close = 8,
+
+    /// <summary>US-18 AC1/AC2/AC2a (thay đổi 18/08/2026): xác nhận Scan NG tại trạm — yêu cầu đăng nhập lại (re-auth) mỗi lần kích hoạt Chế độ Scan NG.</summary>
+    ConfirmNg = 9,
 }

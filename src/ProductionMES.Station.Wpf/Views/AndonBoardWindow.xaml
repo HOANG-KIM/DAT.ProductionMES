@@ -17,6 +17,50 @@
     -->
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!--
+          App.xaml merge MaterialDesign2.Defaults.xaml ở cấp Application.Resources, áp dụng implicit
+          Style TargetType="Button" cho MỌI Button trong MỌI Window (kể cả AndonBoardWindow, dù ADR-007 nói
+          cửa sổ này không theo Light theme — merge dictionary ở Application vẫn có hiệu lực toàn app).
+          Style đó ép Height cố định nhỏ theo spec Material (~36px), khiến nội dung FontSize lớn (vd nút "NG"
+          FontSize=24 Bold Padding=32,10) bị cắt trên/dưới, đồng thời vùng click (hit-test) thực tế nhỏ hơn
+          nhiều so với phần nhìn thấy được, khiến thao tác bấm hay trượt ra ngoài ("click không phản hồi").
+          Định nghĩa lại implicit Style TargetType="Button" ngay tại đây — Window.Resources được WPF tra cứu
+          ưu tiên trước Application.Resources — để mọi Button trong cửa sổ này dùng ControlTemplate tự vẽ đơn
+          giản (Border + ContentPresenter, size theo đúng Padding/nội dung), không phụ thuộc MaterialDesign.
+        -->
+        <Style TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                               RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -87,6 +131,11 @@
                             <TextBlock Text="{Binding BalanceLabel}" FontSize="32" FontWeight="Bold" Foreground="{Binding BalanceBrush}" HorizontalAlignment="Right"/>
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- US-18 AC1: nút "NG" đỏ, lớn, luôn hiển thị ở trạm có màn hình cảm ứng/chuột — kích hoạt Chế độ Scan NG. -->
+                    <Button Content="NG" Command="{Binding ActivateNgModeCommand}"
+                            Margin="0,16,0,0" Padding="32,10" FontSize="24" FontWeight="Bold"
+                            Background="#E53935" Foreground="White" BorderBrush="#E53935" HorizontalAlignment="Right"/>
                 </StackPanel>
             </Grid>
 
@@ -267,6 +316,60 @@
 
         <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="16"
                     Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
+
+        <!--
+          US-18 AC1/AC2/AC3 (đổi sang khung modal 18/08/2026, thay cho full-screen đỏ tuyệt đối trước đây —
+          theo yêu cầu người dùng): phủ toàn bộ 3 dòng của Grid gốc (RowSpan=3) bằng lớp nền LÀM TỐI (không
+          phải màu đỏ đặc) để vẫn thấy mờ mờ nội dung phía sau (Andon board vẫn đang chạy), rồi đặt 1 khung
+          (Border) căn giữa màn hình. Khung tách 2 vùng màu (theo yêu cầu 18/08/2026): header đỏ đậm (nổi bật,
+          nhận ra ngay đang ở Chế độ Scan NG) + body "trắng sữa" (dễ đọc mã tem/lý do lỗi, tương phản tốt hơn
+          nền tối trước đây). Bên trong tách 2 bước con: chờ quét tem lỗi (IsWaitingForNgTagCode) và form nhập
+          lý do (IsNgReasonPanelVisible).
+        -->
+        <Grid Grid.RowSpan="3" Background="#B3000000"
+              Visibility="{Binding IsNgModeActive, Converter={StaticResource BoolToVisibility}}">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="720"
+                    Background="#FFF8F1" BorderBrush="#D32F2A" BorderThickness="3" CornerRadius="14"
+                    ClipToBounds="True">
+                <StackPanel>
+                    <!-- Header: đỏ đậm, luôn hiển thị khi đang ở Chế độ Scan NG (AC1/AC2 "giao diện đổi rõ rệt"). -->
+                    <Border Background="#D32F2A" Padding="28,20">
+                        <TextBlock Text="⚠ ĐANG Ở CHẾ ĐỘ NG" FontSize="32" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </Border>
+
+                    <!-- Body: trắng sữa, chứa thông báo chờ quét tem / form nhập lý do. -->
+                    <StackPanel Margin="36,26,36,30">
+                        <TextBlock FontSize="17" Foreground="#3A3F47" HorizontalAlignment="Center"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   Text="Vui lòng quét tem sản phẩm lỗi (quét lại mã NG để gia hạn thời gian chờ) — tự động quay về Scan OK nếu không quét tem nào sau ít giây"
+                                   Visibility="{Binding IsWaitingForNgTagCode, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <!-- AC3/AC4/AC5: form nhập lý do sau khi đã quét tem lỗi. -->
+                        <StackPanel Visibility="{Binding IsNgReasonPanelVisible, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="MÃ TEM SẢN PHẨM LỖI" FontSize="13" Foreground="#8A8F98"/>
+                            <TextBlock Text="{Binding PendingNgTagCode}" FontSize="26" FontWeight="Bold" Foreground="#20242B" Margin="0,2,0,16"/>
+
+                            <!-- AC4: free text + autocomplete gợi ý (ComboBox IsEditable, không bắt buộc chọn từ danh sách). -->
+                            <TextBlock Text="LÝ DO LỖI (bắt buộc)" FontSize="13" Foreground="#8A8F98" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="NgReasonComboBox" IsEditable="True" IsTextSearchEnabled="True"
+                                      ItemsSource="{Binding NgReasonSuggestions}"
+                                      Text="{Binding NgReasonText, UpdateSourceTrigger=PropertyChanged}"
+                                      FontSize="20" Padding="8" KeyDown="NgReasonComboBox_KeyDown"/>
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                                <Button Content="HỦY" Padding="18,10" Margin="0,0,12,0"
+                                        Background="Transparent" Foreground="#3A3F47" BorderBrush="#C7CBD1" BorderThickness="1.5"
+                                        Command="{Binding CancelNgReasonCommand}"/>
+                                <Button Content="XÁC NHẬN NG" Padding="18,10" FontWeight="Bold"
+                                        Background="#D32F2A" Foreground="White" BorderBrush="#D32F2A"
+                                        Command="{Binding ConfirmNgReasonCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!--
           Ô ẩn luôn giữ focus để bắt input máy scan HID (keyboard-wedge, Zebra DS2208): ký tự tem gõ vào tự

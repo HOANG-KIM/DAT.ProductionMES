@@ -25,6 +25,11 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
         builder.Property(s => s.RejectionReason)
             .HasMaxLength(500);
 
+        // US-18 (thay đổi 18/08/2026): NULLABLE — chỉ có giá trị khi Result = Ng (xem remarks tại entity Scan).
+        // HasMaxLength(100) khớp User.Username (UserConfiguration) vì ConfirmedByUserName lưu snapshot Username.
+        builder.Property(s => s.ConfirmedByUserName)
+            .HasMaxLength(100);
+
         // US-10: 6 field snapshot từ ProductionPlan tại thời điểm scan (xem remarks tại entity Scan) — maxlength/kiểu
         // dữ liệu khớp đúng ProductionPlanConfiguration để giữ nguyên độ dài dữ liệu gốc.
         builder.Property(s => s.Customer)

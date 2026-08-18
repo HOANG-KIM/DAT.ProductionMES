@@ -1,8 +1,7 @@
 namespace ProductionMES.Domain.Enums;
 
 /// <summary>
-/// Kết quả 1 lượt scan (FR-08/FR-10, US-07/US-08). Thiết kế mở rộng được — US-18 sẽ bổ sung thêm giá trị
-/// <c>Ng</c> (không đạt kiểm tra Arduino) sau này, không cần đổi lại các giá trị đã có ở đây.
+/// Kết quả 1 lượt scan (FR-08/FR-10, US-07/US-08/US-18). Thiết kế mở rộng được.
 /// </summary>
 public enum ScanResult
 {
@@ -14,4 +13,14 @@ public enum ScanResult
 
     /// <summary>Bị từ chối: tem chưa từng scan OK tại công đoạn liền trước ở bất kỳ Line nào (toàn hệ thống).</summary>
     PreviousStageNotPassed = 2,
+
+    /// <summary>
+    /// US-18 (FR-18, mục 6 quy tắc 9): sản phẩm không đạt chất lượng, xác nhận thủ công bởi người vận hành ở
+    /// Chế độ Scan NG (khác <see cref="DuplicateTag"/>/<see cref="PreviousStageNotPassed"/> — 2 giá trị đó là lỗi
+    /// thao tác/quy trình do hệ thống tự động phát hiện, không phải lỗi chất lượng sản phẩm). Tem có bản ghi
+    /// <c>Ng</c> tại 1 công đoạn mà CHƯA có bản ghi <see cref="Ok"/> tương ứng sẽ tự động bị chặn khi cố scan sang
+    /// công đoạn kế tiếp (do check "đã qua công đoạn liền trước" chỉ thỏa với <see cref="Ok"/>) — không cần thêm
+    /// state "khóa" riêng ở entity <c>Scan</c>. Cần "Mở khóa rework" (US-19) để cho phép scan OK lại.
+    /// </summary>
+    Ng = 3,
 }

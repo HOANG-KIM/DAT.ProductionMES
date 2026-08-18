@@ -36,6 +36,12 @@ namespace ProductionMES.Application.Services.Scans;
 /// US-05a AC5: sau khi lưu 1 lượt scan OK, tự động chuyển <see cref="ProductionPlanStage.PlanStatus"/> của đúng
 /// cặp (Kế hoạch, Công đoạn) đó sang <see cref="PlanStatus.Completed"/> ngay khi số lượt scan OK (tính động,
 /// gồm cả lượt vừa lưu) đạt đủ <c>ProductionPlan.PlannedQuantity</c>.
+///
+/// US-18 (<see cref="CreateNgAsync"/>): KHÁC <see cref="CreateAsync"/> — Scan NG là hành động XÁC NHẬN CHỦ ĐỘNG
+/// của người vận hành (đã tự quyết định sản phẩm lỗi qua Chế độ Scan NG ở UI trạm), không phải kết quả suy luận
+/// tự động của FR-08, nên KHÔNG chạy lại 2 bước kiểm tra chống trùng tem/công đoạn liền trước. Vẫn yêu cầu có 1
+/// kế hoạch đang Running cho (Line, Công đoạn) của trạm (giống CreateAsync) để gắn đúng ProductionPlanId + snapshot
+/// 6 field (US-10), phục vụ báo cáo PPM theo kế hoạch sau này (US-20).
 /// </remarks>
 public class ScanService : IScanService
 {
@@ -43,6 +49,9 @@ public class ScanService : IScanService
     // Service tự chỉnh Page/PageSize không hợp lệ về giá trị mặc định thay vì trả lỗi 400 (xem GetHistoryAsync).
     private const int DefaultPageSize = 20;
     private const int MaxPageSize = 200;
+
+    /// <summary>US-18 AC4: giới hạn số lý do gợi ý trả về, tránh danh sách autocomplete quá dài khi công đoạn đã tích lũy nhiều lý do khác nhau theo thời gian.</summary>
+    private const int MaxNgReasonSuggestions = 20;
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly IProductionPlanStageService _productionPlanStageService;
@@ -150,6 +159,69 @@ public class ScanService : IScanService
         return result;
     }
 
+    public async Task<ScanResultDto> CreateNgAsync(
+        int workStationId, string tagCode, string rejectionReason, int confirmedByUserId, string confirmedByUserName, CancellationToken cancellationToken = default)
+    {
+        // FluentValidationActionFilter đã validate NotEmpty ở tầng request (CreateNgScanRequestValidator) — kiểm
+        // tra lại ở đây phòng Service được gọi trực tiếp từ nơi khác không qua Controller (vd unit test/tái sử dụng).
+        if (string.IsNullOrWhiteSpace(rejectionReason))
+        {
+            throw new BusinessRuleException("Phải nhập lý do lỗi trước khi ghi nhận Scan NG.");
+        }
+
+        // US-18 (thay đổi 18/08/2026): người xác nhận LUÔN phải có (Controller chỉ gọi tới đây sau khi xác thực
+        // Bearer token Tổ trưởng thành công) — kiểm tra lại phòng Service được gọi trực tiếp không qua Controller.
+        if (confirmedByUserId <= 0 || string.IsNullOrWhiteSpace(confirmedByUserName))
+        {
+            throw new BusinessRuleException("Thiếu thông tin người xác nhận Scan NG (yêu cầu đăng nhập Tổ trưởng hợp lệ).");
+        }
+
+        var workStation = await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
+            ?? throw new EntityNotFoundException($"Không tìm thấy trạm làm việc với Id = {workStationId}.");
+
+        // Giống CreateAsync: cần đúng 1 kế hoạch đang Running cho (Line, Công đoạn) của trạm để gắn ProductionPlanId
+        // + snapshot 6 field (US-10) — Scan NG vẫn thuộc về 1 kế hoạch cụ thể để phục vụ báo cáo PPM sau này (US-20).
+        var productionPlanStageRepository = _unitOfWork.Repository<ProductionPlanStage>();
+        var runningPlanStages = await productionPlanStageRepository.FindAsync(
+            x => x.LineId == workStation.LineId && x.StageId == workStation.StageId && x.PlanStatus == PlanStatus.Running,
+            cancellationToken);
+        var runningPlanStage = runningPlanStages.FirstOrDefault();
+
+        if (runningPlanStage is null)
+        {
+            throw new BusinessRuleException(
+                $"(Line Id = {workStation.LineId}, Công đoạn Id = {workStation.StageId}) hiện không có kế hoạch sản xuất " +
+                "nào đang Running — không thể ghi nhận lượt scan.");
+        }
+
+        var activeProductionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(runningPlanStage.ProductionPlanId, cancellationToken)
+            ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {runningPlanStage.ProductionPlanId}.");
+
+        // AC3: KHÔNG chạy 2 bước kiểm tra (chống trùng tem/công đoạn liền trước) như CreateAsync — người vận
+        // hành CHỦ ĐỘNG xác nhận đây là sản phẩm lỗi, không phải luồng tự động phát hiện của FR-08. Tem bị khóa ở
+        // công đoạn kế tiếp tự động xảy ra vì công đoạn này không có bản ghi Ok (xem IScanService.CreateNgAsync).
+        var ngScan = BuildScan(
+            tagCode, workStation, activeProductionPlan, ScanResult.Ng, rejectionReason.Trim(), DateTime.UtcNow,
+            confirmedByUserId, confirmedByUserName);
+        return await SaveAndReturnAsync(ngScan, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> GetNgReasonSuggestionsAsync(int stageId, CancellationToken cancellationToken = default)
+    {
+        var ngScans = await _unitOfWork.Repository<Scan>().FindAsync(
+            s => s.StageId == stageId && s.Result == ScanResult.Ng, cancellationToken);
+
+        // AC4: không trùng lặp, sắp theo lần dùng gần nhất trước (lý do mới nhập gần đây lên trước).
+        return ngScans
+            .Where(s => !string.IsNullOrWhiteSpace(s.RejectionReason))
+            .GroupBy(s => s.RejectionReason!)
+            .Select(g => new { Reason = g.Key, LastUsedUtc = g.Max(s => s.ScannedAtUtc) })
+            .OrderByDescending(x => x.LastUsedUtc)
+            .Select(x => x.Reason)
+            .Take(MaxNgReasonSuggestions)
+            .ToList();
+    }
+
     public async Task<PagedResult<ScanHistoryItemDto>> GetHistoryAsync(ScanHistoryQuery query, CancellationToken cancellationToken = default)
     {
         var page = query.Page < 1 ? 1 : query.Page;
@@ -202,10 +274,13 @@ public class ScanService : IScanService
         ScannedAtUtc = scan.ScannedAtUtc,
         Result = scan.Result,
         RejectionReason = scan.RejectionReason,
+        ConfirmedByUserId = scan.ConfirmedByUserId,
+        ConfirmedByUserName = scan.ConfirmedByUserName,
     };
 
     private static Scan BuildScan(
-        string tagCode, WorkStation workStation, ProductionPlan productionPlan, ScanResult result, string? rejectionReason, DateTime scannedAtUtc)
+        string tagCode, WorkStation workStation, ProductionPlan productionPlan, ScanResult result, string? rejectionReason, DateTime scannedAtUtc,
+        int? confirmedByUserId = null, string? confirmedByUserName = null)
         => new()
         {
             TagCode = tagCode,
@@ -223,6 +298,9 @@ public class ScanService : IScanService
             ScannedAtUtc = scannedAtUtc,
             Result = result,
             RejectionReason = rejectionReason,
+            // US-18 (thay đổi 18/08/2026): chỉ CreateNgAsync truyền 2 tham số này — mọi nhánh khác (CreateAsync) giữ null (xem remarks tại entity Scan).
+            ConfirmedByUserId = confirmedByUserId,
+            ConfirmedByUserName = confirmedByUserName,
         };
 
     private async Task<ScanResultDto> SaveAndReturnAsync(Scan scan, CancellationToken cancellationToken)
@@ -250,5 +328,7 @@ public class ScanService : IScanService
         ScannedAtUtc = scan.ScannedAtUtc,
         Result = scan.Result,
         RejectionReason = scan.RejectionReason,
+        ConfirmedByUserId = scan.ConfirmedByUserId,
+        ConfirmedByUserName = scan.ConfirmedByUserName,
     };
 }

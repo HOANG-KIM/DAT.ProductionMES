@@ -6,9 +6,11 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Station.Wpf.Configuration;
 using ProductionMES.Station.Wpf.Models;
 using ProductionMES.Station.Wpf.Services.AndonBoard;
+using ProductionMES.Station.Wpf.Services.Auth;
 using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.Realtime;
 using ProductionMES.Station.Wpf.Services.Scans;
@@ -26,10 +28,36 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>AC3: banner OK tự đóng sau 1-2 giây — chọn 1.5s giữa khoảng đó.</summary>
     private static readonly TimeSpan OkBannerAutoCloseDelay = TimeSpan.FromSeconds(1.5);
 
+    /// <summary>
+    /// US-18 AC2: mã vạch cố định dùng để kích hoạt Chế độ Scan NG (dán tại bàn thao tác, KHÔNG phải tem sản
+    /// phẩm thật) — chọn literal "NG" (không có trong SRS/backlog gốc, ghi chú quyết định này ở
+    /// `Documents/BACKLOG-user-story.md` mục US-18). So khớp chính xác (case-sensitive, sau khi Trim) để tránh
+    /// nhầm với 1 mã tem thật (rủi ro chấp nhận được — tem sản phẩm thực tế không đặt tên "NG").
+    /// </summary>
+    internal const string NgModeActivationBarcode = "NG";
+
+    /// <summary>
+    /// US-18 (thay đổi yêu cầu 18/08/2026): permission bắt buộc để hoàn tất đăng nhập ở AC2a — literal
+    /// "Scan.ConfirmNg" (KHÔNG tham chiếu <c>PermissionPolicies</c> của <c>ProductionMES.Api</c> — Station.Wpf
+    /// KHÔNG được reference project backend nào, xem CLAUDE.md mục Kiến trúc), phải khớp đúng
+    /// <c>DbSeeder.SeedPermissionsAsync</c>/<c>PermissionPolicies.ScanConfirmNg</c> phía server.
+    /// </summary>
+    internal const string ScanConfirmNgPermission = "Scan.ConfirmNg";
+
     private readonly IScanApiClient _scanApiClient;
     private readonly IScanHubClient _scanHubClient;
     private readonly IAndonBoardApiClient _andonBoardApiClient;
+    private readonly IServiceProvider _serviceProvider;
     private readonly StationOptions _options;
+
+    /// <summary>
+    /// US-18 (thay đổi 18/08/2026): access token đăng nhập RIÊNG cho lượt Scan NG hiện tại (AC2a), gán bởi
+    /// <see cref="AuthenticateForNgMode"/> — dùng đúng 1 lần cho <see cref="ConfirmNgReasonAsync"/>, xóa lại
+    /// trong <see cref="DeactivateNgMode"/> (bất kể hoàn tất/hủy/timeout) để không bao giờ tái sử dụng cho lượt
+    /// Scan NG kế tiếp (AC2a "KHÔNG yêu cầu đăng nhập thêm lần nào nữa trong SUỐT PHẦN CÒN LẠI CỦA LƯỢT NÀY").
+    /// KHÔNG ghi vào <see cref="ISupervisorSessionService"/> dùng chung.
+    /// </summary>
+    private string? _ngScanAccessToken;
 
     /// <summary>Chống 2 lượt scan chạy chồng lấp (vd Enter gõ liên tiếp quá nhanh) làm banner hiển thị sai trạng thái — luồng scan cơ bản xử lý tuần tự từng tem.</summary>
     private readonly SemaphoreSlim _scanLock = new(1, 1);
@@ -45,6 +73,13 @@ public partial class AndonBoardViewModel : ObservableObject
 
     /// <summary>Đồng hồ DATE/TIME ở header (mockup 13/08/2026) — tick mỗi giây, không gọi API, độc lập với <see cref="_boardRefreshTimer"/>.</summary>
     private readonly DispatcherTimer _clockTimer;
+
+    /// <summary>
+    /// US-18 AC7: đếm ngược kể từ lúc kích hoạt Chế độ Scan NG — hết giờ mà CHƯA quét tem nào (<see cref="PendingNgTagCode"/>
+    /// vẫn null) thì tự động quay về Chế độ Scan OK, không lưu gì. Dừng lại ngay khi đã quét được 1 tem (chuyển
+    /// sang bước nhập lý do — AC7 chỉ áp dụng cho giai đoạn "chưa quét tem nào").
+    /// </summary>
+    private readonly DispatcherTimer _ngModeTimeoutTimer;
 
     public string WorkStationName { get; }
 
@@ -163,12 +198,43 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>US-09 AC6: các dòng theo mốc giờ — phần tử cuối cùng luôn là dòng "hiện tại" (<c>IsCurrent</c> = true).</summary>
     public ObservableCollection<AndonBoardRowViewModel> Rows { get; } = new();
 
+    /// <summary>
+    /// US-18 AC1/AC2: true khi trạm đang ở Chế độ Scan NG — <c>AndonBoardWindow.xaml</c> bind vào đây để đổi nền
+    /// đỏ + hiển thị thông báo lớn "ĐANG Ở CHẾ ĐỘ NG". Bao trùm cả 2 bước con (chờ quét tem lỗi VÀ đang nhập lý
+    /// do — <see cref="IsNgReasonPanelVisible"/>), vì cả 2 bước đều thuộc "Chế độ Scan NG" theo AC1/AC2.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWaitingForNgTagCode))]
+    private bool isNgModeActive;
+
+    /// <summary>US-18 AC3: true sau khi đã quét tem lỗi (<see cref="PendingNgTagCode"/> khác null), đang chờ nhập lý do.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWaitingForNgTagCode))]
+    private bool isNgReasonPanelVisible;
+
+    /// <summary>Mã tem sản phẩm lỗi đã quét trong Chế độ Scan NG, đang chờ nhập lý do — null nếu chưa quét tem nào.</summary>
+    [ObservableProperty]
+    private string? pendingNgTagCode;
+
+    /// <summary>US-18 AC1: true khi đang ở Chế độ Scan NG nhưng CHƯA quét tem nào — dùng để hiển thị đúng thông báo chờ quét (khác thông báo/form nhập lý do).</summary>
+    public bool IsWaitingForNgTagCode => IsNgModeActive && !IsNgReasonPanelVisible;
+
+    /// <summary>US-18 AC3/AC4: lý do lỗi đang nhập (free text) — TextBox reason panel bind 2 chiều vào đây.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConfirmNgReasonCommand))]
+    private string ngReasonText = string.Empty;
+
+    /// <summary>US-18 AC4: danh sách gợi ý autocomplete cho công đoạn hiện tại, tải lại mỗi lần bắt đầu nhập lý do.</summary>
+    public ObservableCollection<string> NgReasonSuggestions { get; } = new();
+
     public AndonBoardViewModel(
-        IScanApiClient scanApiClient, IScanHubClient scanHubClient, IAndonBoardApiClient andonBoardApiClient, StationOptions options)
+        IScanApiClient scanApiClient, IScanHubClient scanHubClient, IAndonBoardApiClient andonBoardApiClient,
+        IServiceProvider serviceProvider, StationOptions options)
     {
         _scanApiClient = scanApiClient;
         _scanHubClient = scanHubClient;
         _andonBoardApiClient = andonBoardApiClient;
+        _serviceProvider = serviceProvider;
         _options = options;
         WorkStationName = options.WorkStationName;
         StageName = options.StageName;
@@ -190,6 +256,17 @@ public partial class AndonBoardViewModel : ObservableObject
         _clockTimer.Tick += (_, _) => UpdateClock();
         UpdateClock();
         _clockTimer.Start();
+
+        // US-18 AC7: timeout mặc định 30s, cấu hình cục bộ theo trạm (StationOptions.NgModeTimeoutSeconds) —
+        // Math.Max(1, ...) phòng cấu hình sai (0/số âm) làm timer bắn ngay lập tức.
+        _ngModeTimeoutTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(1, options.NgModeTimeoutSeconds)) };
+        _ngModeTimeoutTimer.Tick += (_, _) =>
+        {
+            _ngModeTimeoutTimer.Stop();
+            // AC7: hết timeout mà CHƯA quét tem nào -> tự quay về Scan OK, không ảnh hưởng lượt scan tiếp theo
+            // (không lưu bất kỳ bản ghi Scan nào cho lần kích hoạt NG mode này).
+            DeactivateNgMode();
+        };
 
         _scanHubClient.ScanRecorded += OnScanRecorded;
     }
@@ -256,11 +333,43 @@ public partial class AndonBoardViewModel : ObservableObject
         }
     }
 
-    /// <summary>Xử lý 1 lượt scan hoàn chỉnh (đủ ký tự HID + Enter) — gọi từ code-behind Window khi bắt được sự kiện gõ tem.</summary>
+    /// <summary>
+    /// Xử lý 1 lượt scan hoàn chỉnh (đủ ký tự HID + Enter) — gọi từ code-behind Window khi bắt được sự kiện gõ
+    /// tem, dùng chung cho cả máy quét thật, ô nhập tay (US-07), lẫn mã vạch "NG" cố định (US-18 AC2).
+    /// </summary>
     public async Task HandleScanAsync(string tagCode)
     {
         if (string.IsNullOrWhiteSpace(tagCode))
         {
+            return;
+        }
+
+        tagCode = tagCode.Trim();
+
+        // US-18 AC2: mã vạch "NG" cố định kích hoạt/gia hạn Chế độ Scan NG, KHÔNG đi qua API scan bình thường.
+        if (tagCode.Equals(NgModeActivationBarcode, StringComparison.Ordinal))
+        {
+            await ActivateNgModeAsync();
+            return;
+        }
+
+        if (IsNgModeActive)
+        {
+            if (PendingNgTagCode is not null)
+            {
+                // AC3: đang chờ nhập lý do cho tem đã quét trước đó — bỏ qua tem quét thêm cho tới khi hoàn tất/hủy.
+                return;
+            }
+
+            await _scanLock.WaitAsync();
+            try
+            {
+                await BeginNgReasonEntryAsync(tagCode);
+            }
+            finally
+            {
+                _scanLock.Release();
+            }
             return;
         }
 
@@ -307,6 +416,181 @@ public partial class AndonBoardViewModel : ObservableObject
         {
             _scanLock.Release();
         }
+    }
+
+    /// <summary>
+    /// US-18 AC1/AC2/AC2a/AC2b/AC2c (thay đổi yêu cầu 18/08/2026): kích hoạt Chế độ Scan NG (gọi từ nút bấm hoặc
+    /// mã vạch "NG") — BẮT BUỘC đăng nhập lại Tổ trưởng (re-auth mỗi lần, <see cref="AuthenticateForNgMode"/>)
+    /// NGAY LẬP TỨC TRƯỚC KHI đổi giao diện/vào Chế độ Scan NG (AC1/AC2 "CHƯA đổi giao diện nền đỏ ... cho tới
+    /// khi đăng nhập thành công"). Nếu đã active và chưa quét tem nào (đã đăng nhập từ trước cho đúng lượt này),
+    /// chỉ gia hạn lại timeout (AC7), KHÔNG đăng nhập lại lần 2 (AC2a "KHÔNG yêu cầu đăng nhập thêm lần nào nữa").
+    /// </summary>
+    [RelayCommand]
+    private Task ActivateNgModeAsync()
+    {
+        if (IsNgModeActive && PendingNgTagCode is null)
+        {
+            RestartNgTimeoutTimer();
+            return Task.CompletedTask;
+        }
+
+        if (!AuthenticateForNgMode())
+        {
+            // AC2b (sai tài khoản/thiếu quyền, dialog tự ở lại cho tới khi Hủy)/AC2c (bấm Hủy) -> KHÔNG vào Chế
+            // độ Scan NG, quay lại Scan OK bình thường như chưa bấm nút "NG"/quét mã "NG".
+            return Task.CompletedTask;
+        }
+
+        _autoCloseTimer.Stop();
+        CloseBanner();
+
+        IsNgModeActive = true;
+        IsNgReasonPanelVisible = false;
+        PendingNgTagCode = null;
+        NgReasonText = string.Empty;
+        NgReasonSuggestions.Clear();
+        // AC7: mốc bắt đầu đếm 30s là NGAY SAU KHI đăng nhập thành công (AuthenticateForNgMode đã trả về true ở
+        // trên) — thời gian hiển thị popup đăng nhập KHÔNG tính vào 30 giây này.
+        RestartNgTimeoutTimer();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// US-18 AC1/AC2/AC2a/AC2b/AC2c: hiển thị popup đăng nhập Tổ trưởng (re-auth mỗi lần, tái sử dụng
+    /// <see cref="Views.LoginDialog"/>/<see cref="LoginDialogViewModel"/> đã có ở US-05/05a/05b, nhưng KHÔNG tái
+    /// dùng phần "session còn hạn thì bỏ qua" của <c>HomePage.RequireAuth</c>). Trả về true (VÀ gán
+    /// <see cref="_ngScanAccessToken"/>) nếu đăng nhập thành công + có quyền <see cref="ScanConfirmNgPermission"/>;
+    /// false nếu bấm Hủy (AC2c) — trường hợp sai tài khoản/thiếu quyền (AC2b) dialog tự ở lại (xem
+    /// <see cref="LoginDialogViewModel.LoginAsync"/>), chỉ trả về false khi người dùng chủ động đóng dialog bằng Hủy.
+    /// </summary>
+    private bool AuthenticateForNgMode()
+    {
+        var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
+        dialog.ViewModel.RequiredPermission = ScanConfirmNgPermission;
+        dialog.Owner = Application.Current?.MainWindow;
+
+        var loggedIn = dialog.ShowDialog() == true;
+        if (!loggedIn)
+        {
+            return false;
+        }
+
+        _ngScanAccessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
+        return !string.IsNullOrEmpty(_ngScanAccessToken);
+    }
+
+    /// <summary>AC3 bước 1: đã quét tem lỗi — mở form nhập lý do + tải gợi ý autocomplete (AC4) theo đúng công đoạn trạm.</summary>
+    private async Task BeginNgReasonEntryAsync(string tagCode)
+    {
+        // AC7 chỉ tính "chưa quét tem nào" — đã quét được 1 tem nên dừng đếm ngược, không giới hạn thời gian nhập lý do.
+        _ngModeTimeoutTimer.Stop();
+
+        PendingNgTagCode = tagCode;
+        NgReasonText = string.Empty;
+        NgReasonSuggestions.Clear();
+        IsNgReasonPanelVisible = true;
+
+        try
+        {
+            var suggestions = await _scanApiClient.GetNgReasonSuggestionsAsync(_options.StageId);
+            foreach (var suggestion in suggestions)
+            {
+                NgReasonSuggestions.Add(suggestion);
+            }
+        }
+        catch
+        {
+            // Lỗi tải gợi ý KHÔNG chặn nhập tay tự do (AC4 chỉ là gợi ý, không bắt buộc chọn từ danh sách).
+        }
+    }
+
+    /// <summary>AC3/AC5/AC6: xác nhận lý do -> gọi API ghi Scan NG -> tự động quay về Chế độ Scan OK.</summary>
+    [RelayCommand(CanExecute = nameof(CanConfirmNgReason))]
+    private async Task ConfirmNgReasonAsync()
+    {
+        var tagCode = PendingNgTagCode;
+        var reason = NgReasonText.Trim();
+        if (tagCode is null || reason.Length == 0)
+        {
+            return;
+        }
+
+        // US-18 AC2a: giữ lại token đã đăng nhập ở AuthenticateForNgMode TRƯỚC KHI DeactivateNgMode xóa nó —
+        // dùng đúng 1 lần cho request xác nhận NG này, không đăng nhập lại lần 2.
+        var accessToken = _ngScanAccessToken;
+
+        await _scanLock.WaitAsync();
+        try
+        {
+            // Thoát khỏi nền đỏ Chế độ Scan NG NGAY khi bắt đầu gửi lên server (không đợi có kết quả) — nếu vẫn
+            // giữ overlay đỏ trong lúc chờ, nó sẽ che mất banner WAITING/kết quả (2 UI cùng vẽ chồng lên nhau).
+            // AC6 vẫn thỏa: mode đã quay về Scan OK "ngay khi lưu xong" theo đúng nghĩa với người vận hành, vì họ
+            // không thể quét tem nào khác cho tới khi banner kết quả được đóng dù mode đã tắt hay chưa.
+            DeactivateNgMode();
+
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                // Phòng vệ: không nên xảy ra (AC1/AC2/AC2a đã bắt đăng nhập trước khi vào IsNgModeActive) — nhưng
+                // nếu có (vd lỗi logic tương lai), từ chối gửi thay vì gọi API chắc chắn 401.
+                ShowErrorBanner(tagCode, "Thiếu thông tin đăng nhập Tổ trưởng để xác nhận NG — vui lòng bấm lại nút NG.");
+                return;
+            }
+
+            ShowWaitingBanner(tagCode);
+
+            ScanResultDto result;
+            try
+            {
+                result = await _scanApiClient.CreateNgAsync(tagCode, _options.WorkStationId, reason, accessToken);
+            }
+            catch (ApiException ex)
+            {
+                ShowErrorBanner(tagCode, ex.Message);
+                return;
+            }
+            catch (HttpRequestException ex)
+            {
+                ShowErrorBanner(tagCode, NetworkErrorMessage.ForConnectionFailure(ex));
+                return;
+            }
+            catch (TaskCanceledException)
+            {
+                ShowErrorBanner(tagCode, NetworkErrorMessage.ForTimeout());
+                return;
+            }
+
+            ShowNgRecordedBanner(result.TagCode, reason);
+        }
+        finally
+        {
+            _scanLock.Release();
+        }
+    }
+
+    private bool CanConfirmNgReason() => !string.IsNullOrWhiteSpace(NgReasonText);
+
+    /// <summary>Người vận hành hủy form nhập lý do (vd quét nhầm tem) — quay về Chế độ Scan OK, không lưu gì.</summary>
+    [RelayCommand]
+    private void CancelNgReason() => DeactivateNgMode();
+
+    private void RestartNgTimeoutTimer()
+    {
+        _ngModeTimeoutTimer.Stop();
+        _ngModeTimeoutTimer.Start();
+    }
+
+    /// <summary>AC6/AC7: tắt hẳn Chế độ Scan NG, dọn state — quay về Chế độ Scan OK mặc định.</summary>
+    private void DeactivateNgMode()
+    {
+        _ngModeTimeoutTimer.Stop();
+        IsNgModeActive = false;
+        IsNgReasonPanelVisible = false;
+        PendingNgTagCode = null;
+        NgReasonText = string.Empty;
+        NgReasonSuggestions.Clear();
+        // US-18 AC2a: mỗi lượt Scan NG dùng đúng 1 lần đăng nhập — xóa token dùng riêng cho lượt này bất kể
+        // hoàn tất/hủy/timeout, để lượt Scan NG kế tiếp bắt buộc đăng nhập lại (AuthenticateForNgMode).
+        _ngScanAccessToken = null;
     }
 
     /// <summary>AC4: người vận hành bấm xác nhận đã đọc để đóng banner lỗi.</summary>
@@ -398,6 +682,22 @@ public partial class AndonBoardViewModel : ObservableObject
         SystemSounds.Hand.Play();
 
         // AC4: KHÔNG tự đóng — chờ AcknowledgeBannerCommand.
+        _autoCloseTimer.Stop();
+    }
+
+    /// <summary>US-18 AC5/AC6: xác nhận đã ghi nhận Scan NG thành công — dùng màu đỏ giống <see cref="ShowErrorBanner"/> (đây cũng là kết quả NG), khác tiêu đề để phân biệt với lượt scan bị hệ thống tự động từ chối.</summary>
+    private void ShowNgRecordedBanner(string tagCode, string reason)
+    {
+        BannerKind = ScanBannerKind.Error;
+        BannerTitle = "NG ĐÃ GHI NHẬN";
+        BannerTagCode = tagCode;
+        BannerMessage = $"Lý do: {reason}";
+        RequiresAcknowledgement = true;
+        ApplyBannerColors(ScanBannerKind.Error);
+        IsBannerVisible = true;
+        SystemSounds.Hand.Play();
+
+        // AC4 (banner): KHÔNG tự đóng — chờ AcknowledgeBannerCommand, giống ShowErrorBanner.
         _autoCloseTimer.Stop();
     }
 

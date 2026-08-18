@@ -179,6 +179,8 @@ try
 
         // US-10 AC2/AC3: tra cứu lịch sử scan.
         AddPermissionPolicy(PermissionPolicies.ScanView, PermissionResource.Scan, PermissionAction.View);
+        // US-18 (thay đổi yêu cầu 18/08/2026): xác nhận Scan NG tại trạm.
+        AddPermissionPolicy(PermissionPolicies.ScanConfirmNg, PermissionResource.Scan, PermissionAction.ConfirmNg);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

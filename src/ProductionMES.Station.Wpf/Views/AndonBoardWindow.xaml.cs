@@ -33,6 +33,36 @@ public partial class AndonBoardWindow : Window
         // CollectionChanged thì ScrollableHeight vẫn còn là giá trị cũ, cuộn sai chỗ).
         _viewModel.Rows.CollectionChanged += (_, _) =>
             Dispatcher.BeginInvoke(() => RowsScrollViewer.ScrollToBottom(), DispatcherPriority.Background);
+
+        // US-18 AC1/AC3/AC4: quản lý focus cho từng bước của Chế độ Scan NG bằng cách lắng nghe đúng property đổi
+        // trạng thái, KHÔNG dựa vào ScanInputBox_LostFocus cướp lại tự động nữa (xem comment ở đó — bug 18/08/2026
+        // phát hiện việc cướp focus giữa lúc đang bấm chuột làm WPF huỷ luôn Click/Command đang chờ xử lý).
+        _viewModel.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(AndonBoardViewModel.IsNgReasonPanelVisible) when _viewModel.IsNgReasonPanelVisible:
+                    // Form nhập lý do vừa mở — chuyển hẳn keyboard focus sang ô nhập lý do (bàn phím thật, không
+                    // phải máy scan).
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        NgReasonComboBox.Focus();
+                        Keyboard.Focus(NgReasonComboBox);
+                    }, DispatcherPriority.Background);
+                    break;
+
+                case nameof(AndonBoardViewModel.IsNgReasonPanelVisible):
+                    // Form nhập lý do vừa đóng (xác nhận/hủy) — trả lại focus cho ScanInputBox như bình thường.
+                    FocusScanInput();
+                    break;
+
+                case nameof(AndonBoardViewModel.IsWaitingForNgTagCode) when _viewModel.IsWaitingForNgTagCode:
+                    // Vừa kích hoạt/gia hạn Chế độ Scan NG, đang chờ quét tem lỗi — cần focus ScanInputBox để bắt
+                    // input máy quét tiếp theo (nút "NG" vừa lấy focus lúc được bấm).
+                    FocusScanInput();
+                    break;
+            }
+        };
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -45,12 +75,28 @@ public partial class AndonBoardWindow : Window
         _ = _viewModel.InitializeAsync();
     }
 
-    private void Window_Activated(object sender, EventArgs e) => FocusScanInput();
+    // US-18: không cướp focus khỏi ô nhập lý do NG khi Window được kích hoạt lại (vd Alt+Tab quay lại giữa lúc đang gõ).
+    private void Window_Activated(object sender, EventArgs e)
+    {
+        if (!_viewModel.IsNgReasonPanelVisible)
+        {
+            FocusScanInput();
+        }
+    }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
         {
+            return;
+        }
+
+        // US-18: đóng "popup" Chế độ Scan NG trước tiên (dù đang chờ quét tem hay đang nhập lý do), đúng thứ tự
+        // Esc 1 chiều (ADR-006) — không lưu gì, quay về Chế độ Scan OK.
+        if (_viewModel.IsNgModeActive)
+        {
+            _viewModel.CancelNgReasonCommand.Execute(null);
+            e.Handled = true;
             return;
         }
 
@@ -89,21 +135,47 @@ public partial class AndonBoardWindow : Window
     }
 
     /// <summary>
-    /// Ô nhập luôn phải giữ focus để không bỏ lỡ ký tự scan tiếp theo — bấm nút "Đã đọc, đóng" (hoặc bất kỳ
-    /// control nào khác) làm mất focus thì trả lại ngay sau khi xử lý xong. Ngoại lệ duy nhất (US-07, chế độ
-    /// nhập tay/test): nếu focus vừa chuyển sang <see cref="ManualScanInputBox"/> (chỉ có thể khi
-    /// <c>EnableManualScanInput = true</c>, vì lúc đó ô này mới hiển thị/nhận focus được), KHÔNG cướp lại focus
-    /// — để tester gõ tay được, không bị bật lại vào ô ẩn ngay khi vừa click vào. Không ảnh hưởng hành vi hiện
-    /// có khi cờ tắt, vì khi đó <see cref="ManualScanInputBox"/> luôn <c>Collapsed</c>, không thể nhận focus.
+    /// Ô nhập luôn phải giữ focus để không bỏ lỡ ký tự scan tiếp theo — mất focus vì lý do khác (vd Alt+Tab ra
+    /// ngoài ứng dụng, hoặc 1 control không tương tác nào đó vô tình nhận focus) thì trả lại ngay.
     /// </summary>
+    /// <remarks>
+    /// BUG phát hiện 18/08/2026 (nút "NG" bấm không có phản hồi gì — US-18 AC1): bản trước đây cướp lại focus
+    /// cho MỌI trường hợp mất focus (trừ <see cref="ManualScanInputBox"/>/<c>IsNgReasonPanelVisible</c>), kể cả
+    /// khi mất focus vì người dùng đang BẤM CHUỘT vào 1 Button khác (vd nút "NG"). <see cref="Dispatcher"/> có
+    /// thể chạy callback <c>Background</c> priority này ngay TRONG khoảng giữa MouseDown và MouseUp của cùng 1
+    /// lượt click (2 message Win32 riêng biệt) — cướp lại keyboard focus giữa chừng khiến WPF huỷ luôn
+    /// Click/Command đang chờ xử lý của Button đó (không throw exception, không log, im lặng như "click không
+    /// phản hồi"). Fix: KHÔNG cướp lại focus nếu control vừa nhận focus là 1 control người dùng đang chủ động
+    /// tương tác (Button/ComboBox/TextBox) — mỗi control đó tự chịu trách nhiệm trả lại focus cho
+    /// <see cref="ScanInputBox"/> sau khi hoàn tất thao tác của nó (xem <see cref="AcknowledgeButton_Click"/>,
+    /// <see cref="ManualScanSubmitButton_Click"/>, và <c>PropertyChanged</c> handler trong constructor cho
+    /// <c>IsNgReasonPanelVisible</c>/<c>IsWaitingForNgTagCode</c>).
+    /// </remarks>
     private void ScanInputBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (ReferenceEquals(Keyboard.FocusedElement, ManualScanInputBox))
+        if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.ButtonBase
+            or System.Windows.Controls.ComboBox
+            or System.Windows.Controls.TextBox)
         {
             return;
         }
 
         Dispatcher.BeginInvoke(FocusScanInput, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    /// <summary>US-18 AC3: Enter trong ô nhập lý do cũng xác nhận Scan NG luôn, không bắt buộc bấm nút "XÁC NHẬN NG".</summary>
+    private void NgReasonComboBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_viewModel.ConfirmNgReasonCommand.CanExecute(null))
+        {
+            _viewModel.ConfirmNgReasonCommand.Execute(null);
+        }
     }
 
     private void AcknowledgeButton_Click(object sender, RoutedEventArgs e) => FocusScanInput();
