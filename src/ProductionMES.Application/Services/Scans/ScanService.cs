@@ -1,5 +1,6 @@
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Realtime;
+using ProductionMES.Application.DTOs.Common;
 using ProductionMES.Application.DTOs.Scans;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Domain.Entities;
@@ -38,6 +39,11 @@ namespace ProductionMES.Application.Services.Scans;
 /// </remarks>
 public class ScanService : IScanService
 {
+    // US-10 AC2/AC3: chưa có FluentValidation validator riêng cho query GET (query string, không phải body) —
+    // Service tự chỉnh Page/PageSize không hợp lệ về giá trị mặc định thay vì trả lỗi 400 (xem GetHistoryAsync).
+    private const int DefaultPageSize = 20;
+    private const int MaxPageSize = 200;
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IProductionPlanStageService _productionPlanStageService;
     private readonly IScanNotifier _scanNotifier;
@@ -143,6 +149,60 @@ public class ScanService : IScanService
 
         return result;
     }
+
+    public async Task<PagedResult<ScanHistoryItemDto>> GetHistoryAsync(ScanHistoryQuery query, CancellationToken cancellationToken = default)
+    {
+        var page = query.Page < 1 ? 1 : query.Page;
+        var pageSize = query.PageSize is < 1 or > MaxPageSize ? DefaultPageSize : query.PageSize;
+
+        // US-10 AC3: kết hợp AND toàn bộ filter tùy chọn trong 1 Expression duy nhất — EF Core dịch thẳng thành
+        // WHERE khi chạy trên DB thật; unit test mock IRepository<Scan>.FindAsync bằng cách compile + lọc trên
+        // list in-memory (đúng cách ScanServiceTests hiện có đang mô phỏng repository thật).
+        var matched = await _unitOfWork.Repository<Scan>().FindAsync(
+            s =>
+                (query.TagCode == null || s.TagCode == query.TagCode) &&
+                (query.WorkStationId == null || s.WorkStationId == query.WorkStationId) &&
+                (query.LineId == null || s.LineId == query.LineId) &&
+                (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) &&
+                (query.ToUtc == null || s.ScannedAtUtc <= query.ToUtc),
+            cancellationToken);
+
+        // AC2: "sắp xếp theo thời gian" -> tăng dần (thứ tự xảy ra trước-sau của các lượt scan cùng 1 tem).
+        var ordered = matched.OrderBy(s => s.ScannedAtUtc).ThenBy(s => s.Id).ToList();
+
+        var pageItems = ordered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(ToHistoryItemDto)
+            .ToList();
+
+        return new PagedResult<ScanHistoryItemDto>
+        {
+            Items = pageItems,
+            TotalCount = ordered.Count,
+            Page = page,
+            PageSize = pageSize,
+        };
+    }
+
+    private static ScanHistoryItemDto ToHistoryItemDto(Scan scan) => new()
+    {
+        Id = scan.Id,
+        TagCode = scan.TagCode,
+        StageId = scan.StageId,
+        LineId = scan.LineId,
+        WorkStationId = scan.WorkStationId,
+        ProductionPlanId = scan.ProductionPlanId,
+        Customer = scan.Customer,
+        Model = scan.Model,
+        Lot = scan.Lot,
+        Revision = scan.Revision,
+        PlannedQuantity = scan.PlannedQuantity,
+        TaktTimeSeconds = scan.TaktTimeSeconds,
+        ScannedAtUtc = scan.ScannedAtUtc,
+        Result = scan.Result,
+        RejectionReason = scan.RejectionReason,
+    };
 
     private static Scan BuildScan(
         string tagCode, WorkStation workStation, ProductionPlan productionPlan, ScanResult result, string? rejectionReason, DateTime scannedAtUtc)

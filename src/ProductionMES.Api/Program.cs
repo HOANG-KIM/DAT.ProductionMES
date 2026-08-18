@@ -176,6 +176,9 @@ try
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageApply, PermissionResource.ProductionPlanStage, PermissionAction.Apply);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStagePause, PermissionResource.ProductionPlanStage, PermissionAction.Pause);
         AddPermissionPolicy(PermissionPolicies.ProductionPlanStageClose, PermissionResource.ProductionPlanStage, PermissionAction.Close);
+
+        // US-10 AC2/AC3: tra cứu lịch sử scan.
+        AddPermissionPolicy(PermissionPolicies.ScanView, PermissionResource.Scan, PermissionAction.View);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

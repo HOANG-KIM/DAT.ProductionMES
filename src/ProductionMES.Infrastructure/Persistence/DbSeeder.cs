@@ -90,6 +90,9 @@ public static class DbSeeder
             (PermissionResource.ProductionPlanStage, PermissionAction.Apply),
             (PermissionResource.ProductionPlanStage, PermissionAction.Pause),
             (PermissionResource.ProductionPlanStage, PermissionAction.Close),
+
+            // US-10 AC2/AC3: tra cứu lịch sử scan.
+            (PermissionResource.Scan, PermissionAction.View),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -116,18 +119,25 @@ public static class DbSeeder
             rolePermissions.AddRange(newPermissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
 
             // Supervisor: phần MỚI của ProductionPlan + ProductionPlanStage (khớp hardcode "Supervisor,Admin" cũ
-            // ở 2 Controller đó).
+            // ở 2 Controller đó) + Scan (US-10 — Tổ trưởng tra cứu lịch sử scan).
             var newSupervisorPermissions = newPermissions.Where(p =>
-                p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage);
+                p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage
+                || p.Resource == PermissionResource.Scan);
             rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
-            // Operator/Manager: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép 2 role này).
+            // Manager (US-10): CHỈ Scan.View — Ban quản lý tra cứu lịch sử scan, không có permission nào khác
+            // (đúng vai trò "xem báo cáo" theo mô tả UserRole.Manager, chưa có endpoint nào khác cho phép role này).
+            var newManagerPermissions = newPermissions.Where(p => p.Resource == PermissionResource.Scan);
+            rolePermissions.AddRange(newManagerPermissions.Select(p => new RolePermission { Role = UserRole.Manager, PermissionId = p.Id }));
+
+            // Operator: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép role này).
 
             dbContext.RolePermissions.AddRange(rolePermissions);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         await EnsureSupervisorCatalogViewPermissionsAsync(dbContext, cancellationToken);
+        await EnsureScanViewPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -166,6 +176,43 @@ public static class DbSeeder
         }
 
         dbContext.RolePermissions.AddRange(missingIds.Select(id => new RolePermission { Role = UserRole.Supervisor, PermissionId = id }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 18/08/2026 (US-10 AC2/AC3, tra cứu lịch sử scan): đảm bảo <c>(Scan, View)</c> được cấp cho
+    /// <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> ngay cả khi DB đã seed từ trước lúc permission này được thêm
+    /// vào <c>catalog</c> ở <see cref="SeedPermissionsAsync"/> — cùng lý do/idiom với
+    /// <see cref="EnsureSupervisorCatalogViewPermissionsAsync"/> (đoạn seed dựa trên <c>newPermissions</c> chỉ
+    /// chạy đúng 1 lần khi permission còn "mới", không tự chạy lại cho DB đã seed trước đó). Idempotent theo từng
+    /// cặp (Role, PermissionId), chạy MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsureScanViewPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var scanViewPermissionId = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.Scan && p.Action == PermissionAction.View)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (scanViewPermissionId is null)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor, UserRole.Manager };
+
+        var alreadyGrantedRoles = await dbContext.RolePermissions
+            .Where(rp => rp.PermissionId == scanViewPermissionId.Value && roles.Contains(rp.Role))
+            .Select(rp => rp.Role)
+            .ToListAsync(cancellationToken);
+
+        var missingRoles = roles.Except(alreadyGrantedRoles).ToList();
+        if (missingRoles.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = scanViewPermissionId.Value }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

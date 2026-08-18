@@ -1,3 +1,4 @@
+using ProductionMES.Application.DTOs.Common;
 using ProductionMES.Application.DTOs.Scans;
 
 namespace ProductionMES.Application.Services.Scans;
@@ -14,4 +15,11 @@ public interface IScanService
     /// </param>
     /// <param name="tagCode">Mã tem được scan.</param>
     Task<ScanResultDto> CreateAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tra cứu lịch sử scan (US-10 AC2/AC3) — theo mã tem, hoặc theo trạm/Line/khoảng thời gian, có thể kết hợp
+    /// nhiều điều kiện cùng lúc (AND). Kết quả luôn sắp theo <c>ScannedAtUtc</c> tăng dần (AC2 "sắp xếp theo thời
+    /// gian") và phân trang theo `Documents/API-Conventions.md` mục 9.
+    /// </summary>
+    Task<PagedResult<ScanHistoryItemDto>> GetHistoryAsync(ScanHistoryQuery query, CancellationToken cancellationToken = default);
 }

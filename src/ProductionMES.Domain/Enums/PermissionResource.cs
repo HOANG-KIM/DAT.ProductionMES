@@ -22,4 +22,10 @@ public enum PermissionResource
     /// cơ chế xác thực riêng, không đi qua permission động — xem ADR-005 dòng 28).
     /// </summary>
     StationApiKey = 6,
+
+    /// <summary>
+    /// Tra cứu lịch sử scan (US-10 AC2/AC3) — Tổ trưởng (Supervisor)/Admin/Ban quản lý (Manager) thao tác, KHÔNG
+    /// dùng scheme <c>StationApiKey</c> (khác endpoint ghi scan <c>ScansController.Create</c> — xem ADR-005).
+    /// </summary>
+    Scan = 7,
 }

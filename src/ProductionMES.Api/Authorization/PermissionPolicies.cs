@@ -4,9 +4,9 @@ namespace ProductionMES.Api.Authorization;
 /// Hằng số tên policy dạng <c>"{Resource}.{Action}"</c> (ADR-004) — tránh magic string rải rác ở Controller,
 /// và tránh gõ sai tên không khớp giữa policy đăng ký ở <c>Program.cs</c> và attribute
 /// <c>[Authorize(Policy = ...)]</c> dùng ở Controller. Khớp chính xác catalog seed ở <c>DbSeeder.SeedPermissionsAsync</c>
-/// (tổng 30 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 3, ProductionPlanStage 7
+/// (tổng 31 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 3, ProductionPlanStage 7
 /// (US-05a bổ sung Apply/Pause/Close, thay cho Activate/Deactivate cấp cả kế hoạch trước đây), BreakWindow 4,
-/// StationApiKey 4).
+/// StationApiKey 4, Scan 1 (US-10 — chỉ có View, tra cứu lịch sử scan)).
 /// </summary>
 public static class PermissionPolicies
 {
@@ -50,4 +50,7 @@ public static class PermissionPolicies
     public const string ProductionPlanStageApply = "ProductionPlanStage.Apply";
     public const string ProductionPlanStagePause = "ProductionPlanStage.Pause";
     public const string ProductionPlanStageClose = "ProductionPlanStage.Close";
+
+    // US-10 AC2/AC3: tra cứu lịch sử scan — Supervisor/Admin/Manager (KHÔNG dùng scheme StationApiKey).
+    public const string ScanView = "Scan.View";
 }
