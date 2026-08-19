@@ -1,6 +1,7 @@
 import { Tabs, Typography } from 'antd';
 import { LotReportTab } from './LotReportTab';
 import { LineReportTab } from './LineReportTab';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 /**
  * Màn hình báo cáo (US-21, vòng 3 — 18/08/2026, Lot-centric). Tab mặc định "Theo Lot" (AC1-AC5/AC7-AC11) là
@@ -9,6 +10,8 @@ import { LineReportTab } from './LineReportTab';
  * Công đoạn, Lot) kèm PLAN/BALANCE) làm nhánh phụ theo AC6 — không bắt buộc, chỉ giữ để tận dụng code đã có.
  */
 export function ProductionReportPage() {
+  useDocumentTitle('Báo cáo theo Lot');
+
   return (
     <div>
       <Typography.Title level={3} style={{ marginTop: 0, marginBottom: 16 }}>

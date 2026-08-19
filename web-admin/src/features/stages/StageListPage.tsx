@@ -5,10 +5,13 @@ import { useState } from 'react';
 import { StageFormModal } from './StageFormModal';
 import { useDeactivateStage, useStages } from './useStages';
 import { useAuthStore } from '../../store/authStore';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import type { Stage } from '../../types/stage';
 
 /** Màn hình danh mục Stage (US-02) — bảng + modal tạo/sửa, vô hiệu hóa qua `Modal.confirm`. */
 export function StageListPage() {
+  useDocumentTitle('Quản lý Công đoạn');
+
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const stagesQuery = useStages();
   const deactivateMutation = useDeactivateStage();

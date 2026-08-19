@@ -5,10 +5,13 @@ import { useState } from 'react';
 import { LineFormModal } from './LineFormModal';
 import { useDeactivateLine, useLines } from './useLines';
 import { useAuthStore } from '../../store/authStore';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import type { Line } from '../../types/line';
 
 /** Màn hình danh mục Line (US-01) — bảng + modal tạo/sửa, vô hiệu hóa qua `Modal.confirm`. */
 export function LineListPage() {
+  useDocumentTitle('Quản lý Line');
+
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const linesQuery = useLines();
   const deactivateMutation = useDeactivateLine();

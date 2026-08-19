@@ -1,15 +1,21 @@
 import {
   ApartmentOutlined,
+  AppstoreOutlined,
   BarChartOutlined,
   DesktopOutlined,
+  DownOutlined,
+  LogoutOutlined,
   PartitionOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu, Typography } from 'antd';
+import { Dropdown, Layout, Menu, Space, Typography } from 'antd';
 import type { MenuProps } from 'antd';
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { logout } from '../api/authApi';
 import { useAuthStore } from '../store/authStore';
 
 const { Header, Sider, Content } = Layout;
@@ -19,7 +25,9 @@ const { Header, Sider, Content } = Layout;
  * (ADR-004) qua `hasPermission` (Line/Stage/WorkStation/Report — US-21), riêng "Quản lý người dùng" và "Quản lý
  * phân quyền" vẫn hardcode `Admin` (break-glass, không đi qua permission động — `UsersController`
  * cũng hardcode `[Authorize(Roles="Admin")]`). Mục ProductionPlan thuộc phạm vi task sau (không nằm
- * ở web-admin, xem ADR-002).
+ * ở web-admin, xem ADR-002). Menu gom theo nhóm (Danh mục/Báo cáo/Quản trị hệ thống) dạng SubMenu
+ * thu/phóng được (không phải `type: 'group'` cố định) — nhóm nào không còn mục con nào (do lọc quyền)
+ * thì bị loại hẳn khỏi Sider, không hiện label trơ trọi.
  */
 export function AppLayout() {
   const user = useAuthStore((state) => state.user);
@@ -28,10 +36,10 @@ export function AppLayout() {
   const location = useLocation();
 
   const menuItems: MenuProps['items'] = useMemo(() => {
-    const items: MenuProps['items'] = [];
+    const catalogItems: MenuProps['items'] = [];
 
     if (hasPermission('Line.View')) {
-      items.push({
+      catalogItems.push({
         key: '/lines',
         icon: <ApartmentOutlined />,
         label: 'Quản lý Line',
@@ -39,7 +47,7 @@ export function AppLayout() {
     }
 
     if (hasPermission('Stage.View')) {
-      items.push({
+      catalogItems.push({
         key: '/stages',
         icon: <PartitionOutlined />,
         label: 'Quản lý Công đoạn',
@@ -47,23 +55,27 @@ export function AppLayout() {
     }
 
     if (hasPermission('WorkStation.View')) {
-      items.push({
+      catalogItems.push({
         key: '/work-stations',
         icon: <DesktopOutlined />,
         label: 'Quản lý Trạm làm việc',
       });
     }
 
+    const reportItems: MenuProps['items'] = [];
+
     if (hasPermission('Report.View')) {
-      items.push({
+      reportItems.push({
         key: '/reports/production-summary',
         icon: <BarChartOutlined />,
         label: 'Báo cáo theo Lot',
       });
     }
 
+    const adminItems: MenuProps['items'] = [];
+
     if (user?.userRole === 'Admin') {
-      items.push({
+      adminItems.push({
         key: '/users',
         icon: <TeamOutlined />,
         label: 'Quản lý người dùng',
@@ -71,23 +83,71 @@ export function AppLayout() {
     }
 
     if (user?.userRole === 'Admin') {
-      items.push({
+      adminItems.push({
         key: '/permissions',
         icon: <SafetyCertificateOutlined />,
         label: 'Quản lý phân quyền',
       });
     }
 
+    const groups: { key: string; label: string; icon: ReactNode; items: MenuProps['items'] }[] = [
+      { key: 'group-catalog', label: 'Danh mục', icon: <AppstoreOutlined />, items: catalogItems },
+      { key: 'group-reports', label: 'Báo cáo', icon: <BarChartOutlined />, items: reportItems },
+      { key: 'group-admin', label: 'Quản trị hệ thống', icon: <SafetyCertificateOutlined />, items: adminItems },
+    ];
+
+    const items: MenuProps['items'] = [];
+    for (const group of groups) {
+      if (group.items && group.items.length > 0) {
+        items.push({
+          key: group.key,
+          icon: group.icon,
+          label: group.label,
+          children: group.items,
+        });
+      }
+    }
+
     return items;
   }, [user?.userRole, hasPermission]);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // Vẫn tiếp tục dọn session phía client dù API logout lỗi — tránh người dùng kẹt lại không đăng xuất được.
+    } finally {
+      useAuthStore.getState().clear();
+      navigate('/login');
+    }
+  };
+
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Đăng xuất',
+      onClick: () => void handleLogout(),
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography.Title level={4} style={{ color: '#fff', margin: 0 }}>
-          DAT.ProductionMES — Quản trị
+          ĐẠI Á THÀNH
         </Typography.Title>
-        {user && <Typography.Text style={{ color: '#fff' }}>{user.fullName} ({user.userRole})</Typography.Text>}
+        {user && (
+          <Dropdown menu={{ items: userMenuItems }} trigger={['click']}>
+            <Typography.Text style={{ color: '#fff', cursor: 'pointer' }}>
+              <Space size={4}>
+                <UserOutlined />
+                {user.fullName} ({user.userRole})
+                <DownOutlined style={{ fontSize: 10 }} />
+              </Space>
+            </Typography.Text>
+          </Dropdown>
+        )}
       </Header>
       <Layout>
         <Sider width={220} theme="light">

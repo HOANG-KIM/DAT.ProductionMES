@@ -88,6 +88,7 @@ export function LotReportTab() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      void message.success('Đã xuất báo cáo Excel');
     } catch {
       void message.error('Xuất Excel thất bại, vui lòng thử lại');
     } finally {

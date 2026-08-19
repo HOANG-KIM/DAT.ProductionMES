@@ -7,10 +7,13 @@ import { useDeactivateWorkStation, useWorkStations } from './useWorkStations';
 import { useLines } from '../lines/useLines';
 import { useStages } from '../stages/useStages';
 import { useAuthStore } from '../../store/authStore';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import type { WorkStation } from '../../types/workStation';
 
 /** Màn hình danh mục WorkStation (US-04) — bảng + modal tạo/sửa, vô hiệu hóa qua `Modal.confirm`. */
 export function WorkStationListPage() {
+  useDocumentTitle('Quản lý Trạm làm việc');
+
   const hasPermission = useAuthStore((state) => state.hasPermission);
   const workStationsQuery = useWorkStations();
   const linesQuery = useLines();

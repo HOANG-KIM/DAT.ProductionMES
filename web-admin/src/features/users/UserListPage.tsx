@@ -6,6 +6,7 @@ import { ROLE_LABELS } from './roleLabels';
 import { UserCreateFormModal } from './UserCreateFormModal';
 import { UserRoleFormModal } from './UserRoleFormModal';
 import { useDeactivateUser, useUsers } from './useUsers';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import type { User } from '../../types/user';
 
 /**
@@ -14,6 +15,8 @@ import type { User } from '../../types/user';
  * bọc `PermissionGuard role="Admin"` ở `AppRoutes.tsx` — không dùng `hasPermission` permission động.
  */
 export function UserListPage() {
+  useDocumentTitle('Quản lý người dùng');
+
   const usersQuery = useUsers();
   const deactivateMutation = useDeactivateUser();
 

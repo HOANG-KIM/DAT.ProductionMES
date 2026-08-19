@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react';
 import type { UserRole } from '../../types/auth';
 import type { Permission, PermissionAction, PermissionResource } from '../../types/permission';
 import { useGrantPermission, usePermissionCatalog, useRevokePermission, useRolePermissionMatrix } from './usePermissions';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 /** 4 role hệ thống — hàng cố định của ma trận (không lấy từ API, khớp enum `UserRole` backend). */
 const ROLES: UserRole[] = ['Operator', 'Supervisor', 'Admin', 'Manager'];
@@ -45,6 +46,8 @@ interface RoleRow {
  * Không phân trang (chỉ ~21 permission, 4 role — không thuộc phạm vi mục 9 API-Conventions.md).
  */
 export function PermissionManagementPage() {
+  useDocumentTitle('Quản lý phân quyền');
+
   const catalogQuery = usePermissionCatalog();
   const matrixQuery = useRolePermissionMatrix();
   const grantMutation = useGrantPermission();

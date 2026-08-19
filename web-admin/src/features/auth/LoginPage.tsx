@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { login } from '../../api/authApi';
 import { useAuthStore } from '../../store/authStore';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Vui lòng nhập tên đăng nhập'),
@@ -17,6 +18,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 /** Màn hình đăng nhập — submit gọi `authApi.login`, thành công thì lưu session và điều hướng trang chủ. */
 export function LoginPage() {
+  useDocumentTitle('Đăng nhập');
+
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
