@@ -17,11 +17,16 @@ namespace ProductionMES.Api.Controllers;
 [Authorize(Policy = PermissionPolicies.ReportView)]
 public class LotReportsController : ControllerBase
 {
-    private readonly ILotReportService _lotReportService;
+    /// <summary>US-23: Content-Type chuẩn cho file .xlsx theo Open Packaging Conventions (OOXML).</summary>
+    private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    public LotReportsController(ILotReportService lotReportService)
+    private readonly ILotReportService _lotReportService;
+    private readonly ILotReportExportService _lotReportExportService;
+
+    public LotReportsController(ILotReportService lotReportService, ILotReportExportService lotReportExportService)
     {
         _lotReportService = lotReportService;
+        _lotReportExportService = lotReportExportService;
     }
 
     /// <summary>AC1/AC2 — gợi ý (autocomplete) danh sách Lot khớp gần đúng <paramref name="search"/>. Trả mảng rỗng nếu không khớp Lot nào (AC2 "Không tìm thấy Lot" — không phải lỗi hệ thống).</summary>
@@ -46,5 +51,26 @@ public class LotReportsController : ControllerBase
         var result = await _lotReportService.GetLotSummaryAsync(lot, from, to, cancellationToken);
         // AC2: "Không tìm thấy Lot" -> 404 (ProblemDetails chuẩn theo API-Conventions.md mục 5/6), KHÔNG phải lỗi hệ thống.
         return result is null ? NotFound() : Ok(result);
+    }
+
+    /// <summary>
+    /// US-23 (FR-23, phạm vi thu hẹp 19/08/2026 — CHỈ báo cáo "Theo Lot") — xuất file Excel (.xlsx, 2 sheet: Tổng
+    /// hợp + Chi tiết lượt scan) cho đúng 1 Lot, cùng bộ lọc <paramref name="from"/>/<paramref name="to"/> đang
+    /// truyền cho <see cref="GetSummary"/>. Logic sinh file đặt ở <see cref="ILotReportExportService"/> (Application
+    /// layer) — Controller chỉ gọi Service rồi trả file, không viết logic Excel trực tiếp ở đây.
+    /// </summary>
+    [HttpGet("{lot}/export")]
+    public async Task<IActionResult> Export(
+        string lot, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken = default)
+    {
+        var content = await _lotReportExportService.ExportAsync(lot, from, to, cancellationToken);
+        if (content is null)
+        {
+            // AC2: "Không tìm thấy Lot" -> 404, cùng quy tắc GetSummary.
+            return NotFound();
+        }
+
+        var fileName = $"bao-cao-lot-{lot}.xlsx";
+        return File(content, XlsxContentType, fileName);
     }
 }

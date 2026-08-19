@@ -1,8 +1,10 @@
-import { Alert, AutoComplete, Card, DatePicker, Descriptions, Empty, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Alert, AutoComplete, Button, Card, DatePicker, Descriptions, Empty, Input, message, Space, Spin, Table, Tag, Typography } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { exportLotReport } from '../../api/lotReportsApi';
 import { useLotSearch } from './useLotSearch';
 import { useLotSummary } from './useLotSummary';
 import { ScanHistoryDrilldownDrawer } from './ScanHistoryDrilldownDrawer';
@@ -39,6 +41,7 @@ export function LotReportTab() {
   const [selectedLot, setSelectedLot] = useState<string | null>(null);
   const [range, setRange] = useState<DateRange | null>(null);
   const [drilldownTarget, setDrilldownTarget] = useState<ScanHistoryDrilldownTarget | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const debouncedSearchText = useDebouncedValue(searchText, 300);
   const searchQuery = useLotSearch(debouncedSearchText);
@@ -67,6 +70,29 @@ export function LotReportTab() {
       from: summaryFrom,
       to: summaryTo,
     });
+  };
+
+  // US-23 (FR-23, phạm vi thu hẹp — chỉ tab "Theo Lot"): tải file .xlsx cùng bộ lọc (Lot + khoảng thời gian) đang xem.
+  const handleExport = async () => {
+    if (!selectedLot) {
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const blob = await exportLotReport(selectedLot, { from: summaryFrom, to: summaryTo });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bao-cao-lot-${selectedLot}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      void message.error('Xuất Excel thất bại, vui lòng thử lại');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const renderMultiValue = (values: string[], emptyLabel = '(trống)') => {
@@ -137,8 +163,16 @@ export function LotReportTab() {
             setSearchText('');
           }}
           allowClear
-          placeholder="Nhập (một phần) mã Lot cần tra cứu..."
-        />
+        >
+          {/*
+            AutoComplete (antd v6) không forward prop `autoComplete` xuống input bên trong (rc-select v6 chỉ mặc định
+            gán `autoComplete="new-password"`, không đọc từ props ngoài — xem @rc-component/select/es/SelectInput/
+            Content/index.js). Truyền input tuỳ biến qua children (cơ chế customize input chính thức của antd) là
+            cách DUY NHẤT thật sự đặt được `autoComplete="off"` lên thẻ <input> DOM để tắt gợi ý lịch sử nhập liệu
+            của trình duyệt cho ô tìm Lot.
+          */}
+          <Input autoComplete="off" placeholder="Nhập (một phần) mã Lot cần tra cứu..." />
+        </AutoComplete>
 
         {selectedLot === null && (
           <Alert
@@ -167,7 +201,15 @@ export function LotReportTab() {
 
         {summaryQuery.data && (
           <>
-            <Card size="small" title={`Thông tin tổng quan — Lot ${summaryQuery.data.lot}`}>
+            <Card
+              size="small"
+              title={`Thông tin tổng quan — Lot ${summaryQuery.data.lot}`}
+              extra={
+                <Button icon={<DownloadOutlined />} onClick={() => void handleExport()} loading={isExporting}>
+                  Xuất Excel
+                </Button>
+              }
+            >
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="Model">{renderMultiValue(summaryQuery.data.models)}</Descriptions.Item>
                 <Descriptions.Item label="Khách hàng">{renderMultiValue(summaryQuery.data.customers)}</Descriptions.Item>
@@ -178,8 +220,8 @@ export function LotReportTab() {
                     ? 'Chưa xác định'
                     : dayjs(summaryQuery.data.firstScannedAtUtc).format(DATE_FORMAT)}
                 </Descriptions.Item>
-                {/* US-21a AC1/AC5/AC6 (viết lại hoàn toàn 19/08/2026): "Tổng số lượng Lot" nhập tay tại Station.Wpf (US-05 AC7-AC9), KHÔNG phải SUM. */}
-                <Descriptions.Item label="Tổng số lượng Lot">
+                {/* US-21a AC1/AC5/AC6 (viết lại hoàn toàn 19/08/2026): "Số lượng Lot" nhập tay tại Station.Wpf (US-05 AC7-AC9), KHÔNG phải SUM. */}
+                <Descriptions.Item label="Số lượng Lot">
                   <Typography.Text strong>
                     {summaryQuery.data.lotTotalQuantity === null
                       ? 'Chưa xác định'

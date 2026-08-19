@@ -47,6 +47,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAndonBoardService, AndonBoardService>();
         services.AddScoped<IProductionReportService, ProductionReportService>();
         services.AddScoped<ILotReportService, LotReportService>();
+        services.AddScoped<ILotReportExportService, LotReportExportService>();
         services.AddScoped<ILotService, LotService>();
 
         // US-22: PasswordHasher<TUser> (Microsoft.Extensions.Identity.Core) — không cần cả hệ thống

@@ -53,4 +53,13 @@ public interface IScanService
     /// gian") và phân trang theo `Documents/API-Conventions.md` mục 9.
     /// </summary>
     Task<PagedResult<ScanHistoryItemDto>> GetHistoryAsync(ScanHistoryQuery query, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-23 (FR-23, xuất Excel Sheet 2 "Chi tiết lượt scan") — TOÀN BỘ lượt scan (mọi <see cref="Domain.Enums.ScanResult"/>,
+    /// không giới hạn Line/Công đoạn cụ thể) của đúng 1 <paramref name="lot"/>, lọc theo khoảng thời gian tùy
+    /// chọn — KHÔNG phân trang (khác <see cref="GetHistoryAsync"/> dùng cho UI), vì export phải lấy TẤT CẢ bản
+    /// ghi khớp bộ lọc. Kết quả sắp theo <c>ScannedAtUtc</c> tăng dần, cùng quy tắc AC2.
+    /// </summary>
+    Task<IReadOnlyList<ScanHistoryItemDto>> GetAllHistoryForLotAsync(
+        string lot, DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default);
 }

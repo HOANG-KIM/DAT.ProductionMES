@@ -291,4 +291,62 @@ public class ScanServiceHistoryTests
         Assert.Equal(30m, item.TaktTimeSeconds);
         Assert.Equal("Nguyễn Văn A, Trần Thị B", item.OperatorNames);
     }
+
+    // US-23 (FR-23, Sheet 2 "Chi tiết lượt scan"): trả về TOÀN BỘ lượt scan của Lot, KHÔNG phân trang (khác GetHistoryAsync).
+    [Fact]
+    public async Task GetAllHistoryForLotAsync_LotCoNhieuLuotScan_TraVeToanBoKhongPhanTrang()
+    {
+        var t0 = new DateTime(2026, 8, 19, 8, 0, 0, DateTimeKind.Utc);
+        var scansOfLotA = Enumerable.Range(1, 25)
+            .Select(i => MakeScan(i, $"TAG{i}", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddMinutes(i)))
+            .ToList();
+        foreach (var scan in scansOfLotA)
+        {
+            scan.Lot = "LOT-A";
+        }
+        var scanOfOtherLot = MakeScan(100, "TAG-OTHER", workStationId: 1, lineId: 1, scannedAtUtc: t0);
+        scanOfOtherLot.Lot = "LOT-B";
+        SetupExistingScans(scansOfLotA.Append(scanOfOtherLot).ToList());
+
+        var result = await _sut.GetAllHistoryForLotAsync("LOT-A", null, null);
+
+        Assert.Equal(25, result.Count); // KHÔNG bị giới hạn PageSize mặc định/tối đa như GetHistoryAsync.
+        Assert.All(result, item => Assert.Equal("LOT-A", item.Lot));
+        Assert.Equal(1, result[0].Id); // sắp theo ScannedAtUtc tăng dần, giống AC2.
+        Assert.Equal(25, result[24].Id);
+    }
+
+    // US-23: lọc theo khoảng thời gian, cùng bộ lọc truyền cho ILotReportService.GetLotSummaryAsync.
+    [Fact]
+    public async Task GetAllHistoryForLotAsync_LocTheoKhoangThoiGian_ChiTraVeLuotScanTrongKhoang()
+    {
+        var t0 = new DateTime(2026, 8, 19, 8, 0, 0, DateTimeKind.Utc);
+        var inRange = MakeScan(1, "A", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddHours(1));
+        inRange.Lot = "LOT-A";
+        var outOfRange = MakeScan(2, "B", workStationId: 1, lineId: 1, scannedAtUtc: t0);
+        outOfRange.Lot = "LOT-A";
+        SetupExistingScans(new List<Scan> { inRange, outOfRange });
+
+        var result = await _sut.GetAllHistoryForLotAsync("LOT-A", fromUtc: t0.AddMinutes(30), toUtc: null);
+
+        var item = Assert.Single(result);
+        Assert.Equal(1, item.Id);
+    }
+
+    // US-23: KHÔNG lọc theo Result — phải bao gồm cả các kết quả bị từ chối tự động (DuplicateTag, ...), khác GetLotSummaryAsync (chỉ Ok/Ng).
+    [Fact]
+    public async Task GetAllHistoryForLotAsync_GomTatCaKetQuaKeCaBiTuChoiTuDong_KhongChiOkNg()
+    {
+        var t0 = new DateTime(2026, 8, 19, 8, 0, 0, DateTimeKind.Utc);
+        var ok = MakeScan(1, "A", workStationId: 1, lineId: 1, scannedAtUtc: t0, result: ScanResult.Ok);
+        ok.Lot = "LOT-A";
+        var duplicate = MakeScan(2, "B", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddMinutes(1), result: ScanResult.DuplicateTag);
+        duplicate.Lot = "LOT-A";
+        SetupExistingScans(new List<Scan> { ok, duplicate });
+
+        var result = await _sut.GetAllHistoryForLotAsync("LOT-A", null, null);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, item => item.Result == ScanResult.DuplicateTag);
+    }
 }

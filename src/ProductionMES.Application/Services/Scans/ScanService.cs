@@ -282,22 +282,7 @@ public class ScanService : IScanService
             .Take(pageSize)
             .ToList();
 
-        // US-21 AC8: tên trạm làm việc thực hiện — chỉ tra cứu cho đúng các trạm xuất hiện trong TRANG hiện tại
-        // (không phải toàn bộ `ordered`), tránh phình truy vấn không cần thiết cho các trang không được xem tới.
-        var workStationIds = pageScans.Select(s => s.WorkStationId).Distinct().ToList();
-        var workStationNamesById = workStationIds.Count == 0
-            ? new Dictionary<int, string>()
-            : (await _unitOfWork.Repository<WorkStation>().FindAsync(w => workStationIds.Contains(w.Id), cancellationToken))
-                .ToDictionary(w => w.Id, w => w.Name);
-
-        // US-21 AC10/AC11: trạng thái rework phải suy luận trên TOÀN BỘ lịch sử Scan/ReworkUnlock tại
-        // (TagCode, StageId) — KHÔNG dùng lại `matched` (đã bị lọc theo From/To của chính query này), vì 1 lượt
-        // NG nằm trong khoảng đang xem có thể được mở khóa/scan lại ở 1 thời điểm NẰM NGOÀI khoảng đó.
-        var reworkByScanId = await BuildReworkStatusByScanIdAsync(pageScans, cancellationToken);
-
-        var pageItems = pageScans
-            .Select(s => ToHistoryItemDto(s, workStationNamesById, reworkByScanId))
-            .ToList();
+        var pageItems = await BuildHistoryItemsAsync(pageScans, cancellationToken);
 
         return new PagedResult<ScanHistoryItemDto>
         {
@@ -306,6 +291,48 @@ public class ScanService : IScanService
             Page = page,
             PageSize = pageSize,
         };
+    }
+
+    public async Task<IReadOnlyList<ScanHistoryItemDto>> GetAllHistoryForLotAsync(
+        string lot, DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default)
+    {
+        // US-23: cùng bộ lọc (Lot + khoảng thời gian) đang truyền cho ILotReportService.GetLotSummaryAsync, nhưng
+        // KHÔNG giới hạn theo Line/Công đoạn (khác ScanHistoryQuery.LineId/StageId của drill-down UI) và KHÔNG
+        // giới hạn Result (khác GetLotSummaryAsync chỉ đếm Ok/Ng) — export phải có TOÀN BỘ lượt scan của Lot.
+        var matched = await _unitOfWork.Repository<Scan>().FindAsync(
+            s => s.Lot == lot &&
+                 (fromUtc == null || s.ScannedAtUtc >= fromUtc) &&
+                 (toUtc == null || s.ScannedAtUtc <= toUtc),
+            cancellationToken);
+
+        var ordered = matched.OrderBy(s => s.ScannedAtUtc).ThenBy(s => s.Id).ToList();
+
+        return await BuildHistoryItemsAsync(ordered, cancellationToken);
+    }
+
+    /// <summary>
+    /// Dùng chung cho <see cref="GetHistoryAsync"/> (trang hiện tại) và <see cref="GetAllHistoryForLotAsync"/>
+    /// (toàn bộ, không phân trang) — tra tên trạm (US-21 AC8) + trạng thái rework (US-21 AC10/AC11) cho đúng tập
+    /// <paramref name="scans"/> truyền vào rồi map sang <see cref="ScanHistoryItemDto"/>.
+    /// </summary>
+    private async Task<List<ScanHistoryItemDto>> BuildHistoryItemsAsync(IReadOnlyList<Scan> scans, CancellationToken cancellationToken)
+    {
+        // US-21 AC8: tên trạm làm việc thực hiện — chỉ tra cứu cho đúng các trạm xuất hiện trong tập `scans`
+        // (không phải toàn bộ dữ liệu), tránh phình truy vấn không cần thiết.
+        var workStationIds = scans.Select(s => s.WorkStationId).Distinct().ToList();
+        var workStationNamesById = workStationIds.Count == 0
+            ? new Dictionary<int, string>()
+            : (await _unitOfWork.Repository<WorkStation>().FindAsync(w => workStationIds.Contains(w.Id), cancellationToken))
+                .ToDictionary(w => w.Id, w => w.Name);
+
+        // US-21 AC10/AC11: trạng thái rework phải suy luận trên TOÀN BỘ lịch sử Scan/ReworkUnlock tại
+        // (TagCode, StageId) — KHÔNG dùng lại tập `scans` đã bị lọc theo From/To, vì 1 lượt NG nằm trong khoảng
+        // đang xem có thể được mở khóa/scan lại ở 1 thời điểm NẰM NGOÀI khoảng đó.
+        var reworkByScanId = await BuildReworkStatusByScanIdAsync(scans, cancellationToken);
+
+        return scans
+            .Select(s => ToHistoryItemDto(s, workStationNamesById, reworkByScanId))
+            .ToList();
     }
 
     /// <summary>
