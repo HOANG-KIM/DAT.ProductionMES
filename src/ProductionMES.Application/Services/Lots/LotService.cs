@@ -71,7 +71,9 @@ public class LotService : ILotService
 
         var repository = _unitOfWork.Repository<Lot>();
         var existing = (await repository.FindAsync(l => l.Code == code, cancellationToken)).FirstOrDefault();
-        var nowUtc = DateTime.UtcNow;
+        // Đổi ý 19/08/2026: KHÔNG dùng UtcNow — lưu đúng giờ local hệ thống lúc cập nhật, không quy đổi (xem
+        // API-Conventions.md mục 10).
+        var now = DateTime.Now;
 
         if (existing is null)
         {
@@ -79,7 +81,7 @@ public class LotService : ILotService
             {
                 Code = code,
                 TotalQuantity = totalQuantity,
-                UpdatedAtUtc = nowUtc,
+                UpdatedAtUtc = now,
                 UpdatedByUserName = updatedByUserName,
             };
             await repository.AddAsync(existing, cancellationToken);
@@ -87,7 +89,7 @@ public class LotService : ILotService
         else
         {
             existing.TotalQuantity = totalQuantity;
-            existing.UpdatedAtUtc = nowUtc;
+            existing.UpdatedAtUtc = now;
             existing.UpdatedByUserName = updatedByUserName;
             repository.Update(existing);
         }

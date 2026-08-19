@@ -83,12 +83,18 @@ public class LotReportService : ILotReportService
         var planIds = plans.Select(p => p.Id).ToHashSet();
         var planStages = await _unitOfWork.Repository<ProductionPlanStage>().FindAsync(ps => planIds.Contains(ps.ProductionPlanId), cancellationToken);
 
+        // FR-21b: "Thời gian bắt đầu" = MIN(ScannedAtUtc) trên TOÀN BỘ lượt scan của Lot (mọi Result, kể cả bị từ
+        // chối) — KHÔNG lọc theo fromUtc/toUtc (luôn là mốc gốc tuyệt đối), KHÁC với `scans` bên dưới (chỉ Ok/Ng,
+        // có áp filter khoảng thời gian) nên phải truy vấn riêng.
+        var allScansForLot = await _unitOfWork.Repository<Scan>().FindAsync(s => s.Lot == lot, cancellationToken);
+        var firstScannedAtUtc = allScansForLot.Count == 0 ? (DateTime?)null : allScansForLot.Min(s => s.ScannedAtUtc);
+
         // AC5: chỉ Ok/Ng mới có ý nghĩa thống kê OK/NG (cùng quy tắc đã chốt US-09/US-18/US-21 vòng 2) — snapshot
         // trực tiếp trên Scan.Lot (US-10 AC4), không tra cứu động qua ProductionPlan hiện tại.
-        var scans = (await _unitOfWork.Repository<Scan>().FindAsync(
-            s => s.Lot == lot && (s.Result == ScanResult.Ok || s.Result == ScanResult.Ng) &&
-                 (fromUtc == null || s.ScannedAtUtc >= fromUtc) && (toUtc == null || s.ScannedAtUtc <= toUtc),
-            cancellationToken)).ToList();
+        var scans = allScansForLot
+            .Where(s => (s.Result == ScanResult.Ok || s.Result == ScanResult.Ng) &&
+                        (fromUtc == null || s.ScannedAtUtc >= fromUtc) && (toUtc == null || s.ScannedAtUtc <= toUtc))
+            .ToList();
 
         // AC4: hợp (union) 2 nguồn (Line, Công đoạn) — xem remarks ở đầu file.
         var pairs = planStages.Select(ps => (ps.LineId, ps.StageId))
@@ -104,6 +110,7 @@ public class LotReportService : ILotReportService
                 Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc,
                 Rows = Array.Empty<LotStageRowDto>(),
                 LotTotalQuantity = lotTotalQuantity,
+                FirstScannedAtUtc = firstScannedAtUtc,
             };
         }
 
@@ -134,6 +141,7 @@ public class LotReportService : ILotReportService
         {
             Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc, Rows = rows,
             LotTotalQuantity = lotTotalQuantity,
+            FirstScannedAtUtc = firstScannedAtUtc,
         };
     }
 }

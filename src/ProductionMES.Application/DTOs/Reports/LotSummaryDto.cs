@@ -39,4 +39,13 @@ public class LotSummaryDto
     /// KHÔNG phải SUM(PlannedQuantity)). <c>null</c> = "Chưa xác định" (AC6 — Lot chưa từng có ai nhập giá trị này).
     /// </summary>
     public int? LotTotalQuantity { get; set; }
+
+    /// <summary>
+    /// FR-21b (bổ sung 19/08/2026) — "Thời gian bắt đầu" = <c>MIN(Scan.ScannedAtUtc)</c> trên TOÀN BỘ lượt scan có
+    /// <c>Scan.Lot = Lot</c> (mọi <c>Result</c>, kể cả bị từ chối; không phân biệt Line/Công đoạn). KHÔNG bị ảnh
+    /// hưởng bởi <see cref="FromUtc"/>/<see cref="ToUtc"/> — luôn là mốc gốc tuyệt đối trên toàn bộ lịch sử Lot.
+    /// KHÔNG liên quan <c>ProductionPlan.StartTime</c> (nhập tay, dùng cho PLAN/BALANCE Andon board). <c>null</c> =
+    /// "Chưa xác định" (Lot chưa từng có lượt scan nào).
+    /// </summary>
+    public DateTime? FirstScannedAtUtc { get; set; }
 }

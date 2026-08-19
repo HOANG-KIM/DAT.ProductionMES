@@ -294,6 +294,25 @@ nghiệp vụ; đã chốt với Ban quản lý)*
   biệt, KHÔNG gộp thành 1 con số duy nhất cho cả Lot, vì hệ thống không có khái niệm "công đoạn cuối cùng" cố định
   (trình tự công đoạn có thể khác nhau giữa các Line, xem FR-03).
 
+**FR-21b — "Thời gian bắt đầu" của Lot (suy luận từ lịch sử scan)** *(bổ sung 19/08/2026, chốt với Ban quản lý)*
+- Bổ sung 1 trường **"Thời gian bắt đầu"** vào khu vực "Thông tin tổng quan" của báo cáo Lot-centric (FR-21), cạnh
+  Model/Khách hàng/Revision — KHÔNG PHẢI `ProductionPlan.StartTime` (trường nhập tay hiện có, dùng để tính PLAN/
+  BALANCE ở Andon board, có thể bị Tổ trưởng sửa sau) — đây là giá trị SUY LUẬN từ lịch sử `Scan` thực tế, không
+  nhập tay, không sửa được.
+- Công thức: `MIN(Scan.ScannedAtUtc)` trên **toàn bộ** lượt scan có `Scan.Lot == lot` — **1 giá trị duy nhất cho cả
+  Lot** (không phân biệt Line/Công đoạn nào phát sinh lượt scan đầu tiên), KHÔNG tách riêng theo từng dòng (Line,
+  Công đoạn) trong bảng breakdown OK/NG hiện có.
+- Tính trên **mọi** lượt scan, kể cả bị từ chối (`DuplicateTag`/`PreviousStageNotPassed`/`Ng`/`WaitingReworkUnlock`)
+  — trả lời đúng câu hỏi "khi nào Lot này bắt đầu được động đến", khác với cách đếm OK/NG hiện có (chỉ tính
+  `Ok`/`Ng`, loại `DuplicateTag`/`PreviousStageNotPassed` vì là lỗi thao tác — 2 mục đích khác nhau, không dùng lại
+  cùng 1 truy vấn).
+- **Không** bị ảnh hưởng bởi bộ lọc khoảng thời gian (RangePicker) đang áp dụng lên số liệu OK/NG trên màn hình —
+  luôn là mốc gốc tuyệt đối, mô tả vòng đời Lot, độc lập với khung giờ đang xem tiến độ.
+- Lot chưa từng có lượt scan nào (đã có `ProductionPlan` qua autocomplete nhưng chưa ai scan): hiển thị "Chưa xác
+  định" — dùng chung quy ước đã chốt ở FR-21a cho "Tổng số lượng Lot" chưa nhập, không hiển thị rỗng/0.
+- DTO backend: `LotSummaryDto.FirstScannedAtUtc` (`DateTime?`) — field bổ sung thuần túy, không đổi hành vi các
+  field hiện có (`Models`/`Customers`/`Revisions`/`Rows`/`LotTotalQuantity`/`FromUtc`/`ToUtc`).
+
 **FR-22 — Quản lý người dùng & phân quyền**
 - Phân quyền theo nhóm người dùng ở mục 2.2 (Công nhân / Tổ trưởng / Admin / Ban quản lý), bổ sung quyền riêng cho thao tác "Mở khóa rework" (FR-19) — chỉ Tổ trưởng mới thực hiện được.
 

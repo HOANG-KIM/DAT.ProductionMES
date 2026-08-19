@@ -20,6 +20,7 @@ public class LotConfiguration : IEntityTypeConfiguration<Lot>
         builder.Property(l => l.UpdatedByUserName)
             .HasMaxLength(100);
 
+        // KHÔNG quy đổi UTC — lưu/đọc đúng giờ local nhà máy (đổi ý 19/08/2026 — xem API-Conventions.md mục 10).
         builder.Property(l => l.UpdatedAtUtc)
             .IsRequired();
 

@@ -26,6 +26,7 @@ public class ReworkUnlockConfiguration : IEntityTypeConfiguration<ReworkUnlock>
         builder.Property(u => u.Note)
             .HasMaxLength(500);
 
+        // KHÔNG quy đổi UTC — lưu/đọc đúng giờ local nhà máy (đổi ý 19/08/2026 — xem API-Conventions.md mục 10).
         builder.Property(u => u.UnlockedAtUtc)
             .IsRequired();
 

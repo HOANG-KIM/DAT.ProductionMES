@@ -74,11 +74,11 @@ public class AndonBoardService : IAndonBoardService
         var scans = await _unitOfWork.Repository<Scan>().FindAsync(
             s => s.ProductionPlanId == productionPlan.Id && s.StageId == workStation.StageId, cancellationToken);
 
-        // Scan.ScannedAtUtc lưu UTC -> quy đổi về giờ tường tại nhà máy (xem remarks AndonBoardCalculator) để
-        // so sánh cùng hệ quy chiếu với ProductionPlan.StartTime/mốc giờ hiển thị.
+        // Đổi ý 19/08/2026: Scan.ScannedAtUtc nay đã lưu sẵn giờ local nhà máy, KHÔNG cần quy đổi nữa — gọi
+        // .ToLocalTime() ở đây sẽ cộng dư offset, gây lệch giờ (xem API-Conventions.md mục 10).
         var okScannedAtLocal = scans
             .Where(s => s.Result == ScanResult.Ok)
-            .Select(s => s.ScannedAtUtc.ToLocalTime())
+            .Select(s => s.ScannedAtUtc)
             .OrderBy(t => t)
             .ToList();
 

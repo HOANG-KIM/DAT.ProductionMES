@@ -71,6 +71,8 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
         // toàn hệ thống theo StageId, không lọc theo Line/kế hoạch).
         builder.HasIndex(s => new { s.TagCode, s.StageId });
 
+        // KHÔNG quy đổi UTC — lưu/đọc đúng giờ local nhà máy tại thời điểm scan, không dùng
+        // UtcDateTimeValueConverter (đổi ý 19/08/2026, thay thế bản vá "Z" trước đó — xem API-Conventions.md mục 10).
         builder.HasIndex(s => s.ScannedAtUtc);
 
         // Tăng tốc truy vấn "đã Ok ở công đoạn này trong kế hoạch đang active chưa" (ScanService).

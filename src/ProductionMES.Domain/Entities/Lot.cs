@@ -31,7 +31,10 @@ public class Lot
     /// </summary>
     public int? TotalQuantity { get; set; }
 
-    /// <summary>Thời điểm cập nhật gần nhất (UTC) — mỗi lần upsert đều ghi lại, kể cả khi giá trị không đổi.</summary>
+    /// <summary>
+    /// Thời điểm cập nhật gần nhất — lưu ĐÚNG giờ local hệ thống, KHÔNG quy đổi UTC (đổi ý 19/08/2026, xem
+    /// API-Conventions.md mục 10) — mỗi lần upsert đều ghi lại, kể cả khi giá trị không đổi.
+    /// </summary>
     public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>Tên đăng nhập người cập nhật gần nhất (snapshot, không tra cứu động) — có thể null nếu không xác định được người thực hiện (vd gọi Service trực tiếp không qua Controller).</summary>

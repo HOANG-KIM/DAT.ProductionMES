@@ -33,7 +33,11 @@ public class ReworkUnlock
     /// <summary>Tên đăng nhập của <see cref="UnlockedByUserId"/> tại thời điểm mở khóa (snapshot, không tra cứu động).</summary>
     public string UnlockedByUserName { get; set; } = string.Empty;
 
-    /// <summary>Thời điểm mở khóa (UTC) — mốc dùng để so sánh với <see cref="Scan.ScannedAtUtc"/> của lần Ng gần nhất khi suy luận trạng thái khóa.</summary>
+    /// <summary>
+    /// Thời điểm mở khóa — lưu ĐÚNG giờ local hệ thống, KHÔNG quy đổi UTC (đổi ý 19/08/2026, xem
+    /// API-Conventions.md mục 10) — mốc dùng để so sánh với <see cref="Scan.ScannedAtUtc"/> của lần Ng gần nhất
+    /// khi suy luận trạng thái khóa (cùng đơn vị giờ local, so sánh trực tiếp được).
+    /// </summary>
     public DateTime UnlockedAtUtc { get; set; }
 
     /// <summary>Ghi chú của Tổ trưởng khi mở khóa (AC2 "ghi chú nếu có") — tùy chọn, có thể để trống.</summary>

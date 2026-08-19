@@ -266,20 +266,20 @@ public class ProductionReportServiceTests
         });
         SetupPlans(new List<ProductionPlan> { new() { Id = 10, LineId = 1, StartTime = planStart, TaktTimeSeconds = 3600m } }); // 1 sp/giờ
 
-        var fromLocal = planStart.AddHours(1); // 09:00
-        var toLocal = planStart.AddHours(4); // 12:00
-        var fromUtc = fromLocal.ToUniversalTime();
-        var toUtc = toLocal.ToUniversalTime();
+        // Đổi ý 19/08/2026: FromUtc/ToUtc và Scan.ScannedAtUtc nay đều là giờ local, KHÔNG quy đổi UTC nữa — bỏ
+        // .ToUniversalTime() để cùng hệ quy chiếu với planStart (xem API-Conventions.md mục 10).
+        var fromUtc = planStart.AddHours(1); // 09:00
+        var toUtc = planStart.AddHours(4); // 12:00
 
         SetupOkScans(new List<Scan>
         {
             // Trước khoảng lọc -> không tính vào Actual.
-            new() { TagCode = "Before", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddMinutes(30).ToUniversalTime() },
+            new() { TagCode = "Before", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddMinutes(30) },
             // Trong khoảng [from, to] -> tính vào Actual.
-            new() { TagCode = "In1", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(2).ToUniversalTime() },
-            new() { TagCode = "In2", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(3).ToUniversalTime() },
+            new() { TagCode = "In1", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(2) },
+            new() { TagCode = "In2", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(3) },
             // Sau khoảng lọc -> không tính vào Actual.
-            new() { TagCode = "After", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(5).ToUniversalTime() },
+            new() { TagCode = "After", ProductionPlanId = 10, StageId = 100, LineId = 1, Result = ScanResult.Ok, ScannedAtUtc = planStart.AddHours(5) },
         });
 
         var result = await _sut.GetReportAsync(new ProductionReportQuery { FromUtc = fromUtc, ToUtc = toUtc });

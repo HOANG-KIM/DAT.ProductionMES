@@ -1,5 +1,6 @@
 import { Alert, AutoComplete, Card, DatePicker, Descriptions, Empty, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { useLotSearch } from './useLotSearch';
@@ -42,8 +43,10 @@ export function LotReportTab() {
   const debouncedSearchText = useDebouncedValue(searchText, 300);
   const searchQuery = useLotSearch(debouncedSearchText);
 
-  const summaryFrom = range ? range[0].toISOString() : undefined;
-  const summaryTo = range ? range[1].toISOString() : undefined;
+  // Đổi ý 19/08/2026: gửi giờ local KHÔNG quy đổi UTC (không dùng toISOString — luôn quy về UTC) — khớp với
+  // Scan.ScannedAtUtc backend nay cũng lưu giờ local (xem API-Conventions.md mục 10).
+  const summaryFrom = range ? range[0].format('YYYY-MM-DDTHH:mm:ss') : undefined;
+  const summaryTo = range ? range[1].format('YYYY-MM-DDTHH:mm:ss') : undefined;
   const summaryQuery = useLotSummary(selectedLot, { from: summaryFrom, to: summaryTo });
 
   const options = useMemo(
@@ -169,6 +172,12 @@ export function LotReportTab() {
                 <Descriptions.Item label="Model">{renderMultiValue(summaryQuery.data.models)}</Descriptions.Item>
                 <Descriptions.Item label="Khách hàng">{renderMultiValue(summaryQuery.data.customers)}</Descriptions.Item>
                 <Descriptions.Item label="Revision">{renderMultiValue(summaryQuery.data.revisions)}</Descriptions.Item>
+                {/* FR-21b (bổ sung 19/08/2026): MIN(ScannedAtUtc) trên TOÀN BỘ lượt scan của Lot, KHÔNG phụ thuộc RangePicker bên dưới. */}
+                <Descriptions.Item label="Thời gian bắt đầu">
+                  {summaryQuery.data.firstScannedAtUtc === null
+                    ? 'Chưa xác định'
+                    : dayjs(summaryQuery.data.firstScannedAtUtc).format(DATE_FORMAT)}
+                </Descriptions.Item>
                 {/* US-21a AC1/AC5/AC6 (viết lại hoàn toàn 19/08/2026): "Tổng số lượng Lot" nhập tay tại Station.Wpf (US-05 AC7-AC9), KHÔNG phải SUM. */}
                 <Descriptions.Item label="Tổng số lượng Lot">
                   <Typography.Text strong>

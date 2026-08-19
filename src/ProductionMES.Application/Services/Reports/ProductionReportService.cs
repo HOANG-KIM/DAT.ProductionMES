@@ -54,9 +54,11 @@ public class ProductionReportService : IProductionReportService
     public async Task<ProductionReportDto> GetReportAsync(ProductionReportQuery query, CancellationToken cancellationToken = default)
     {
         var isRangeMode = query.FromUtc is not null || query.ToUtc is not null;
-        var atUtc = query.ToUtc ?? DateTime.UtcNow;
-        var atLocal = atUtc.ToLocalTime();
-        var fromLocal = query.FromUtc?.ToLocalTime();
+        // Đổi ý 19/08/2026: query.FromUtc/ToUtc (client gửi lên) và Scan.ScannedAtUtc nay đều là giờ local nhà máy,
+        // KHÔNG còn khái niệm UTC->Local ở đây nữa — dùng thẳng giá trị nhận được, chỉ fallback DateTime.Now khi
+        // không truyền ToUtc (chế độ thời gian thực). Xem API-Conventions.md mục 10.
+        var at = query.ToUtc ?? DateTime.Now;
+        var from = query.FromUtc;
         var hasAnyPlanFilter = query.Model != null || query.Customer != null || query.Revision != null || query.Lot != null;
 
         var workStations = await _unitOfWork.Repository<WorkStation>().FindAsync(
@@ -149,7 +151,7 @@ public class ProductionReportService : IProductionReportService
 
                 rows.Add(BuildRow(
                     lineId, lineName, stageId, stageName, runningPlan.Lot, lotGroupPlans,
-                    lineBreakWindows, fromLocal: null, atLocal, query, atUtc, relevantScans));
+                    lineBreakWindows, from: null, at, query, relevantScans));
             }
             else
             {
@@ -174,7 +176,7 @@ public class ProductionReportService : IProductionReportService
                 {
                     rows.Add(BuildRow(
                         lineId, lineName, stageId, stageName, lotGroup.Key, lotGroup.ToList(),
-                        lineBreakWindows, fromLocal, atLocal, query, atUtc, relevantScans));
+                        lineBreakWindows, from, at, query, relevantScans));
                 }
             }
         }
@@ -195,8 +197,8 @@ public class ProductionReportService : IProductionReportService
     /// </summary>
     private static ProductionReportRowDto BuildRow(
         int lineId, string lineName, int stageId, string stageName, string lot, IReadOnlyList<ProductionPlan> plans,
-        IReadOnlyList<(TimeOnly Start, TimeOnly End)> lineBreakWindows, DateTime? fromLocal, DateTime atLocal,
-        ProductionReportQuery query, DateTime atUtc, IReadOnlyList<Scan> relevantScans)
+        IReadOnlyList<(TimeOnly Start, TimeOnly End)> lineBreakWindows, DateTime? from, DateTime at,
+        ProductionReportQuery query, IReadOnlyList<Scan> relevantScans)
     {
         var actual = 0;
         var ngCount = 0;
@@ -208,19 +210,19 @@ public class ProductionReportService : IProductionReportService
             planIds.Add(productionPlan.Id);
 
             var standardQuantityPerHourExact = productionPlan.TaktTimeSeconds > 0 ? SecondsPerHour / productionPlan.TaktTimeSeconds : 0m;
-            var planAtTo = AndonBoardCalculator.ComputePlanCumulative(standardQuantityPerHourExact, productionPlan.StartTime, atLocal, lineBreakWindows);
-            var planAtFrom = fromLocal is null
+            var planAtTo = AndonBoardCalculator.ComputePlanCumulative(standardQuantityPerHourExact, productionPlan.StartTime, at, lineBreakWindows);
+            var planAtFrom = from is null
                 ? 0
-                : AndonBoardCalculator.ComputePlanCumulative(standardQuantityPerHourExact, productionPlan.StartTime, fromLocal.Value, lineBreakWindows);
+                : AndonBoardCalculator.ComputePlanCumulative(standardQuantityPerHourExact, productionPlan.StartTime, from.Value, lineBreakWindows);
             plan += planAtTo - planAtFrom;
 
             actual += relevantScans.Count(s =>
                 s.ProductionPlanId == productionPlan.Id && s.StageId == stageId && s.Result == ScanResult.Ok &&
-                (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) && s.ScannedAtUtc <= atUtc);
+                (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) && s.ScannedAtUtc <= at);
 
             ngCount += relevantScans.Count(s =>
                 s.ProductionPlanId == productionPlan.Id && s.StageId == stageId && s.Result == ScanResult.Ng &&
-                (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) && s.ScannedAtUtc <= atUtc);
+                (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) && s.ScannedAtUtc <= at);
         }
 
         return new ProductionReportRowDto

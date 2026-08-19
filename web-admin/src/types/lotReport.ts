@@ -39,6 +39,11 @@ export interface LotSummary {
    * SUM(PlannedQuantity) như bản đề xuất ban đầu). `null` = "Chưa xác định" (AC6).
    */
   lotTotalQuantity: number | null;
+  /**
+   * FR-21b (bổ sung 19/08/2026) — "Thời gian bắt đầu" = MIN(ScannedAtUtc) trên TOÀN BỘ lượt scan của Lot (mọi
+   * Result, kể cả bị từ chối), KHÔNG bị ảnh hưởng bởi `fromUtc`/`toUtc`. `null` = "Chưa xác định" (chưa có scan nào).
+   */
+  firstScannedAtUtc: string | null;
 }
 
 /** Khớp query string `GET /api/v1/reports/lots/{lot}` (AC5). */

@@ -40,8 +40,10 @@ export function LineReportTab() {
       model: model.trim() || undefined,
       customer: customer.trim() || undefined,
       revision: revision.trim() || undefined,
-      from: range ? range[0].toISOString() : undefined,
-      to: range ? range[1].toISOString() : undefined,
+      // Đổi ý 19/08/2026: gửi giờ local KHÔNG quy đổi UTC (không dùng toISOString — luôn quy về UTC) — khớp với
+      // Scan.ScannedAtUtc backend nay cũng lưu giờ local (xem API-Conventions.md mục 10).
+      from: range ? range[0].format('YYYY-MM-DDTHH:mm:ss') : undefined,
+      to: range ? range[1].format('YYYY-MM-DDTHH:mm:ss') : undefined,
     }),
     [lineId, stageId, model, customer, revision, range],
   );

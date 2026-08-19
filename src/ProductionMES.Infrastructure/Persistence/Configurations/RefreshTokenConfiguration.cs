@@ -23,6 +23,16 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         builder.Property(k => k.ReplacedByTokenHash)
             .HasMaxLength(128);
 
+        // Ép lại Kind = Utc lúc đọc — xem UtcDateTimeValueConverter (sửa bug lệch giờ VN 19/08/2026).
+        builder.Property(k => k.ExpiresAtUtc)
+            .HasConversion(new UtcDateTimeValueConverter());
+
+        builder.Property(k => k.CreatedAtUtc)
+            .HasConversion(new UtcDateTimeValueConverter());
+
+        builder.Property(k => k.RevokedAtUtc)
+            .HasConversion(new NullableUtcDateTimeValueConverter());
+
         // Không dùng khoá ngoại ở DB — UserId là cột tham chiếu thuần. Tra cứu nhanh "các refresh token đang
         // hoạt động của 1 User" khi phát hiện reuse token đã revoke (AuthService.RefreshAsync).
         builder.HasIndex(k => k.UserId);

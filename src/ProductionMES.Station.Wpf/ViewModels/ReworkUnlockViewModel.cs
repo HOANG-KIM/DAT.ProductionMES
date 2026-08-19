@@ -210,8 +210,9 @@ public partial class ReworkUnlockViewModel : ObservableObject
             {
                 NgRejectionReason = status.RejectionReason ?? "(không có lý do)";
                 NgConfirmedByUserName = string.IsNullOrWhiteSpace(status.NgConfirmedByUserName) ? "(không rõ)" : status.NgConfirmedByUserName;
+                // Đổi ý 19/08/2026: NgScannedAtUtc nay đã là giờ local nhà máy, KHÔNG quy đổi nữa (xem API-Conventions.md mục 10).
                 NgScannedAtLocalLabel = status.NgScannedAtUtc.HasValue
-                    ? status.NgScannedAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                    ? status.NgScannedAtUtc.Value.ToString("dd/MM/yyyy HH:mm:ss")
                     : string.Empty;
                 LockStatusLabel = status.IsLocked ? "Đang bị khóa rework — chưa thể scan lại." : "Đã được mở khóa — có thể scan lại bình thường.";
             }

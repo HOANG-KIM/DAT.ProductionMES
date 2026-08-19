@@ -53,7 +53,9 @@ public class ReworkUnlockService : IReworkUnlockService
             StageId = stageId,
             UnlockedByUserId = unlockedByUserId,
             UnlockedByUserName = unlockedByUserName,
-            UnlockedAtUtc = DateTime.UtcNow,
+            // Đổi ý 19/08/2026: KHÔNG dùng UtcNow — lưu đúng giờ local hệ thống lúc mở khóa, không quy đổi (xem
+            // API-Conventions.md mục 10).
+            UnlockedAtUtc = DateTime.Now,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
         };
 

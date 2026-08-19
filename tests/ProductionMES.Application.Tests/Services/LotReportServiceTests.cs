@@ -309,4 +309,111 @@ public class LotReportServiceTests
         var row = Assert.Single(result!.Rows);
         Assert.Equal(1, row.OkCount); // Chỉ đếm lượt inRange.
     }
+
+    // FR-21b: "Thời gian bắt đầu" = MIN(ScannedAtUtc) trên TOÀN BỘ lượt scan, kể cả lượt bị từ chối (DuplicateTag)
+    // sớm hơn mọi lượt Ok/Ng — KHÔNG chỉ tính trên scan hợp lệ.
+    [Fact]
+    public async Task GetLotSummaryAsync_CoNhieuLuotScanKeCaBiTuChoi_TraVeDungThoiDiemSomNhatTrongTatCa()
+    {
+        var earliestRejected = new DateTime(2026, 8, 18, 6, 0, 0, DateTimeKind.Utc);
+        var laterOk = new DateTime(2026, 8, 18, 8, 0, 0, DateTimeKind.Utc);
+        var laterNg = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc);
+
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1" },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, LineId = 1, StageId = 10, PlanStatus = PlanStatus.Running },
+        });
+        SetupScans(new List<Scan>
+        {
+            // Lượt bị từ chối (DuplicateTag) nhưng lại là lượt SỚM NHẤT -> vẫn phải được tính.
+            new() { Id = 1, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.DuplicateTag, ScannedAtUtc = earliestRejected },
+            new() { Id = 2, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = laterOk },
+            new() { Id = 3, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ng, ScannedAtUtc = laterNg },
+        });
+        SetupLines(new List<Line> { new() { Id = 1, Name = "Line 1" } });
+        SetupStages(new List<Stage> { new() { Id = 10, Name = "Lắp ráp" } });
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Equal(earliestRejected, result!.FirstScannedAtUtc);
+    }
+
+    // FR-21b: KHÔNG bị ảnh hưởng bởi filter fromUtc/toUtc — luôn là mốc gốc tuyệt đối trên toàn bộ lịch sử Lot.
+    [Fact]
+    public async Task GetLotSummaryAsync_LocTheoKhoangThoiGianThuHep_KhongAnhHuongThoiGianBatDau()
+    {
+        var earliest = new DateTime(2026, 8, 18, 6, 0, 0, DateTimeKind.Utc);
+        var inRange = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc);
+
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1" },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, LineId = 1, StageId = 10, PlanStatus = PlanStatus.Running },
+        });
+        SetupScans(new List<Scan>
+        {
+            new() { Id = 1, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = earliest },
+            new() { Id = 2, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = inRange },
+        });
+        SetupLines(new List<Line> { new() { Id = 1, Name = "Line 1" } });
+        SetupStages(new List<Stage> { new() { Id = 10, Name = "Lắp ráp" } });
+
+        // fromUtc thu hẹp hơn thời điểm scan đầu tiên thật (loại bỏ `earliest` khỏi thống kê OK/NG) -> FirstScannedAtUtc vẫn phải giữ nguyên `earliest`.
+        var result = await _sut.GetLotSummaryAsync(
+            "LOT-A",
+            fromUtc: new DateTime(2026, 8, 18, 8, 30, 0, DateTimeKind.Utc),
+            toUtc: null);
+
+        Assert.NotNull(result);
+        Assert.Equal(earliest, result!.FirstScannedAtUtc);
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(1, row.OkCount); // OK/NG vẫn bị lọc theo range như cũ (đối chứng, không ảnh hưởng lẫn nhau).
+    }
+
+    // FR-21b: Lot có ProductionPlan/ProductionPlanStage nhưng chưa từng có Scan nào -> FirstScannedAtUtc = null ("Chưa xác định").
+    [Fact]
+    public async Task GetLotSummaryAsync_ChuaCoScanNao_FirstScannedAtUtcTraVeNull()
+    {
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1" },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, LineId = 1, StageId = 10, PlanStatus = PlanStatus.Draft },
+        });
+        SetupLines(new List<Line> { new() { Id = 1, Name = "Line 1" } });
+        SetupStages(new List<Stage> { new() { Id = 10, Name = "Lắp ráp" } });
+        // Không setup Scan nào -> mặc định rỗng (constructor).
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Null(result!.FirstScannedAtUtc);
+    }
+
+    // FR-21b: Lot chưa từng có ProductionPlanStage lẫn Scan (nhánh pairs.Count == 0) -> FirstScannedAtUtc = null.
+    [Fact]
+    public async Task GetLotSummaryAsync_KhongCoPlanStageLanScan_FirstScannedAtUtcTraVeNull()
+    {
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1" },
+        });
+        // Không setup ProductionPlanStage lẫn Scan -> mặc định rỗng (constructor), rơi vào nhánh pairs.Count == 0.
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Empty(result!.Rows);
+        Assert.Null(result.FirstScannedAtUtc);
+    }
 }

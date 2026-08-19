@@ -112,7 +112,9 @@ public class ScanService : IScanService
         }
 
         var scanRepository = _unitOfWork.Repository<Scan>();
-        var nowUtc = DateTime.UtcNow;
+        // Đổi ý 19/08/2026: KHÔNG dùng UtcNow — lưu đúng giờ local hệ thống lúc scan, không quy đổi (xem
+        // API-Conventions.md mục 10).
+        var now = DateTime.Now;
 
         // US-08 AC1 + US-19 AC1 — Bước 1: tra cứu TOÀN BỘ lượt scan tại (TagCode, StageId) TOÀN HỆ THỐNG (không
         // phân biệt Line) 1 LẦN DUY NHẤT, dùng chung cho cả 2 kiểm tra bên dưới (khóa rework + trùng tem) — tránh
@@ -129,7 +131,7 @@ public class ScanService : IScanService
         if (ReworkLockCalculator.IsLocked(scansAtCurrentStage, reworkUnlocksAtCurrentStage))
         {
             var lockedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.WaitingReworkUnlock,
-                "Sản phẩm đang chờ mở khóa rework.", nowUtc);
+                "Sản phẩm đang chờ mở khóa rework.", now);
             return await SaveAndReturnAsync(lockedScan, cancellationToken);
         }
 
@@ -139,7 +141,7 @@ public class ScanService : IScanService
         if (duplicateAtCurrentStage.Count > 0)
         {
             var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.DuplicateTag,
-                "Trùng tem tại công đoạn này.", nowUtc);
+                "Trùng tem tại công đoạn này.", now);
             return await SaveAndReturnAsync(rejectedScan, cancellationToken);
         }
 
@@ -158,13 +160,13 @@ public class ScanService : IScanService
                 var previousStageName = previousStage?.Name ?? $"#{previousStageId}";
 
                 var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.PreviousStageNotPassed,
-                    $"Chưa qua công đoạn: {previousStageName}", nowUtc);
+                    $"Chưa qua công đoạn: {previousStageName}", now);
                 return await SaveAndReturnAsync(rejectedScan, cancellationToken);
             }
         }
 
         // US-08 AC4: qua đủ 2 bước kiểm tra -> ghi nhận OK.
-        var okScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.Ok, rejectionReason: null, nowUtc);
+        var okScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.Ok, rejectionReason: null, now);
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
 
         // US-05a AC5: tự động Completed khi số lượt scan OK (tính động, gồm cả lượt vừa lưu) đạt đủ số lượng kế hoạch.
@@ -228,7 +230,7 @@ public class ScanService : IScanService
         // hành CHỦ ĐỘNG xác nhận đây là sản phẩm lỗi, không phải luồng tự động phát hiện của FR-08. Tem bị khóa ở
         // công đoạn kế tiếp tự động xảy ra vì công đoạn này không có bản ghi Ok (xem IScanService.CreateNgAsync).
         var ngScan = BuildScan(
-            tagCode, workStation, activeProductionPlan, ScanResult.Ng, rejectionReason.Trim(), DateTime.UtcNow,
+            tagCode, workStation, activeProductionPlan, ScanResult.Ng, rejectionReason.Trim(), DateTime.Now,
             confirmedByUserId, confirmedByUserName);
         return await SaveAndReturnAsync(ngScan, cancellationToken);
     }

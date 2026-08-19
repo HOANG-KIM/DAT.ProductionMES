@@ -81,7 +81,11 @@ public class Scan
     /// (xem remarks class-level và mục 8.2 SRS).</summary>
     public string OperatorNames { get; set; } = string.Empty;
 
-    /// <summary>Thời điểm scan (UTC).</summary>
+    /// <summary>
+    /// Thời điểm scan — lưu ĐÚNG giờ local hệ thống (giờ tường tại nhà máy) lúc scan, KHÔNG quy đổi UTC (đổi ý
+    /// 19/08/2026, xem API-Conventions.md mục 10). Tên field giữ nguyên "...AtUtc" theo quy ước đặt tên đã chốt,
+    /// nhưng Ý NGHĨA nay là giờ local, không phải UTC thật.
+    /// </summary>
     public DateTime ScannedAtUtc { get; set; }
 
     /// <summary>Kết quả lượt scan (FR-08/FR-10).</summary>

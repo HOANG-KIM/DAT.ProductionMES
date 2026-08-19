@@ -18,8 +18,13 @@ public class StationApiKeyConfiguration : IEntityTypeConfiguration<StationApiKey
             .IsRequired()
             .HasMaxLength(64);
 
+        // Ép lại Kind = Utc lúc đọc — xem UtcDateTimeValueConverter (sửa bug lệch giờ VN 19/08/2026).
         builder.Property(k => k.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion(new UtcDateTimeValueConverter());
+
+        builder.Property(k => k.RevokedAtUtc)
+            .HasConversion(new NullableUtcDateTimeValueConverter());
 
         // AC5: hash phải là duy nhất trên toàn hệ thống để tra cứu ngược lại đúng 1 trạm khi xác thực.
         builder.HasIndex(k => k.KeyHash).IsUnique();
