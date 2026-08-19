@@ -4,8 +4,8 @@ import type { Dayjs } from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { useLotSearch } from './useLotSearch';
 import { useLotSummary } from './useLotSummary';
-import { ScanHistoryDrilldownModal } from './ScanHistoryDrilldownModal';
-import type { ScanHistoryDrilldownTarget } from './ScanHistoryDrilldownModal';
+import { ScanHistoryDrilldownDrawer } from './ScanHistoryDrilldownDrawer';
+import type { ScanHistoryDrilldownTarget } from './ScanHistoryDrilldownDrawer';
 import type { LotStageRow } from '../../types/lotReport';
 
 const { RangePicker } = DatePicker;
@@ -30,7 +30,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 /**
  * US-21 (vòng 3, 18/08/2026) — entrypoint chính của báo cáo, Lot làm trục chính: tìm/chọn 1 Lot (AC1/AC2) → chi
  * tiết Model/Khách hàng/Revision (AC3) → danh sách (Line, Công đoạn) kèm OK/NG (AC4) → lọc khoảng thời gian tùy
- * chọn (AC5) → bấm 1 dòng mở drill-down chi tiết lượt scan (AC7-AC11, tái dùng `ScanHistoryDrilldownModal`).
+ * chọn (AC5) → bấm 1 dòng mở drill-down chi tiết lượt scan (AC7-AC11, tái dùng `ScanHistoryDrilldownDrawer`).
  * KHÔNG có PLAN/BALANCE (AC6 — tạm hoãn, xem `LineReportTab` cho nhánh phụ giữ PLAN/BALANCE).
  */
 export function LotReportTab() {
@@ -215,7 +215,7 @@ export function LotReportTab() {
         )}
       </Space>
 
-      <ScanHistoryDrilldownModal target={drilldownTarget} onClose={() => setDrilldownTarget(null)} />
+      <ScanHistoryDrilldownDrawer target={drilldownTarget} onClose={() => setDrilldownTarget(null)} />
     </div>
   );
 }

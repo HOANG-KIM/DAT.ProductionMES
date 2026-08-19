@@ -1,10 +1,12 @@
-import { Modal, Table, Tag, Typography } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Drawer, Segmented, Space, Table, Tag, Typography } from 'antd';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { useEffect, useState } from 'react';
 import { useScanHistory } from './useScanHistory';
 import type { ReworkStatus, ScanHistoryItem, ScanHistoryQuery, ScanResult } from '../../types/scanHistory';
 
 const DATE_FORMAT = 'DD/MM/YYYY HH:mm:ss';
+const DEFAULT_PAGE_SIZE = 20;
 
 /** Cùng bộ màu Kết quả scan đã dùng ở màn hình trạm (US-08/US-18) — chỉ dùng lại ở đây cho mục đích hiển thị. */
 const RESULT_LABEL: Record<ScanResult, string> = {
@@ -38,6 +40,15 @@ const REWORK_STATUS_COLOR: Record<ReworkStatus, string> = {
   StillNg: 'red',
 };
 
+/** Lựa chọn filter kết quả scan hiển thị trên UI (nâng cấp UX 19/08/2026) — chỉ OK/NG, không gồm 3 kết quả từ chối tự động. */
+type ResultFilter = 'All' | 'Ok' | 'Ng';
+
+const RESULT_FILTER_OPTIONS: { label: string; value: ResultFilter }[] = [
+  { label: 'Tất cả', value: 'All' },
+  { label: 'OK', value: 'Ok' },
+  { label: 'NG', value: 'Ng' },
+];
+
 export interface ScanHistoryDrilldownTarget {
   lineId: number;
   lineName: string;
@@ -48,7 +59,7 @@ export interface ScanHistoryDrilldownTarget {
   to?: string;
 }
 
-interface ScanHistoryDrilldownModalProps {
+interface ScanHistoryDrilldownDrawerProps {
   target: ScanHistoryDrilldownTarget | null;
   onClose: () => void;
 }
@@ -56,24 +67,53 @@ interface ScanHistoryDrilldownModalProps {
 /**
  * US-21 AC7-AC11 — drill-down danh sách lượt scan chi tiết (OK lẫn NG) của đúng 1 dòng (Line, Công đoạn) trong
  * chi tiết 1 Lot (AC7), kèm Trạm thực hiện (AC8), lý do NG + người xác nhận (AC9), trạng thái rework + người sửa
- * hàng (AC10/AC11). Tái sử dụng nguyên vẹn `GET api/v1/scans/history` (US-10) đã bổ sung filter Lot/StageId —
- * không gọi API riêng. Dùng chung cho cả `LotReportTab` (entrypoint chính, vòng 3) lẫn `LineReportTab` (nhánh phụ,
- * vòng 1/2 — xem AC6).
+ * hàng (AC10/AC11). Tái sử dụng nguyên vẹn `GET api/v1/scans/history` (US-10) đã bổ sung filter Lot/StageId/Result
+ * — không gọi API riêng. Dùng chung cho cả `LotReportTab` (entrypoint chính, vòng 3) lẫn `LineReportTab` (nhánh
+ * phụ, vòng 1/2 — xem AC6).
+ *
+ * Nâng cấp UX 19/08/2026: đổi từ `Modal` sang `Drawer` trượt phải (giữ ngữ cảnh trang báo cáo đang xem phía sau),
+ * thêm phân trang thật (thay `pageSize: 200` cố định + `pagination={false}`), filter theo kết quả OK/NG, và badge
+ * tổng số OK/NG. Badge OK/NG dùng 2 query đếm riêng (`pageSize: 1`, đọc `totalCount`) LUÔN theo đúng bộ filter
+ * Line/Stage/Lot/from-to của `target` — KHÔNG áp filter OK/NG đang chọn để xem bảng, để không gây hiểu lầm khi
+ * người dùng đang lọc "chỉ xem NG" (badge phải cố định theo ngữ cảnh, độc lập filter hiển thị).
  */
-export function ScanHistoryDrilldownModal({ target, onClose }: ScanHistoryDrilldownModalProps) {
-  const query: ScanHistoryQuery | null = target
+export function ScanHistoryDrilldownDrawer({ target, onClose }: ScanHistoryDrilldownDrawerProps) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [resultFilter, setResultFilter] = useState<ResultFilter>('All');
+
+  // Reset trang + filter về mặc định mỗi khi chọn 1 dòng (Line/Stage) hoặc Lot/khoảng thời gian khác — tránh giữ
+  // lại trang/filter cũ khi người dùng bấm sang dòng khác trong khi Drawer đang mở.
+  useEffect(() => {
+    setPage(1);
+    setResultFilter('All');
+  }, [target?.lineId, target?.stageId, target?.lot, target?.from, target?.to]);
+
+  const baseQuery: Omit<ScanHistoryQuery, 'result' | 'page' | 'pageSize'> | null = target
     ? {
         lineId: target.lineId,
         stageId: target.stageId,
         lot: target.lot,
         from: target.from,
         to: target.to,
-        page: 1,
-        pageSize: 200,
+      }
+    : null;
+
+  const query: ScanHistoryQuery | null = baseQuery
+    ? {
+        ...baseQuery,
+        result: resultFilter === 'All' ? undefined : resultFilter,
+        page,
+        pageSize,
       }
     : null;
 
   const historyQuery = useScanHistory(query);
+
+  // 2 query đếm OK/NG — KHÔNG áp resultFilter đang chọn (xem remarks ở JSDoc trên), luôn phản ánh đúng tổng của
+  // toàn bộ ngữ cảnh (Line, Công đoạn, Lot, khoảng thời gian) đang xem.
+  const okCountQuery = useScanHistory(baseQuery ? { ...baseQuery, result: 'Ok', page: 1, pageSize: 1 } : null);
+  const ngCountQuery = useScanHistory(baseQuery ? { ...baseQuery, result: 'Ng', page: 1, pageSize: 1 } : null);
 
   const columns: ColumnsType<ScanHistoryItem> = [
     { title: 'Mã tem', dataIndex: 'tagCode', key: 'tagCode' },
@@ -149,14 +189,23 @@ export function ScanHistoryDrilldownModal({ target, onClose }: ScanHistoryDrilld
     },
   ];
 
+  const pagination: TablePaginationConfig = {
+    current: page,
+    pageSize,
+    total: historyQuery.data?.totalCount ?? 0,
+    showSizeChanger: true,
+    onChange: (nextPage, nextPageSize) => {
+      setPage(nextPage);
+      setPageSize(nextPageSize);
+    },
+  };
+
   return (
-    <Modal
+    <Drawer
       open={target !== null}
-      onCancel={onClose}
-      onOk={onClose}
-      cancelButtonProps={{ style: { display: 'none' } }}
-      okText="Đóng"
-      width={1200}
+      onClose={onClose}
+      placement="right"
+      width="min(1000px, 100%)"
       title={
         target
           ? `Chi tiết lượt scan — Line ${target.lineName} / Lot ${target.lot} / ${target.stageName}`
@@ -166,15 +215,32 @@ export function ScanHistoryDrilldownModal({ target, onClose }: ScanHistoryDrilld
       {historyQuery.isError && (
         <Typography.Text type="danger">Không tải được danh sách lượt scan. Vui lòng thử lại.</Typography.Text>
       )}
+      <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }} size="middle">
+        <Space size="middle" wrap>
+          <Typography.Text>
+            OK: <Typography.Text strong style={{ color: '#389e0d' }}>{okCountQuery.data?.totalCount ?? '—'}</Typography.Text>
+            {' · '}
+            NG: <Typography.Text strong style={{ color: '#cf1322' }}>{ngCountQuery.data?.totalCount ?? '—'}</Typography.Text>
+          </Typography.Text>
+        </Space>
+        <Segmented
+          options={RESULT_FILTER_OPTIONS}
+          value={resultFilter}
+          onChange={(value) => {
+            setResultFilter(value as ResultFilter);
+            setPage(1);
+          }}
+        />
+      </Space>
       <Table<ScanHistoryItem>
         rowKey="id"
         size="small"
         loading={historyQuery.isLoading}
         columns={columns}
         dataSource={historyQuery.data?.items ?? []}
-        pagination={false}
-        scroll={{ y: 400, x: 1050 }}
+        pagination={pagination}
+        scroll={{ x: 1050 }}
       />
-    </Modal>
+    </Drawer>
   );
 }

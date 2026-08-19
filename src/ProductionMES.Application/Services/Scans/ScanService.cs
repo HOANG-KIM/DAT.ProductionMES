@@ -267,6 +267,7 @@ public class ScanService : IScanService
                 (query.Model == null || s.Model == query.Model) &&
                 (query.Customer == null || s.Customer == query.Customer) &&
                 (query.Revision == null || s.Revision == query.Revision) &&
+                (query.Result == null || s.Result == query.Result) &&
                 (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) &&
                 (query.ToUtc == null || s.ScannedAtUtc <= query.ToUtc),
             cancellationToken);

@@ -1,3 +1,5 @@
+using ProductionMES.Domain.Enums;
+
 namespace ProductionMES.Application.DTOs.Scans;
 
 /// <summary>
@@ -30,6 +32,12 @@ public class ScanHistoryQuery
 
     /// <summary>Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Revision (snapshot bất biến, US-10 AC4).</summary>
     public string? Revision { get; set; }
+
+    /// <summary>
+    /// Mở rộng 19/08/2026 (nâng cấp UX drill-down US-21 AC7-AC11) — lọc theo kết quả scan (vd chỉ xem
+    /// <see cref="ScanResult.Ok"/> hoặc <see cref="ScanResult.Ng"/>). <c>null</c> = không áp dụng, trả về mọi kết quả.
+    /// </summary>
+    public ScanResult? Result { get; set; }
 
     /// <summary>AC3 — cận dưới khoảng thời gian (bao gồm), so trên <c>Scan.ScannedAtUtc</c>.</summary>
     public DateTime? FromUtc { get; set; }

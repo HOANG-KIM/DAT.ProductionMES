@@ -62,6 +62,8 @@ export interface ScanHistoryQuery {
   model?: string;
   customer?: string;
   revision?: string;
+  /** Mở rộng 19/08/2026 (nâng cấp UX drill-down US-21) — lọc theo kết quả scan. */
+  result?: ScanResult;
   /** UTC ISO 8601. */
   from?: string;
   /** UTC ISO 8601. */

@@ -130,6 +130,42 @@ public class ScanServiceHistoryTests
         Assert.Equal(2, result.Items[0].LineId);
     }
 
+    // Nâng cấp UX drill-down (19/08/2026) — Lọc riêng theo kết quả scan (Result).
+    [Fact]
+    public async Task GetHistoryAsync_LocTheoKetQuaScan_ChiTraVeLuotScanDungKetQua()
+    {
+        var t0 = DateTime.UtcNow;
+        SetupExistingScans(new List<Scan>
+        {
+            MakeScan(1, "A", workStationId: 1, lineId: 1, scannedAtUtc: t0, result: ScanResult.Ok),
+            MakeScan(2, "B", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddMinutes(1), result: ScanResult.Ng),
+            MakeScan(3, "C", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddMinutes(2), result: ScanResult.Ng),
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Result = ScanResult.Ng });
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.All(result.Items, item => Assert.Equal(ScanResult.Ng, item.Result));
+    }
+
+    // Nâng cấp UX drill-down (19/08/2026) — Kết hợp filter Result với filter khác (AND).
+    [Fact]
+    public async Task GetHistoryAsync_KetHopFilterKetQuaVoiFilterKhac_TraVeDungGiaoCuaCacDieuKien()
+    {
+        var t0 = DateTime.UtcNow;
+        SetupExistingScans(new List<Scan>
+        {
+            MakeScan(1, "A", workStationId: 1, lineId: 1, scannedAtUtc: t0, result: ScanResult.Ok), // đúng trạm, sai kết quả
+            MakeScan(2, "B", workStationId: 1, lineId: 1, scannedAtUtc: t0.AddMinutes(1), result: ScanResult.Ng), // đúng cả 2
+            MakeScan(3, "C", workStationId: 2, lineId: 1, scannedAtUtc: t0.AddMinutes(2), result: ScanResult.Ng), // sai trạm, đúng kết quả
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { WorkStationId = 1, Result = ScanResult.Ng });
+
+        Assert.Single(result.Items);
+        Assert.Equal(2, result.Items[0].Id);
+    }
+
     // AC3 — Lọc riêng theo khoảng thời gian (from/to).
     [Fact]
     public async Task GetHistoryAsync_LocTheoKhoangThoiGian_ChiTraVeLuotScanTrongKhoang()

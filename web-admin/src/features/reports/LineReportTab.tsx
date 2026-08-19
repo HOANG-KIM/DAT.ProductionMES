@@ -6,8 +6,8 @@ import { useMemo, useState } from 'react';
 import { useProductionReport } from './useProductionReport';
 import { useLines } from '../lines/useLines';
 import { useStages } from '../stages/useStages';
-import { ScanHistoryDrilldownModal } from './ScanHistoryDrilldownModal';
-import type { ScanHistoryDrilldownTarget } from './ScanHistoryDrilldownModal';
+import { ScanHistoryDrilldownDrawer } from './ScanHistoryDrilldownDrawer';
+import type { ScanHistoryDrilldownTarget } from './ScanHistoryDrilldownDrawer';
 import type { ProductionReportRow } from '../../types/productionReport';
 
 const { RangePicker } = DatePicker;
@@ -226,7 +226,7 @@ export function LineReportTab() {
         </Typography.Text>
       )}
 
-      <ScanHistoryDrilldownModal target={drilldownTarget} onClose={() => setDrilldownTarget(null)} />
+      <ScanHistoryDrilldownDrawer target={drilldownTarget} onClose={() => setDrilldownTarget(null)} />
     </div>
   );
 }
