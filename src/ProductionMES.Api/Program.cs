@@ -183,6 +183,9 @@ try
         AddPermissionPolicy(PermissionPolicies.ScanConfirmNg, PermissionResource.Scan, PermissionAction.ConfirmNg);
         // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG.
         AddPermissionPolicy(PermissionPolicies.ScanReworkUnlock, PermissionResource.Scan, PermissionAction.ReworkUnlock);
+
+        // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
+        AddPermissionPolicy(PermissionPolicies.ReportView, PermissionResource.Report, PermissionAction.View);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

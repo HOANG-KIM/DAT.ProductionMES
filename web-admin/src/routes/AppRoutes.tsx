@@ -6,6 +6,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { HomePage } from '../features/home/HomePage';
 import { LineListPage } from '../features/lines/LineListPage';
 import { PermissionManagementPage } from '../features/permissions/PermissionManagementPage';
+import { ProductionReportPage } from '../features/reports/ProductionReportPage';
 import { StageListPage } from '../features/stages/StageListPage';
 import { UserListPage } from '../features/users/UserListPage';
 import { WorkStationListPage } from '../features/work-stations/WorkStationListPage';
@@ -14,9 +15,9 @@ import { WorkStationListPage } from '../features/work-stations/WorkStationListPa
  * Khai báo route toàn app: `/login` public, phần còn lại bọc `RouteGuard` (chặn theo session/role)
  * + `AppLayout` (khung Ant Design). Route `/permissions` và `/users` bọc `PermissionGuard
  * role="Admin"` (break-glass, ADR-004 — không đi qua permission động, `UsersController` cũng hardcode
- * `[Authorize(Roles="Admin")]`). Route `/lines`, `/stages`, `/work-stations` bọc `PermissionGuard
- * permission="Xxx.View"` (permission động chuẩn ADR-004). Trang CRUD ProductionPlan thuộc phạm vi
- * task sau (không nằm ở web-admin, xem ADR-002).
+ * `[Authorize(Roles="Admin")]`). Route `/lines`, `/stages`, `/work-stations`, `/reports/production-summary`
+ * (US-21) bọc `PermissionGuard permission="Xxx.View"` (permission động chuẩn ADR-004). Trang CRUD
+ * ProductionPlan thuộc phạm vi task sau (không nằm ở web-admin, xem ADR-002).
  */
 export function AppRoutes() {
   return (
@@ -46,6 +47,14 @@ export function AppRoutes() {
             element={
               <PermissionGuard permission="WorkStation.View">
                 <WorkStationListPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="/reports/production-summary"
+            element={
+              <PermissionGuard permission="Report.View">
+                <ProductionReportPage />
               </PermissionGuard>
             }
           />

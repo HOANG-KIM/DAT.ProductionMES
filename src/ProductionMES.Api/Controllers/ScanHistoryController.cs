@@ -33,6 +33,11 @@ public class ScanHistoryController : ControllerBase
     /// <param name="tagCode">AC2 — mã tem cần tra cứu (so khớp tuyệt đối).</param>
     /// <param name="workStationId">AC3 — lọc theo trạm làm việc.</param>
     /// <param name="lineId">AC3 — lọc theo Line.</param>
+    /// <param name="stageId">Mở rộng 18/08/2026 (US-21 AC7) — lọc theo công đoạn.</param>
+    /// <param name="lot">Mở rộng 18/08/2026 (US-21 AC7) — lọc theo Lot.</param>
+    /// <param name="model">Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Model.</param>
+    /// <param name="customer">Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Khách hàng.</param>
+    /// <param name="revision">Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Revision.</param>
     /// <param name="from">AC3 — cận dưới (bao gồm) của <c>ScannedAtUtc</c>, dạng UTC ISO 8601.</param>
     /// <param name="to">AC3 — cận trên (bao gồm) của <c>ScannedAtUtc</c>, dạng UTC ISO 8601.</param>
     /// <param name="page">Trang hiện tại, bắt đầu từ 1 (mặc định 1 nếu không truyền/không hợp lệ).</param>
@@ -43,6 +48,11 @@ public class ScanHistoryController : ControllerBase
         [FromQuery] string? tagCode,
         [FromQuery] int? workStationId,
         [FromQuery] int? lineId,
+        [FromQuery] int? stageId,
+        [FromQuery] string? lot,
+        [FromQuery] string? model,
+        [FromQuery] string? customer,
+        [FromQuery] string? revision,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] int page = 1,
@@ -54,6 +64,11 @@ public class ScanHistoryController : ControllerBase
             TagCode = tagCode,
             WorkStationId = workStationId,
             LineId = lineId,
+            StageId = stageId,
+            Lot = lot,
+            Model = model,
+            Customer = customer,
+            Revision = revision,
             FromUtc = from,
             ToUtc = to,
             Page = page,

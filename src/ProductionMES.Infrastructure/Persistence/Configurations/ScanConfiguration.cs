@@ -51,6 +51,12 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
             .IsRequired()
             .HasColumnType("decimal(10,2)");
 
+        // US-10 AC1/AC5 (bổ sung 19/08/2026): snapshot ProductionPlan.OperatorNames tại thời điểm scan — maxlength
+        // khớp đúng ProductionPlanConfiguration, cùng nguyên tắc với 6 field snapshot ở trên.
+        builder.Property(s => s.OperatorNames)
+            .IsRequired()
+            .HasMaxLength(500);
+
         // Lưu Result dạng chuỗi — cùng nguyên tắc đã áp dụng cho User.UserRole (dễ đọc/truy vấn trực tiếp trên
         // DB, ổn định khi thêm giá trị enum mới ở giữa, vd US-18 sẽ bổ sung "Ng").
         builder.Property(s => s.Result)

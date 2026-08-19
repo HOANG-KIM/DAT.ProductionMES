@@ -18,12 +18,26 @@ namespace ProductionMES.Application.Tests.Services;
 public class ScanServiceHistoryTests
 {
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
+    private readonly Mock<IRepository<WorkStation>> _workStationRepositoryMock = new();
+    private readonly Mock<IRepository<ReworkUnlock>> _reworkUnlockRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly ScanService _sut;
 
     public ScanServiceHistoryTests()
     {
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<WorkStation>()).Returns(_workStationRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<ReworkUnlock>()).Returns(_reworkUnlockRepositoryMock.Object);
+
+        // US-21 AC8/AC10/AC11: GetHistoryAsync tra thêm WorkStation (tên trạm) và ReworkUnlock (trạng thái rework
+        // của lượt Ng) — mặc định rỗng cho mọi test ở đây (không tập trung vào AC8/AC10/AC11, xem ScanServiceTests
+        // cho các test riêng của 2 AC này).
+        _workStationRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<WorkStation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkStation>());
+        _reworkUnlockRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ReworkUnlock, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ReworkUnlock>());
 
         _sut = new ScanService(
             _unitOfWorkMock.Object,
@@ -57,6 +71,7 @@ public class ScanServiceHistoryTests
             Revision = "B",
             PlannedQuantity = 1000,
             TaktTimeSeconds = 30m,
+            OperatorNames = "Nguyễn Văn A, Trần Thị B",
         };
 
     // AC2 — Tra cứu theo tem: trả về toàn bộ lượt scan liên quan tới tem đó, sắp theo thời gian tăng dần.
@@ -199,8 +214,8 @@ public class ScanServiceHistoryTests
     }
 
     // AC4 — Snapshot bất biến: lịch sử scan trả về đúng giá trị Customer/Model/Lot/Revision/PlannedQuantity/
-    // TaktTimeSeconds đã lưu tại thời điểm scan, không phải giá trị hiện tại của ProductionPlan (test qua chính
-    // API tra cứu, không chỉ test lúc tạo scan).
+    // TaktTimeSeconds/OperatorNames đã lưu tại thời điểm scan, không phải giá trị hiện tại của ProductionPlan (test
+    // qua chính API tra cứu, không chỉ test lúc tạo scan). OperatorNames bổ sung 19/08/2026 (US-10 AC1/AC5).
     [Fact]
     public async Task GetHistoryAsync_TraCuuLaiLuotScanCu_TraVeDungSnapshotTaiThoiDiemScan_KhongPhaiGiaTriHienTaiCuaKeHoach()
     {
@@ -221,6 +236,7 @@ public class ScanServiceHistoryTests
             Revision = "B",
             PlannedQuantity = 1000,
             TaktTimeSeconds = 30m,
+            OperatorNames = "Nguyễn Văn A, Trần Thị B",
         };
         SetupExistingScans(new List<Scan> { scanCu });
 
@@ -237,5 +253,6 @@ public class ScanServiceHistoryTests
         Assert.Equal("B", item.Revision);
         Assert.Equal(1000, item.PlannedQuantity); // vẫn 1000 (giá trị lúc scan), không phải 1200 hiện tại
         Assert.Equal(30m, item.TaktTimeSeconds);
+        Assert.Equal("Nguyễn Văn A, Trần Thị B", item.OperatorNames);
     }
 }

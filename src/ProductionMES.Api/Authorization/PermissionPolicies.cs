@@ -4,10 +4,10 @@ namespace ProductionMES.Api.Authorization;
 /// Hằng số tên policy dạng <c>"{Resource}.{Action}"</c> (ADR-004) — tránh magic string rải rác ở Controller,
 /// và tránh gõ sai tên không khớp giữa policy đăng ký ở <c>Program.cs</c> và attribute
 /// <c>[Authorize(Policy = ...)]</c> dùng ở Controller. Khớp chính xác catalog seed ở <c>DbSeeder.SeedPermissionsAsync</c>
-/// (tổng 33 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 3, ProductionPlanStage 7
+/// (tổng 34 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 3, ProductionPlanStage 7
 /// (US-05a bổ sung Apply/Pause/Close, thay cho Activate/Deactivate cấp cả kế hoạch trước đây), BreakWindow 4,
 /// StationApiKey 4, Scan 3 (View — US-10, tra cứu lịch sử scan; ConfirmNg — US-18, thay đổi 18/08/2026, xác nhận Scan NG;
-/// ReworkUnlock — US-19, mở khóa rework)).
+/// ReworkUnlock — US-19, mở khóa rework), Report 1 (View — US-21, báo cáo tổng hợp theo Line/công đoạn)).
 /// </summary>
 public static class PermissionPolicies
 {
@@ -61,4 +61,7 @@ public static class PermissionPolicies
 
     // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG — chỉ Supervisor/Admin (KHÔNG cấp Manager, khác ScanConfirmNg).
     public const string ScanReworkUnlock = "Scan.ReworkUnlock";
+
+    // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn — Supervisor/Admin/Manager, cùng đối tượng với ScanView.
+    public const string ReportView = "Report.View";
 }

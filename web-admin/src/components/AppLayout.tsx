@@ -1,5 +1,6 @@
 import {
   ApartmentOutlined,
+  BarChartOutlined,
   DesktopOutlined,
   PartitionOutlined,
   SafetyCertificateOutlined,
@@ -15,7 +16,7 @@ const { Header, Sider, Content } = Layout;
 
 /**
  * Khung layout Ant Design cơ bản (Header/Sider/Content). Menu điều hướng lọc theo permission động
- * (ADR-004) qua `hasPermission` (Line/Stage/WorkStation), riêng "Quản lý người dùng" và "Quản lý
+ * (ADR-004) qua `hasPermission` (Line/Stage/WorkStation/Report — US-21), riêng "Quản lý người dùng" và "Quản lý
  * phân quyền" vẫn hardcode `Admin` (break-glass, không đi qua permission động — `UsersController`
  * cũng hardcode `[Authorize(Roles="Admin")]`). Mục ProductionPlan thuộc phạm vi task sau (không nằm
  * ở web-admin, xem ADR-002).
@@ -50,6 +51,14 @@ export function AppLayout() {
         key: '/work-stations',
         icon: <DesktopOutlined />,
         label: 'Quản lý Trạm làm việc',
+      });
+    }
+
+    if (hasPermission('Report.View')) {
+      items.push({
+        key: '/reports/production-summary',
+        icon: <BarChartOutlined />,
+        label: 'Báo cáo theo Lot',
       });
     }
 

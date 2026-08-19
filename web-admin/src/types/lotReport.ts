@@ -1,0 +1,38 @@
+/**
+ * Type khớp DTO báo cáo Lot-centric backend (`ProductionMES.Application/DTOs/Reports/`, US-21 vòng 3 —
+ * 18/08/2026, AC1-AC5).
+ */
+
+/** Khớp `LotSearchItemDto` (AC1/AC2). */
+export interface LotSearchItem {
+  lot: string;
+}
+
+/** Khớp `LotStageRowDto` (AC4) — 1 dòng (Line, Công đoạn) trong chi tiết 1 Lot. */
+export interface LotStageRow {
+  lineId: number;
+  lineName: string;
+  stageId: number;
+  stageName: string;
+  okCount: number;
+  ngCount: number;
+}
+
+/** Khớp `LotSummaryDto` (AC3/AC4/AC5). */
+export interface LotSummary {
+  lot: string;
+  /** AC3 — >1 phần tử nghĩa là KHÔNG đồng nhất giữa các kế hoạch cùng Lot (thường do khác Line) — hiển thị cảnh báo. */
+  models: string[];
+  customers: string[];
+  /** Chuỗi rỗng ("") đại diện Revision = null trên `ProductionPlan` nào đó. */
+  revisions: string[];
+  fromUtc: string | null;
+  toUtc: string | null;
+  rows: LotStageRow[];
+}
+
+/** Khớp query string `GET /api/v1/reports/lots/{lot}` (AC5). */
+export interface LotSummaryQuery {
+  from?: string;
+  to?: string;
+}

@@ -121,11 +121,14 @@ public partial class App : Application
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
-        // US-19: "Mở khóa rework" — Bearer Tổ trưởng (Scan.ReworkUnlock), cùng nhóm với các client MainWindow ở trên.
+        // US-19: "Mở khóa rework" — Bearer Tổ trưởng (Scan.ReworkUnlock). 18/08/2026 (AC7 — re-auth mỗi lần):
+        // KHÔNG gắn SupervisorAuthHandler (khác các client MainWindow khác ở trên) — token ephemeral (không phải
+        // phiên dùng chung ISupervisorSessionService) được ReworkUnlockViewModel gắn thủ công vào từng request
+        // (xem ReworkUnlockApiClient), tránh bị handler ghi đè nhầm bằng token phiên Tổ trưởng dùng chung.
         services.AddHttpClient<IReworkUnlockApiClient, ReworkUnlockApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
-        }).AddHttpMessageHandler<SupervisorAuthHandler>();
+        });
 
         // US-07: xác thực bằng API Key theo trạm (ADR-005, scheme StationApiKey) — KHÔNG dùng SupervisorAuthHandler
         // (Bearer, luồng Tổ trưởng nâng quyền).

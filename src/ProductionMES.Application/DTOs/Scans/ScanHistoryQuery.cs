@@ -1,9 +1,9 @@
 namespace ProductionMES.Application.DTOs.Scans;
 
 /// <summary>
-/// Bộ lọc tra cứu lịch sử scan (US-10 AC2/AC3). Mọi field lọc đều tùy chọn (<c>null</c> = không áp dụng) và kết
-/// hợp theo AND — vd truyền cả <see cref="WorkStationId"/> lẫn <see cref="FromUtc"/>/<see cref="ToUtc"/> thì trả
-/// về đúng giao của 2 điều kiện, đúng AC3 ("có thể kết hợp").
+/// Bộ lọc tra cứu lịch sử scan (US-10 AC2/AC3; mở rộng 18/08/2026 phục vụ US-21 AC7 drill-down). Mọi field lọc
+/// đều tùy chọn (<c>null</c> = không áp dụng) và kết hợp theo AND — vd truyền cả <see cref="WorkStationId"/> lẫn
+/// <see cref="FromUtc"/>/<see cref="ToUtc"/> thì trả về đúng giao của 2 điều kiện, đúng AC3 ("có thể kết hợp").
 /// </summary>
 public class ScanHistoryQuery
 {
@@ -15,6 +15,21 @@ public class ScanHistoryQuery
 
     /// <summary>AC3 — lọc theo Line (ngữ cảnh lượt scan, xem remarks tại entity Scan).</summary>
     public int? LineId { get; set; }
+
+    /// <summary>Mở rộng 18/08/2026 (US-21 AC7) — lọc theo công đoạn (Stage).</summary>
+    public int? StageId { get; set; }
+
+    /// <summary>Mở rộng 18/08/2026 (US-21 AC7) — lọc theo Lot (snapshot bất biến, US-10 AC4).</summary>
+    public string? Lot { get; set; }
+
+    /// <summary>Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Model (snapshot bất biến, US-10 AC4).</summary>
+    public string? Model { get; set; }
+
+    /// <summary>Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Khách hàng (snapshot bất biến, US-10 AC4).</summary>
+    public string? Customer { get; set; }
+
+    /// <summary>Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Revision (snapshot bất biến, US-10 AC4).</summary>
+    public string? Revision { get; set; }
 
     /// <summary>AC3 — cận dưới khoảng thời gian (bao gồm), so trên <c>Scan.ScannedAtUtc</c>.</summary>
     public DateTime? FromUtc { get; set; }

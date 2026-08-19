@@ -153,6 +153,7 @@ Khi nhận 1 lượt scan, hệ thống thực hiện tuần tự:
 - Mọi lượt scan (kể cả lượt bị từ chối/lỗi) được lưu lại: mã tem, thời gian, trạm, công đoạn, Line, kế hoạch, kết quả (OK/Trùng tem/Chưa qua công đoạn trước), người thao tác.
 - **Lưu kèm snapshot thông tin kế hoạch tại đúng thời điểm scan**: Khách hàng, Model, Lot, Revision, số lượng kế hoạch (`PlannedQuantity`), takt time (`TaktTimeSeconds`) — ghi lại đúng giá trị của kế hoạch (`ProductionPlan`) tại thời điểm tạo bản ghi scan, **không suy ra bằng cách tra cứu (join) tới kế hoạch hiện tại**. Mục đích: nếu sau này kế hoạch bị sửa (chỉ có thể xảy ra với Số lượng/Takt time, xem quy tắc khóa tuyệt đối tại FR-05), lịch sử scan cũ vẫn phản ánh đúng thông tin tại thời điểm sản phẩm thực sự đi qua công đoạn — đảm bảo tính bất biến (immutability) của bằng chứng truy vết.
 - Cho phép tra cứu lịch sử theo tem, theo trạm, theo khoảng thời gian, theo Line.
+- **Bổ sung 19/08/2026 — Snapshot thêm `OperatorNames`**: cùng cơ chế snapshot ở trên, `Scan` lưu thêm bản sao `ProductionPlan.OperatorNames` (danh sách tên nhân viên vận hành khai báo tự do — xem FR-05, mục 8.1 "Trường Tên nhân viên") tại đúng thời điểm scan, để mỗi lượt scan biết được "công đoạn đó, tại thời điểm đó, kế hoạch khai báo có những ai thực hiện". **Lưu ý quan trọng — đây KHÔNG phải định danh cá nhân theo từng lượt scan**: `OperatorNames` là 1 giá trị free-text gắn ở cấp `ProductionPlan` (áp dụng chung cho MỌI công đoạn của kế hoạch đó), không gắn ở cấp `ProductionPlanStage` hay theo từng thao tác bấm scan cụ thể — hệ thống vẫn không biết chính xác ai đã bấm scan lượt đó (Operator không đăng nhập cá nhân, ADR-005). Field này chỉ trả lời câu hỏi "kế hoạch đang chạy tại công đoạn đó, ở lô này, được khai báo có những ai phụ trách" — xem đánh giá đầy đủ về giới hạn nghiệp vụ tại mục 8.2. Khác với 6 field snapshot đã có, `OperatorNames` **KHÔNG** thuộc nhóm bị khóa tuyệt đối khi kế hoạch đã có scan (mục 6 quy tắc 14) — Tổ trưởng vẫn được sửa tự do bất kỳ lúc nào.
 
 ### 3.4 Nhóm chức năng: Giao tiếp Arduino (kiểm tra tự động — vd Thông điện)
 
@@ -223,11 +224,14 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 - **Sau khi bị NG, tem đó bị khóa tại công đoạn này**: không được tiếp tục scan sang công đoạn kế tiếp (áp dụng đúng rule FR-08 — "chưa qua công đoạn trước" chỉ được thỏa khi kết quả là OK).
 - **Tự động quay về Chế độ Scan OK** sau khi: (a) đã hoàn tất 1 lượt Scan NG, hoặc (b) hết thời gian chờ (timeout mặc định **30 giây, cấu hình được qua file cấu hình cục bộ tại từng trạm**) mà không có tem nào được quét kể từ lúc kích hoạt Chế độ Scan NG — tránh trường hợp công nhân kích hoạt NG rồi quên, khiến lượt scan sản phẩm bình thường tiếp theo bị ghi nhầm thành NG.
 
-**FR-19 — Quy trình Rework (sửa lỗi & scan lại)**
+**FR-19 — Quy trình Rework (sửa lỗi & scan lại)** *(bổ sung 18/08/2026 — xem Ghi chú cuối mục)*
 - Sản phẩm bị NG **không được tự động scan lại** tại công đoạn đó. Cần **Tổ trưởng (vai trò có phân quyền riêng)** thực hiện thao tác **"Mở khóa rework"** cho đúng tem đó tại đúng công đoạn đó, sau khi xác nhận sản phẩm đã được sửa lỗi.
-- Thao tác mở khóa được ghi log: ai duyệt, thời điểm, ghi chú (nếu có).
+- Thao tác mở khóa được ghi log: ai duyệt, thời điểm, ghi chú (nếu có) — danh tính người đăng nhập thực hiện thao tác này được dùng làm **"Người sửa hàng"** trong báo cáo (FR-21) — xem điều kiện bắt buộc ở Ghi chú.
+- **Đăng nhập vào chức năng "Mở khóa rework" chỉ có hiệu lực 1 lần dùng** — mỗi lần vào lại chức năng này (kể cả cùng 1 phiên làm việc tại trạm) đều phải đăng nhập lại, KHÔNG dùng chung phiên đăng nhập Tổ trưởng với các chức năng khác (Cài đặt kế hoạch, Trình tự công đoạn...). Đây là thay đổi so với thiết kế US-19 ban đầu (phiên đăng nhập dùng chung) — bắt buộc để đảm bảo danh tính ghi nhận đúng người thực hiện mỗi lần, không bị "đứng tên hộ" người đăng nhập trước đó.
 - Sau khi được mở khóa, người vận hành scan lại tem tại công đoạn đó như bình thường (theo FR-07). Nếu đạt → ghi nhận OK, tem được tiếp tục lưu thông sang công đoạn sau; nếu vẫn không đạt → tiếp tục quy trình NG/mở khóa như trên, không giới hạn số lần lặp lại.
 - **Giữ lại toàn bộ lịch sử tất cả các lần scan** (NG lẫn OK) tại cùng 1 công đoạn — không ghi đè — để phục vụ báo cáo tỷ lệ lỗi (PPM), thống kê loại lỗi thường gặp theo FR-20.
+
+**Ghi chú (18/08/2026):** Ban quản lý quyết định dùng danh tính đăng nhập vào chức năng "Mở khóa rework" làm "Người sửa hàng" trong báo cáo Lot-centric (FR-21/US-21 AC11), với điều kiện bắt buộc: phải đăng nhập lại mỗi lần vào chức năng này (không dùng phiên chung). US-19 bản đã code (✅ Xong trước đó) dùng phiên đăng nhập Tổ trưởng DÙNG CHUNG (`ISupervisorSessionService`) — cần sửa lại theo yêu cầu mới này, xem AC bổ sung tại US-19, `Documents/BACKLOG-user-story.md`.
 
 **FR-20 — Báo cáo tỷ lệ lỗi & nguyên nhân**
 - Thống kê số lượng/tỷ lệ NG theo công đoạn, theo Line, theo loại lỗi, theo khoảng thời gian — phục vụ phân tích chất lượng (không thuộc phạm vi màn hình trạm, mà ở màn hình báo cáo/Ban quản lý).
@@ -236,9 +240,39 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 
 ### 3.7 Nhóm chức năng: Báo cáo & quản trị
 
-**FR-21 — Báo cáo tổng hợp theo Line**
-- Xem sản lượng thực tế, kế hoạch, chỉ số âm/dương của từng Line, từng công đoạn theo thời gian thực hoặc theo khoảng thời gian đã qua.
-- Báo cáo chỉ tính các lượt scan ở trạng thái `Đã xác nhận OK` (không tính lượt `Chờ đồng bộ` cho tới khi được server xác nhận, theo FR-16/FR-17).
+**FR-21 — Báo cáo Lot-centric: tra cứu tổng hợp theo Lot** *(viết lại hoàn toàn 18/08/2026, vòng 3 — đổi trục chính từ Line sang Lot, xem Ghi chú cuối mục)*
+- Trục chính của báo cáo là **Lot**: người dùng tìm/chọn 1 Lot cụ thể (autocomplete), hệ thống hiển thị: Model, Khách
+  hàng, Revision của Lot đó (cảnh báo nếu không đồng nhất giữa các kế hoạch cùng Lot); danh sách các (Line, Công
+  đoạn) mà Lot đã/đang sản xuất kèm số lượng OK/NG mỗi công đoạn.
+- Hỗ trợ lọc theo khoảng thời gian (tùy chọn), áp dụng lên số liệu OK/NG của từng (Line, Công đoạn) đang xem trong
+  Lot đã chọn.
+- **Không bắt buộc hiển thị PLAN/BALANCE trong đợt này** (Ban quản lý xác nhận 18/08/2026 "tạm thời chưa cần") —
+  phần tính toán PLAN/BALANCE đã có sẵn từ vòng 2 (group Line→Lot→Công đoạn) được giữ lại làm nền tảng kỹ thuật,
+  không bắt buộc hiển thị ở UI chính.
+- Từ 1 dòng (Line, Công đoạn) của Lot, cho phép drill-down xem từng lượt scan riêng lẻ — tái sử dụng
+  `GET api/v1/scans/history` (FR-10) đã có filter Lot/Model/Customer/Revision/StageId, không xây API tra cứu riêng.
+- Mỗi lượt scan chi tiết hiển thị: Trạm làm việc thực hiện (KHÔNG phải tên cá nhân Operator — luồng scan OK không
+  có định danh người dùng theo thiết kế đã chốt ở ADR-005, xem mục 8.2); với lượt NG, hiển thị thêm lý do lỗi,
+  người xác nhận NG (FR-18), và trạng thái rework suy luận từ `ReworkUnlock` (FR-19): Chưa mở khóa / Đã mở khóa
+  chờ scan lại / Đã sửa xong (scan lại OK) / Đã scan lại nhưng vẫn NG — kèm tên người MỞ KHÓA rework (không phải
+  người sửa hàng thực tế — xem mục 8.2).
+- **Bổ sung 19/08/2026**: mỗi lượt scan chi tiết còn hiển thị thêm **"Nhân viên"** (= "Người vận hành khai báo theo kế hoạch") = snapshot `Scan.OperatorNames` (xem FR-10) — hiển thị NGAY CẠNH "Trạm làm việc thực hiện" ở trên, KHÔNG thay thế. Đây là thông tin bổ sung mang tính tham khảo (ai được khai báo phụ trách công đoạn/lô này tại thời điểm scan), **không phải** giải pháp giải quyết điểm mở "định danh Operator theo từng lượt scan" đã nêu ở mục 8.2 — 2 vấn đề khác bản chất (Trạm/OperatorNames trả lời "kế hoạch/vị trí nào", không trả lời "chính xác cá nhân nào bấm scan lượt này"). Không hiển thị field này ở bảng tổng hợp (Line, Công đoạn) mức AC4 — chỉ ở drill-down (AC7), vì 1 dòng tổng hợp có thể gộp nhiều `Scan` thuộc nhiều `ProductionPlan` khác nhau (kế hoạch cũ bị hủy, tạo lại cùng Lot với `OperatorNames` khác), hiển thị gộp ở đó dễ gây hiểu nhầm.
+- Không bao gồm chức năng xuất Excel trong phạm vi FR-21 — xem riêng FR-23 (không mở rộng theo đợt yêu cầu này).
+
+**Ghi chú (18/08/2026, vòng 3):** FR-21 đã trải qua 2 lần mở rộng trong cùng ngày: vòng 1 (bản gốc, group Line→
+Công đoạn, có PLAN/BALANCE), vòng 2 (thêm Lot/NG/filter/drill-down, group Line→Lot→Công đoạn, vẫn giữ PLAN/BALANCE
+làm trục phụ). Vòng 3 này đổi hẳn TRỤC CHÍNH sang Lot theo yêu cầu trực tiếp Ban quản lý/Văn phòng — xem AC đầy đủ
+tại US-21, `Documents/BACKLOG-user-story.md`. Phần code backend vòng 2 (nhóm/gộp theo Lot, PLAN/BALANCE) phần lớn
+tái dùng được làm nền, nhưng UI phải viết lại đáng kể (đổi entrypoint từ bảng nhiều dòng sang tìm/chọn 1 Lot).
+
+**FR-21a — Tổng số lượng kế hoạch theo Lot** *(mới, đề xuất 18/08/2026)*
+- Hệ thống hiện chưa có 1 con số "tổng số lượng của Lot" độc lập — mỗi `ProductionPlan` chỉ lưu `PlannedQuantity`
+  riêng cho kế hoạch/Line đó (FR-05).
+- Bổ sung hiển thị "Tổng số lượng kế hoạch của Lot" = tổng `PlannedQuantity` của mọi `ProductionPlan` cùng giá trị
+  Lot (không phân biệt Line), tại 3 nơi: màn hình báo cáo Lot-centric (FR-21), màn hình "Chọn kế hoạch"
+  (FR-05a/US-05b), và Andon board (FR-09/US-09).
+- Đây là giá trị TÍNH TOÁN (SUM), không phải field lưu trữ mới — xem giới hạn/rủi ro tại mục 8.2 (ý nghĩa
+  `PlannedQuantity` khi 1 Lot chạy nhiều Line chưa được xác nhận).
 
 **FR-22 — Quản lý người dùng & phân quyền**
 - Phân quyền theo nhóm người dùng ở mục 2.2 (Công nhân / Tổ trưởng / Admin / Ban quản lý), bổ sung quyền riêng cho thao tác "Mở khóa rework" (FR-19) — chỉ Tổ trưởng mới thực hiện được.
@@ -295,6 +329,8 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 12. Mỗi cặp (Kế hoạch, Công đoạn) có vòng đời trạng thái riêng `Draft/Running/Paused/Completed/Cancelled` (FR-05a) thay vì 1 cờ bật/tắt chung cho cả kế hoạch — cho phép tạm dừng và chạy lại nhiều lần mà không mất/nhầm tiến độ (tính động từ lịch sử scan OK), đồng thời cho phép từng công đoạn của cùng 1 kế hoạch **đóng độc lập** (vd công đoạn A chạy đủ số lượng thì tự đóng `Completed` dù công đoạn B, C của cùng kế hoạch chưa đủ). Ràng buộc "1 kế hoạch `Running` tại 1 thời điểm" (FR-05) áp dụng theo cặp **(Line, Công đoạn)**, không theo cả Line — công đoạn A của 1 Line được phép chuyển sang kế hoạch mới trong khi công đoạn B, C của cùng Line vẫn đang chạy/tạm dừng kế hoạch cũ, đúng thực tế dây chuyền có WIP giữa các trạm.
 13. Tổ trưởng có thể cấu hình/áp dụng kế hoạch cho **bất kỳ công đoạn nào cùng Line**, không giới hạn theo công đoạn vật lý của trạm đang thao tác — màn hình "Chọn kế hoạch" (mục 5.2) cho chọn Công đoạn độc lập với công đoạn của trạm hiện tại, phục vụ Tổ trưởng quản lý nhiều công đoạn từ 1 vị trí.
 14. Lịch sử scan (`Scan`) lưu **snapshot** Khách hàng/Model/Lot/Revision/Số lượng kế hoạch/Takt time tại đúng thời điểm scan (FR-10), không tra cứu động qua kế hoạch hiện tại. Để snapshot này luôn đúng, khi kế hoạch đã có ít nhất 1 bản ghi scan, hệ thống **khóa tuyệt đối** Khách hàng/Model/Lot/Revision của kế hoạch đó — không cho sửa dưới bất kỳ hình thức nào (kể cả Confirm), khác với Số lượng/Takt time vẫn cho sửa kèm xác nhận (FR-05). Nhập sai các trường bị khóa sau khi đã có scan → tạo kế hoạch mới, không sửa kế hoạch cũ.
+
+**Bổ sung 19/08/2026**: `Scan` snapshot thêm `OperatorNames` (Tên nhân viên vận hành, free-text — xem mục 8.1 "Trường Tên nhân viên") theo đúng cơ chế snapshot trên, nhưng field này **KHÔNG** thuộc nhóm bị khóa tuyệt đối — Tổ trưởng vẫn sửa `OperatorNames` của kế hoạch tự do bất kỳ lúc nào (không phải dữ liệu định danh lô hàng như Customer/Model/Lot/Revision), giống cách Số lượng/Takt time được sửa: việc sửa sau này không ảnh hưởng snapshot đã lưu ở các lượt scan trước đó.
 
 ---
 
@@ -373,3 +409,7 @@ Phân biệt rõ 2 loại NG trong hệ thống:
 - [ ] Danh sách công đoạn cụ thể + số lượng chính xác từng Line (đã biết có nhiều hơn 2 Line) — cần khảo sát tại xưởng trước khi cấu hình hệ thống lần đầu.
 - [ ] Nội dung cụ thể cần có trong báo cáo Excel (FR-23) — các cột dữ liệu, cách nhóm/tổng hợp — khách hàng sẽ chốt sau, để thiết kế đúng mẫu báo cáo khi phát triển.
 - [x] **Đã chốt 17/08/2026** — Gap phát hiện lúc code US-07: `AndonBoardWindow` bắt input máy scan bằng keyboard-wedge (`TextBox` chuẩn), khác thiết kế gốc mục 5.1/quy tắc 7 (đọc trực tiếp HID theo VendorID/ProductID). Quyết định: **chấp nhận keyboard-wedge** làm giải pháp chính thức (đã sửa mục 5.1, quy tắc 7 cho khớp), kèm bù trừ bằng cờ cấu hình cục bộ `EnableManualScanInput` (mặc định `false`, chỉ bật ở dev/staging để test khi chưa có máy quét — xem mục 5.1) — không giải quyết được triệt để rủi ro "gõ tay giả mạo scan thật" ở tầng kỹ thuật (keyboard-wedge không phân biệt được nguồn input), chỉ giảm rủi ro vô tình bằng cách bắt buộc bật rõ ràng + cảnh báo trực quan. Nếu phát sinh trạm gộp nhiều công đoạn/PC, phải quay lại đọc HID theo VendorID/ProductID (quy tắc 7).
+- [ ] **(mới 18/08/2026, US-21 Lot-centric)** Luồng scan OK thông thường không gắn với định danh cá nhân Operator (đúng thiết kế ADR-005 — Operator không đăng nhập cá nhân) — báo cáo theo Lot chỉ hiển thị được **Trạm làm việc** đã thực hiện lượt scan, không hiển thị được tên người thao tác thực tế. Cần Ban quản lý xác nhận: chấp nhận hiển thị Trạm làm việc thay tên người, hay cần bổ sung 1 cơ chế định danh Operator nhẹ (vd chọn tên đầu ca, không phải đăng nhập cá nhân đầy đủ) — đây là thay đổi kiến trúc lớn (đụng ADR-005), không tự quyết.
+  **Cập nhật 19/08/2026**: theo yêu cầu bổ sung của Ban quản lý, đã snapshot thêm `ProductionPlan.OperatorNames` vào `Scan` (FR-10) và hiển thị tại drill-down báo cáo Lot (FR-21, US-21 AC12). Đây là **giải pháp bổ sung/tham khảo, KHÔNG phải giải pháp triệt để cho gap này** — `OperatorNames` là free-text khai báo ở cấp `ProductionPlan` (áp dụng chung mọi công đoạn của kế hoạch, không phân biệt theo từng công đoạn/lượt scan cụ thể), do đó chỉ trả lời "kế hoạch tại công đoạn này được khai báo có những ai phụ trách", KHÔNG xác định được chính xác cá nhân nào đã thực hiện MỘT lượt scan cụ thể. Gap gốc (thiếu định danh Operator theo từng lượt, đụng ADR-005) **vẫn còn tồn tại, chưa cần Ban quản lý xác nhận thêm** — họ đã chấp nhận rõ mức độ chính xác này khi giao yêu cầu ("để biết được ở công đoạn đó có những ai thực hiện", không đòi hỏi định danh theo từng lượt).
+- [x] **Đã chốt 18/08/2026** — "Người sửa hàng" (US-21 AC11): Ban quản lý quyết định dùng chính danh tính người ĐĂNG NHẬP vào chức năng "Mở khóa rework" (`ReworkUnlockPage`, US-19) làm "Người sửa hàng" (`ReworkUnlock.UnlockedByUserName`) — KHÔNG cần thu thập thêm dữ liệu mới. Điều kiện bắt buộc đi kèm: đăng nhập vào chức năng này phải **hết hiệu lực ngay sau khi dùng xong 1 lần**, mỗi lần vào lại chức năng "Mở khóa rework" đều phải đăng nhập lại — nếu không, danh tính ghi nhận có thể sai (người đăng nhập lần đầu vẫn đứng tên dù người khác thao tác sửa hàng ở lần sau, do phiên đăng nhập dùng chung không tự hết hạn). Đây là **thay đổi bắt buộc cho US-19** (đổi từ phiên đăng nhập Tổ trưởng DÙNG CHUNG hiện tại — `ISupervisorSessionService`, giống `PlanSettingsPage`/`LineStageSequencePage` — sang đăng nhập lại mỗi lần, cùng idiom re-auth-mỗi-lần đã có sẵn ở luồng Scan NG US-18) — xem AC mới bổ sung tại US-19, `Documents/BACKLOG-user-story.md`. US-21 AC11 cập nhật lại nhãn "Người sửa hàng" (không còn là "Người mở khóa" tạm bợ) NHƯNG phụ thuộc đúng vào việc US-19 đã áp dụng re-auth-mỗi-lần — nếu chưa, dữ liệu hiển thị có thể không chính xác.
+- [ ] **(mới 18/08/2026, US-21a)** Ý nghĩa của `ProductionPlan.PlannedQuantity` khi 1 Lot chạy qua nhiều Line (mỗi Line 1 kế hoạch riêng) chưa được xác nhận: là số lượng RIÊNG của từng Line (cộng dồn hợp lệ để ra tổng Lot), hay là con số Lot gốc được khai LẶP LẠI giống nhau ở mỗi kế hoạch (cộng dồn sẽ sai, bị nhân đôi/nhân ba)? Ảnh hưởng trực tiếp công thức "Tổng số lượng Lot" đề xuất ở FR-21a.

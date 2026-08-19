@@ -25,18 +25,20 @@ public partial class LoginDialogViewModel : ObservableObject
     public event EventHandler<bool>? RequestClose;
 
     /// <summary>
-    /// US-18 (thay đổi 18/08/2026) — khi != null: dialog chuyển sang luồng re-auth RIÊNG cho Scan NG
-    /// (<see cref="ISupervisorAuthService.LoginForNgConfirmationAsync"/>, KHÔNG ghi vào session dùng chung
-    /// <see cref="ISupervisorSessionService"/>), VÀ bắt buộc tài khoản đăng nhập phải có đúng permission này
-    /// (dạng "Resource.Action", vd "Scan.ConfirmNg") — nếu không, hiển thị lỗi NGAY TẠI POPUP (AC2b), KHÔNG đóng
-    /// dialog, cho phép thử lại/hủy. Mặc định null: giữ nguyên hành vi cũ (HomePage.RequireAuth, US-05/05a/05b).
+    /// US-18 (thay đổi 18/08/2026), tái sử dụng lại ở US-19 AC7 (18/08/2026) — khi != null: dialog chuyển sang
+    /// luồng re-auth RIÊNG cho đúng 1 thao tác (<see cref="ISupervisorAuthService.LoginForNgConfirmationAsync"/>,
+    /// KHÔNG ghi vào session dùng chung <see cref="ISupervisorSessionService"/>), VÀ bắt buộc tài khoản đăng nhập
+    /// phải có đúng permission này (dạng "Resource.Action", vd "Scan.ConfirmNg" ở US-18, "Scan.ReworkUnlock" ở
+    /// US-19) — nếu không, hiển thị lỗi NGAY TẠI POPUP (AC2b), KHÔNG đóng dialog, cho phép thử lại/hủy. Mặc định
+    /// null: giữ nguyên hành vi cũ (HomePage.RequireAuth, US-05/05a/05b).
     /// </summary>
     public string? RequiredPermission { get; set; }
 
     /// <summary>
-    /// US-18: kết quả đăng nhập thành công gần nhất khi <see cref="RequiredPermission"/> được cấu hình — caller
-    /// (<c>AndonBoardViewModel</c>) đọc <see cref="StationLoginResponse.AccessToken"/> từ đây sau khi
-    /// <c>ShowDialog()</c> trả về true. Null nếu chưa đăng nhập theo luồng này.
+    /// US-18 (tái sử dụng ở US-19 AC7): kết quả đăng nhập thành công gần nhất khi <see cref="RequiredPermission"/>
+    /// được cấu hình — caller (vd <c>AndonBoardViewModel</c>, <c>ReworkUnlockViewModel</c>) đọc
+    /// <see cref="StationLoginResponse.AccessToken"/> từ đây sau khi <c>ShowDialog()</c> trả về true. Null nếu
+    /// chưa đăng nhập theo luồng này.
     /// </summary>
     public StationLoginResponse? NgConfirmationLoginResult { get; private set; }
 
@@ -65,7 +67,9 @@ public partial class LoginDialogViewModel : ObservableObject
                 var loginResult = await _authService.LoginForNgConfirmationAsync(Username, password);
                 if (!loginResult.Permissions.Contains(RequiredPermission))
                 {
-                    ErrorMessage = "Tài khoản không có quyền xác nhận Scan NG.";
+                    // Thông báo chung chung (KHÔNG hardcode "Scan NG") vì luồng này dùng chung cho nhiều chức
+                    // năng re-auth-mỗi-lần khác nhau (US-18 Scan NG, US-19 AC7 Mở khóa rework...).
+                    ErrorMessage = "Tài khoản không có đủ quyền để thực hiện thao tác này.";
                     return;
                 }
 

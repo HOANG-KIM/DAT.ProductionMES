@@ -1,0 +1,35 @@
+namespace ProductionMES.Application.DTOs.Reports;
+
+/// <summary>
+/// Chi tiết vòng đời sản xuất của 1 Lot (US-21 AC3/AC4/AC5, vòng 3 — Lot-centric). Trả về <c>null</c> ở tầng
+/// Service khi Lot không tồn tại (AC2 — "Không tìm thấy Lot", KHÔNG phải lỗi hệ thống, Controller trả 404).
+/// </summary>
+public class LotSummaryDto
+{
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>
+    /// AC3: TẤT CẢ giá trị Model khác nhau tìm được trên các <c>ProductionPlan</c> cùng Lot — 1 phần tử nếu mọi
+    /// kế hoạch đồng nhất, &gt;1 phần tử nếu KHÔNG đồng nhất (client tự hiển thị cảnh báo khi Count &gt; 1, Service
+    /// không tự chọn 1 giá trị đại diện).
+    /// </summary>
+    public IReadOnlyList<string> Models { get; set; } = Array.Empty<string>();
+
+    /// <summary>AC3 — tương tự <see cref="Models"/>, cho Khách hàng (Customer).</summary>
+    public IReadOnlyList<string> Customers { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// AC3 — tương tự <see cref="Models"/>, cho Revision. Chuỗi rỗng (<c>""</c>) đại diện cho giá trị Revision =
+    /// <c>null</c> (không nhập) trên <c>ProductionPlan</c> nào đó — KHÔNG dùng <c>null</c> trong danh sách để tránh
+    /// vấn đề serialize JSON lẫn với "chưa tải xong".
+    /// </summary>
+    public IReadOnlyList<string> Revisions { get; set; } = Array.Empty<string>();
+
+    /// <summary>AC5 — echo lại filter khoảng thời gian đã áp dụng. Null/null = tính toàn bộ lịch sử (không giới hạn).</summary>
+    public DateTime? FromUtc { get; set; }
+
+    public DateTime? ToUtc { get; set; }
+
+    /// <summary>AC4 — danh sách (Line, Công đoạn) Lot này đã từng sản xuất, kèm OK/NG.</summary>
+    public IReadOnlyList<LotStageRowDto> Rows { get; set; } = Array.Empty<LotStageRowDto>();
+}

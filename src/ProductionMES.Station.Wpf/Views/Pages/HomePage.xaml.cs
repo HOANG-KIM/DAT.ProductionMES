@@ -50,12 +50,15 @@ public partial class HomePage : Page
         }
     }
 
+    /// <summary>
+    /// US-19 AC7 (18/08/2026): KHÔNG gọi <see cref="RequireAuth"/> (phiên đăng nhập Tổ trưởng dùng chung) như 3
+    /// tile còn lại — chức năng "Mở khóa rework" bắt buộc đăng nhập lại riêng mỗi lần vào, xử lý ngay trong
+    /// <c>ReworkUnlockViewModel.EnsureAuthenticated</c> (idiom re-auth-mỗi-lần của US-18 NG mode), không phải ở
+    /// đây. Điều hướng thẳng vào trang, dù đang có phiên Tổ trưởng dùng chung hiệu lực hay không.
+    /// </summary>
     private void ReworkUnlockTile_Click(object sender, RoutedEventArgs e)
     {
-        if (RequireAuth())
-        {
-            ((MainWindow)Window.GetWindow(this)!).NavigateToReworkUnlock();
-        }
+        ((MainWindow)Window.GetWindow(this)!).NavigateToReworkUnlock();
     }
 
     private void BackToAndonButton_Click(object sender, RoutedEventArgs e)

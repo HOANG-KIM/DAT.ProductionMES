@@ -72,7 +72,7 @@ public class ScanServiceNgTests
             .Returns(Task.CompletedTask);
     }
 
-    private void SetupRunningPlanStage(int lineId, int stageId, int productionPlanId, int plannedQuantity = 1_000_000)
+    private void SetupRunningPlanStage(int lineId, int stageId, int productionPlanId, int plannedQuantity = 1_000_000, string operatorNames = "")
     {
         var runningPlanStage = new ProductionPlanStage
         {
@@ -89,7 +89,7 @@ public class ScanServiceNgTests
                 new List<ProductionPlanStage> { runningPlanStage }.Where(predicate.Compile()).ToList());
 
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(productionPlanId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProductionPlan { Id = productionPlanId, LineId = lineId, PlannedQuantity = plannedQuantity });
+            .ReturnsAsync(new ProductionPlan { Id = productionPlanId, LineId = lineId, PlannedQuantity = plannedQuantity, OperatorNames = operatorNames });
     }
 
     // US-18 (thay đổi 18/08/2026): tài khoản Tổ trưởng mẫu dùng chung cho các test dưới đây (Id/Username từ claim Bearer, KHÔNG phải WorkStationId).
@@ -132,7 +132,7 @@ public class ScanServiceNgTests
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = LapRapStageId, Name = "Trạm Lắp ráp Line 1" });
-        SetupRunningPlanStage(lineId: 1, stageId: LapRapStageId, productionPlanId: 1);
+        SetupRunningPlanStage(lineId: 1, stageId: LapRapStageId, productionPlanId: 1, operatorNames: "Nguyễn Văn A, Trần Thị B");
 
         var result = await _sut.CreateNgAsync(1, "TAG1", "  Trầy xước vỏ  ", SupervisorUserId, SupervisorUserName);
 
@@ -144,9 +144,12 @@ public class ScanServiceNgTests
         Assert.Equal(1, result.ProductionPlanId);
         Assert.Equal(SupervisorUserId, result.ConfirmedByUserId);
         Assert.Equal(SupervisorUserName, result.ConfirmedByUserName);
+        // US-10 AC1/AC5 (bổ sung 19/08/2026): OperatorNames cũng phải được snapshot đúng cho luồng Scan NG.
+        Assert.Equal("Nguyễn Văn A, Trần Thị B", result.OperatorNames);
         _scanRepositoryMock.Verify(r => r.AddAsync(It.Is<Scan>(s =>
                 s.TagCode == "TAG1" && s.Result == ScanResult.Ng && s.RejectionReason == "Trầy xước vỏ" && s.WorkStationId == 1
-                && s.ConfirmedByUserId == SupervisorUserId && s.ConfirmedByUserName == SupervisorUserName),
+                && s.ConfirmedByUserId == SupervisorUserId && s.ConfirmedByUserName == SupervisorUserName
+                && s.OperatorNames == "Nguyễn Văn A, Trần Thị B"),
             It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

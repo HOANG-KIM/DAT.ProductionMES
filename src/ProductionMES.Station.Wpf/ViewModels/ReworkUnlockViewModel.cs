@@ -1,8 +1,10 @@
+using System.Linq;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using ProductionMES.Station.Wpf.Configuration;
 using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
@@ -10,20 +12,43 @@ using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
 namespace ProductionMES.Station.Wpf.ViewModels;
 
 /// <summary>
-/// ViewModel màn "Mở khóa rework" (US-19 AC2/AC6) — Tổ trưởng nhập/scan mã tem đang bị khóa do NG, xem lại tại
-/// đúng công đoạn của trạm này (cố định theo <see cref="StationOptions"/>, giống <c>LineStageSequenceViewModel</c>
+/// ViewModel màn "Mở khóa rework" (US-19 AC2/AC6/AC7) — Tổ trưởng nhập/scan mã tem đang bị khóa do NG, xem lại
+/// tại đúng công đoạn của trạm này (cố định theo <see cref="StationOptions"/>, giống <c>LineStageSequenceViewModel</c>
 /// US-03 — Tổ trưởng KHÔNG chọn công đoạn khác từ màn này), nhập ghi chú tùy chọn rồi xác nhận mở khóa.
 /// </summary>
 /// <remarks>
-/// Quyền hạn (AC6) thực thi ở server (<c>[Authorize(Policy = Scan.ReworkUnlock)]</c>) — nếu tài khoản đang đăng
-/// nhập (qua <c>HomePage.RequireAuth</c>, phiên dùng chung <c>ISupervisorSessionService</c>) không có quyền này,
-/// <see cref="UnlockAsync"/> nhận 403 từ server và hiển thị nguyên văn lỗi qua <see cref="StatusMessage"/> — không
-/// tự chặn ở UI (đơn giản, nhất quán với cách <c>PlanSettingsPage</c>/<c>LineStageSequencePage</c> đang làm).
+/// **18/08/2026 (AC7 — bắt buộc re-auth mỗi lần)**: KHÔNG còn dùng phiên đăng nhập Tổ trưởng dùng chung
+/// (<c>HomePage.RequireAuth</c>/<c>ISupervisorSessionService</c>, cách cũ giống <c>PlanSettingsPage</c>/
+/// <c>LineStageSequencePage</c>) — danh tính đăng nhập vào chức năng này được dùng làm "Người sửa hàng" trong báo
+/// cáo (US-21 AC11), phải đúng người thao tác của từng lượt. Áp dụng đúng idiom re-auth-mỗi-lần đã có ở US-18
+/// (<c>AndonBoardViewModel.ActivateNgModeCommand</c>): <see cref="EnsureAuthenticated"/> hiển thị
+/// <see cref="Views.LoginDialog"/> riêng với <c>RequiredPermission = "Scan.ReworkUnlock"</c>, lấy access token
+/// dùng RIÊNG (KHÔNG ghi vào <c>ISupervisorSessionService</c>), gọi API qua <see cref="IReworkUnlockApiClient"/>
+/// (đã đổi sang nhận token tường minh, xem ghi chú tại đó). Vì <c>ReworkUnlockPage</c>/<c>ReworkUnlockViewModel</c>
+/// đăng ký Transient (mỗi lần điều hướng vào là 1 instance mới — xem <c>App.xaml.cs</c>), "rời màn hình" tự động
+/// làm mất token đang giữ, thỏa đúng AC7 "vào lại chức năng này (kể cả cùng 1 phiên làm việc tại trạm) đều phải
+/// đăng nhập lại". Riêng thao tác <see cref="UnlockAsync"/> (thao tác được audit, gắn danh tính "Người sửa hàng")
+/// còn xóa token NGAY sau khi dùng (dù thành công hay lỗi) để đúng nghĩa "chỉ có hiệu lực 1 lần dùng" (FR-19) —
+/// muốn mở khóa tem tiếp theo trong cùng 1 lần vào màn hình vẫn phải đăng nhập lại. <see cref="LookupAsync"/> (chỉ
+/// mang tính tham khảo, KHÔNG phải thao tác được audit) tái dùng token đang còn hiệu lực nếu có, không tự xóa sau
+/// khi tra cứu — quyết định kỹ thuật của dev để tránh bắt đăng nhập lại liên tục mỗi lần scan tem để xem thông
+/// tin lỗi (UX), không ảnh hưởng tính đúng đắn của AC11 (Lookup không ghi dữ liệu).
 /// </remarks>
 public partial class ReworkUnlockViewModel : ObservableObject
 {
+    /// <summary>AC6/AC7: permission bắt buộc để hoàn tất đăng nhập — literal "Scan.ReworkUnlock" (Station.Wpf KHÔNG reference project backend, xem CLAUDE.md), phải khớp đúng policy phía server (US-19).</summary>
+    internal const string ReworkUnlockPermission = "Scan.ReworkUnlock";
+
     private readonly IReworkUnlockApiClient _apiClient;
     private readonly StationOptions _options;
+    private readonly IServiceProvider _serviceProvider;
+
+    /// <summary>
+    /// AC7: access token đăng nhập RIÊNG cho lần vào chức năng này, gán bởi <see cref="EnsureAuthenticated"/> —
+    /// KHÔNG ghi vào <see cref="Auth.ISupervisorSessionService"/> dùng chung. Xóa sau khi <see cref="UnlockAsync"/>
+    /// dùng xong (single-use cho thao tác audit); giữ lại để <see cref="LookupAsync"/> có thể tái dùng.
+    /// </summary>
+    private string? _supervisorAccessToken;
 
     public string WorkStationName { get; }
 
@@ -95,10 +120,11 @@ public partial class ReworkUnlockViewModel : ObservableObject
     /// <summary>Màu nhãn trạng thái khóa — đỏ (StatusNgBrush) khi đang khóa, xanh (StatusOkBrush) khi đã mở khóa/chưa từng NG.</summary>
     public Brush LockStatusBrush => (Brush)(Application.Current?.TryFindResource(IsTagLocked ? "StatusNgBrush" : "StatusOkBrush") ?? Brushes.Gray);
 
-    public ReworkUnlockViewModel(IReworkUnlockApiClient apiClient, StationOptions options)
+    public ReworkUnlockViewModel(IReworkUnlockApiClient apiClient, StationOptions options, IServiceProvider serviceProvider)
     {
         _apiClient = apiClient;
         _options = options;
+        _serviceProvider = serviceProvider;
         WorkStationName = options.WorkStationName;
         StageName = options.StageName;
     }
@@ -110,6 +136,34 @@ public partial class ReworkUnlockViewModel : ObservableObject
         {
             HasLookupResult = false;
         }
+    }
+
+    /// <summary>
+    /// AC7: hiển thị popup đăng nhập Tổ trưởng (re-auth mỗi lần, tái sử dụng <see cref="Views.LoginDialog"/>/
+    /// <see cref="LoginDialogViewModel"/> đã có ở US-18) nếu chưa có token đang giữ. Trả về true (VÀ đảm bảo
+    /// <see cref="_supervisorAccessToken"/> có giá trị) nếu đã/đang có phiên hợp lệ; false nếu người dùng bấm Hủy
+    /// hoặc dialog đóng mà không đăng nhập được (sai tài khoản/thiếu quyền dialog tự ở lại cho tới khi Hủy, cùng
+    /// idiom <c>AndonBoardViewModel.AuthenticateForNgMode</c>).
+    /// </summary>
+    private bool EnsureAuthenticated()
+    {
+        if (!string.IsNullOrEmpty(_supervisorAccessToken))
+        {
+            return true;
+        }
+
+        var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
+        dialog.ViewModel.RequiredPermission = ReworkUnlockPermission;
+        dialog.Owner = Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault();
+
+        var loggedIn = dialog.ShowDialog() == true;
+        if (!loggedIn)
+        {
+            return false;
+        }
+
+        _supervisorAccessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
+        return !string.IsNullOrEmpty(_supervisorAccessToken);
     }
 
     private bool CanUnlock() => !IsBusy;
@@ -129,10 +183,18 @@ public partial class ReworkUnlockViewModel : ObservableObject
             return;
         }
 
+        // AC7: chức năng này bắt buộc đăng nhập lại — tra cứu (endpoint cùng policy Scan.ReworkUnlock như mở
+        // khóa) cũng cần token hợp lệ, tái dùng token đang giữ (nếu có) thay vì tự xóa sau mỗi lần tra cứu.
+        if (!EnsureAuthenticated())
+        {
+            LookupMessage = "Cần đăng nhập Tổ trưởng (có quyền Mở khóa rework) để tra cứu.";
+            return;
+        }
+
         IsLookingUp = true;
         try
         {
-            var status = await _apiClient.GetLockStatusAsync(trimmedTagCode, _options.WorkStationId);
+            var status = await _apiClient.GetLockStatusAsync(trimmedTagCode, _options.WorkStationId, _supervisorAccessToken!);
             HasNgHistory = status.HasNgHistory;
             IsTagLocked = status.IsLocked;
             NgCount = status.NgCount;
@@ -186,11 +248,25 @@ public partial class ReworkUnlockViewModel : ObservableObject
             return;
         }
 
+        // AC7: bắt buộc đăng nhập lại (hoặc tái dùng token vừa đăng nhập cho lần tra cứu ngay trước đó trong
+        // cùng lần vào màn hình này) TRƯỚC khi gọi API mở khóa.
+        if (!EnsureAuthenticated())
+        {
+            StatusMessage = "Cần đăng nhập Tổ trưởng (có quyền Mở khóa rework) để xác nhận mở khóa.";
+            IsLastResultSuccess = false;
+            return;
+        }
+
+        // FR-19 "chỉ có hiệu lực 1 lần dùng": xóa token NGAY trước khi gửi request — muốn mở khóa tem tiếp theo
+        // (dù cùng lần vào màn hình) bắt buộc đăng nhập lại, cùng idiom ConfirmNgReasonAsync (US-18).
+        var accessToken = _supervisorAccessToken!;
+        _supervisorAccessToken = null;
+
         IsBusy = true;
         StatusMessage = string.Empty;
         try
         {
-            var result = await _apiClient.UnlockAsync(trimmedTagCode, _options.WorkStationId, string.IsNullOrWhiteSpace(Note) ? null : Note.Trim());
+            var result = await _apiClient.UnlockAsync(trimmedTagCode, _options.WorkStationId, string.IsNullOrWhiteSpace(Note) ? null : Note.Trim(), accessToken);
             StatusMessage = $"✓ Đã mở khóa rework cho tem \"{result.TagCode}\" — công nhân có thể scan lại tại công đoạn \"{StageName}\".";
             IsLastResultSuccess = true;
             TagCode = string.Empty;

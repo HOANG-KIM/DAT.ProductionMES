@@ -262,6 +262,11 @@ public class ScanService : IScanService
                 (query.TagCode == null || s.TagCode == query.TagCode) &&
                 (query.WorkStationId == null || s.WorkStationId == query.WorkStationId) &&
                 (query.LineId == null || s.LineId == query.LineId) &&
+                (query.StageId == null || s.StageId == query.StageId) &&
+                (query.Lot == null || s.Lot == query.Lot) &&
+                (query.Model == null || s.Model == query.Model) &&
+                (query.Customer == null || s.Customer == query.Customer) &&
+                (query.Revision == null || s.Revision == query.Revision) &&
                 (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) &&
                 (query.ToUtc == null || s.ScannedAtUtc <= query.ToUtc),
             cancellationToken);
@@ -269,10 +274,26 @@ public class ScanService : IScanService
         // AC2: "sắp xếp theo thời gian" -> tăng dần (thứ tự xảy ra trước-sau của các lượt scan cùng 1 tem).
         var ordered = matched.OrderBy(s => s.ScannedAtUtc).ThenBy(s => s.Id).ToList();
 
-        var pageItems = ordered
+        var pageScans = ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(ToHistoryItemDto)
+            .ToList();
+
+        // US-21 AC8: tên trạm làm việc thực hiện — chỉ tra cứu cho đúng các trạm xuất hiện trong TRANG hiện tại
+        // (không phải toàn bộ `ordered`), tránh phình truy vấn không cần thiết cho các trang không được xem tới.
+        var workStationIds = pageScans.Select(s => s.WorkStationId).Distinct().ToList();
+        var workStationNamesById = workStationIds.Count == 0
+            ? new Dictionary<int, string>()
+            : (await _unitOfWork.Repository<WorkStation>().FindAsync(w => workStationIds.Contains(w.Id), cancellationToken))
+                .ToDictionary(w => w.Id, w => w.Name);
+
+        // US-21 AC10/AC11: trạng thái rework phải suy luận trên TOÀN BỘ lịch sử Scan/ReworkUnlock tại
+        // (TagCode, StageId) — KHÔNG dùng lại `matched` (đã bị lọc theo From/To của chính query này), vì 1 lượt
+        // NG nằm trong khoảng đang xem có thể được mở khóa/scan lại ở 1 thời điểm NẰM NGOÀI khoảng đó.
+        var reworkByScanId = await BuildReworkStatusByScanIdAsync(pageScans, cancellationToken);
+
+        var pageItems = pageScans
+            .Select(s => ToHistoryItemDto(s, workStationNamesById, reworkByScanId))
             .ToList();
 
         return new PagedResult<ScanHistoryItemDto>
@@ -284,26 +305,86 @@ public class ScanService : IScanService
         };
     }
 
-    private static ScanHistoryItemDto ToHistoryItemDto(Scan scan) => new()
+    /// <summary>
+    /// US-21 AC10/AC11: tính <see cref="ReworkStatusCalculator.ReworkStatusResult"/> cho từng lượt scan NG trong
+    /// <paramref name="pageScans"/> — trả về rỗng ngay nếu trang không có lượt NG nào (tránh 2 truy vấn thừa).
+    /// </summary>
+    private async Task<Dictionary<int, ReworkStatusCalculator.ReworkStatusResult>> BuildReworkStatusByScanIdAsync(
+        IReadOnlyList<Scan> pageScans, CancellationToken cancellationToken)
     {
-        Id = scan.Id,
-        TagCode = scan.TagCode,
-        StageId = scan.StageId,
-        LineId = scan.LineId,
-        WorkStationId = scan.WorkStationId,
-        ProductionPlanId = scan.ProductionPlanId,
-        Customer = scan.Customer,
-        Model = scan.Model,
-        Lot = scan.Lot,
-        Revision = scan.Revision,
-        PlannedQuantity = scan.PlannedQuantity,
-        TaktTimeSeconds = scan.TaktTimeSeconds,
-        ScannedAtUtc = scan.ScannedAtUtc,
-        Result = scan.Result,
-        RejectionReason = scan.RejectionReason,
-        ConfirmedByUserId = scan.ConfirmedByUserId,
-        ConfirmedByUserName = scan.ConfirmedByUserName,
-    };
+        var ngScans = pageScans.Where(s => s.Result == ScanResult.Ng).ToList();
+        var result = new Dictionary<int, ReworkStatusCalculator.ReworkStatusResult>();
+        if (ngScans.Count == 0)
+        {
+            return result;
+        }
+
+        var ngPairs = ngScans.Select(s => (s.TagCode, s.StageId)).Distinct().ToList();
+        var tagCodes = ngPairs.Select(p => p.TagCode).Distinct().ToList();
+        var stageIdsForRework = ngPairs.Select(p => p.StageId).Distinct().ToList();
+
+        // Truy vấn theo tập hợp TagCode/StageId (EF Core dịch được thành WHERE ... IN (...)) rồi lọc đúng cặp
+        // (TagCode, StageId) ở tầng in-memory ngay sau đó — cùng idiom ProductionReportService đang dùng cho
+        // (LineId, StageId).
+        var scansAtPairs = (await _unitOfWork.Repository<Scan>().FindAsync(
+            s => tagCodes.Contains(s.TagCode) && stageIdsForRework.Contains(s.StageId), cancellationToken))
+            .Where(s => ngPairs.Contains((s.TagCode, s.StageId)))
+            .ToList();
+
+        var unlocksAtPairs = (await _unitOfWork.Repository<ReworkUnlock>().FindAsync(
+            u => tagCodes.Contains(u.TagCode) && stageIdsForRework.Contains(u.StageId), cancellationToken))
+            .Where(u => ngPairs.Contains((u.TagCode, u.StageId)))
+            .ToList();
+
+        foreach (var ngScan in ngScans)
+        {
+            var scansAtPair = scansAtPairs.Where(s => s.TagCode == ngScan.TagCode && s.StageId == ngScan.StageId).ToList();
+            var unlocksAtPair = unlocksAtPairs.Where(u => u.TagCode == ngScan.TagCode && u.StageId == ngScan.StageId).ToList();
+            result[ngScan.Id] = ReworkStatusCalculator.Compute(ngScan, scansAtPair, unlocksAtPair);
+        }
+
+        return result;
+    }
+
+    private static ScanHistoryItemDto ToHistoryItemDto(
+        Scan scan,
+        IReadOnlyDictionary<int, string> workStationNamesById,
+        IReadOnlyDictionary<int, ReworkStatusCalculator.ReworkStatusResult> reworkByScanId)
+    {
+        var dto = new ScanHistoryItemDto
+        {
+            Id = scan.Id,
+            TagCode = scan.TagCode,
+            StageId = scan.StageId,
+            LineId = scan.LineId,
+            WorkStationId = scan.WorkStationId,
+            WorkStationName = workStationNamesById.TryGetValue(scan.WorkStationId, out var workStationName) ? workStationName : string.Empty,
+            ProductionPlanId = scan.ProductionPlanId,
+            Customer = scan.Customer,
+            Model = scan.Model,
+            Lot = scan.Lot,
+            Revision = scan.Revision,
+            PlannedQuantity = scan.PlannedQuantity,
+            TaktTimeSeconds = scan.TaktTimeSeconds,
+            OperatorNames = scan.OperatorNames,
+            ScannedAtUtc = scan.ScannedAtUtc,
+            Result = scan.Result,
+            RejectionReason = scan.RejectionReason,
+            ConfirmedByUserId = scan.ConfirmedByUserId,
+            ConfirmedByUserName = scan.ConfirmedByUserName,
+        };
+
+        if (reworkByScanId.TryGetValue(scan.Id, out var reworkResult))
+        {
+            dto.ReworkStatus = reworkResult.Status;
+            dto.ReworkStillNgOccurrence = reworkResult.StillNgOccurrence;
+            dto.ReworkUnlockedByUserName = reworkResult.Unlock?.UnlockedByUserName;
+            dto.ReworkUnlockedAtUtc = reworkResult.Unlock?.UnlockedAtUtc;
+            dto.ReworkUnlockNote = reworkResult.Unlock?.Note;
+        }
+
+        return dto;
+    }
 
     private static Scan BuildScan(
         string tagCode, WorkStation workStation, ProductionPlan productionPlan, ScanResult result, string? rejectionReason, DateTime scannedAtUtc,
@@ -322,6 +403,7 @@ public class ScanService : IScanService
             Revision = productionPlan.Revision,
             PlannedQuantity = productionPlan.PlannedQuantity,
             TaktTimeSeconds = productionPlan.TaktTimeSeconds,
+            OperatorNames = productionPlan.OperatorNames,
             ScannedAtUtc = scannedAtUtc,
             Result = result,
             RejectionReason = rejectionReason,
@@ -352,6 +434,7 @@ public class ScanService : IScanService
         Revision = scan.Revision,
         PlannedQuantity = scan.PlannedQuantity,
         TaktTimeSeconds = scan.TaktTimeSeconds,
+        OperatorNames = scan.OperatorNames,
         ScannedAtUtc = scan.ScannedAtUtc,
         Result = scan.Result,
         RejectionReason = scan.RejectionReason,

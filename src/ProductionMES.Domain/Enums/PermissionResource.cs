@@ -32,4 +32,12 @@ public enum PermissionResource
     /// <c>ConfirmNg</c>/<c>View</c> — xem AC6 US-19).
     /// </summary>
     Scan = 7,
+
+    /// <summary>
+    /// Báo cáo tổng hợp theo Line/công đoạn (US-21, FR-21) — hiện chỉ dùng <c>View</c>. Tách riêng khỏi
+    /// <see cref="Scan"/> dù cùng đọc dữ liệu Scan bên trong, vì đây là góc nhìn tổng hợp (Ban quản lý/Văn phòng)
+    /// khác với tra cứu chi tiết lịch sử theo tem — cho phép Admin cấp/thu hồi 2 quyền độc lập nhau qua UI phân
+    /// quyền (ADR-004) sau này nếu cần.
+    /// </summary>
+    Report = 8,
 }

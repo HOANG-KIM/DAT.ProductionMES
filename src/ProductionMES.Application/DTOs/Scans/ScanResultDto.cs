@@ -36,6 +36,9 @@ public class ScanResultDto
     /// <summary>Snapshot ProductionPlan.TaktTimeSeconds tại thời điểm scan (US-10) — không tra cứu động.</summary>
     public decimal TaktTimeSeconds { get; set; }
 
+    /// <summary>Snapshot ProductionPlan.OperatorNames tại thời điểm scan (US-10 AC1/AC5) — không tra cứu động.</summary>
+    public string OperatorNames { get; set; } = string.Empty;
+
     public DateTime ScannedAtUtc { get; set; }
 
     public ScanResult Result { get; set; }

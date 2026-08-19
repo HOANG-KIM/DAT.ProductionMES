@@ -97,6 +97,9 @@ public static class DbSeeder
             (PermissionResource.Scan, PermissionAction.ConfirmNg),
             // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG — chỉ Tổ trưởng/Admin.
             (PermissionResource.Scan, PermissionAction.ReworkUnlock),
+
+            // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
+            (PermissionResource.Report, PermissionAction.View),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -123,18 +126,22 @@ public static class DbSeeder
             rolePermissions.AddRange(newPermissions.Select(p => new RolePermission { Role = UserRole.Admin, PermissionId = p.Id }));
 
             // Supervisor: phần MỚI của ProductionPlan + ProductionPlanStage (khớp hardcode "Supervisor,Admin" cũ
-            // ở 2 Controller đó) + Scan (US-10 — Tổ trưởng tra cứu lịch sử scan).
+            // ở 2 Controller đó) + Scan (US-10 — Tổ trưởng tra cứu lịch sử scan) + Report (US-21 — Tổ trưởng xem
+            // báo cáo tổng hợp theo Line/công đoạn).
             var newSupervisorPermissions = newPermissions.Where(p =>
                 p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage
-                || p.Resource == PermissionResource.Scan);
+                || p.Resource == PermissionResource.Scan || p.Resource == PermissionResource.Report);
             rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
             // Manager: Scan.View (US-10, tra cứu lịch sử scan) + Scan.ConfirmNg (US-18, thay đổi 18/08/2026, xác
             // nhận Scan NG tại trạm — quyết định nghiệp vụ chốt 18/08/2026: mở rộng quyền xác nhận NG cho cả
-            // Manager, không chỉ Supervisor) — Manager KHÔNG có permission nào khác ngoài nhóm Scan. Scan.ReworkUnlock
+            // Manager, không chỉ Supervisor) + Report.View (US-21, báo cáo tổng hợp — đúng vai trò "Ban quản lý/
+            // Văn phòng" của US-21) — Manager KHÔNG có permission nào khác ngoài 2 nhóm Scan/Report. Scan.ReworkUnlock
             // (US-19) KHÔNG cấp cho Manager (khác 2 permission Scan trên) — AC6 chốt "chỉ Tổ trưởng" (+ Admin) mới
             // được "Mở khóa rework", không mở rộng cho Manager như đã làm với ConfirmNg.
-            var newManagerPermissions = newPermissions.Where(p => p.Resource == PermissionResource.Scan && p.Action != PermissionAction.ReworkUnlock);
+            var newManagerPermissions = newPermissions.Where(p =>
+                (p.Resource == PermissionResource.Scan && p.Action != PermissionAction.ReworkUnlock)
+                || p.Resource == PermissionResource.Report);
             rolePermissions.AddRange(newManagerPermissions.Select(p => new RolePermission { Role = UserRole.Manager, PermissionId = p.Id }));
 
             // Operator: không permission nào (khớp thực tế hiện tại — chưa endpoint nào cho phép role này).
@@ -147,6 +154,7 @@ public static class DbSeeder
         await EnsureScanViewPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureScanConfirmNgPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureScanReworkUnlockPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsureReportViewPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -295,6 +303,41 @@ public static class DbSeeder
         }
 
         dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = scanReworkUnlockPermissionId.Value }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 18/08/2026 (US-21, báo cáo tổng hợp theo Line/công đoạn): đảm bảo <c>(Report, View)</c> được cấp
+    /// cho <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> — cùng lý do/idiom lưới an toàn với
+    /// <see cref="EnsureScanViewPermissionGrantsAsync"/>. Idempotent theo từng cặp (Role, PermissionId), chạy MỖI
+    /// lần khởi động.
+    /// </summary>
+    private static async Task EnsureReportViewPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var reportViewPermissionId = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.Report && p.Action == PermissionAction.View)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (reportViewPermissionId is null)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor, UserRole.Manager };
+
+        var alreadyGrantedRoles = await dbContext.RolePermissions
+            .Where(rp => rp.PermissionId == reportViewPermissionId.Value && roles.Contains(rp.Role))
+            .Select(rp => rp.Role)
+            .ToListAsync(cancellationToken);
+
+        var missingRoles = roles.Except(alreadyGrantedRoles).ToList();
+        if (missingRoles.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = reportViewPermissionId.Value }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

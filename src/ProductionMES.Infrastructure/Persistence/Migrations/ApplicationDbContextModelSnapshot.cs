@@ -350,6 +350,11 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<string>("OperatorNames")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
                     b.Property<int>("PlannedQuantity")
                         .HasColumnType("int");
 

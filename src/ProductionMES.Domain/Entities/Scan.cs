@@ -33,6 +33,11 @@ namespace ProductionMES.Domain.Entities;
 /// chép từ <see cref="ProductionPlan"/> tại đúng thời điểm scan — không phải tra cứu động qua
 /// <see cref="ProductionPlanId"/>. Nếu sau này ai sửa các field tương ứng ở ProductionPlan, lịch sử scan cũ vẫn
 /// giữ nguyên đúng giá trị đã ghi nhận lúc scan, tránh sai lệch traceability.
+///
+/// US-10 AC1/AC5 (bổ sung 19/08/2026, xem mục 8.2 SRS): <see cref="OperatorNames"/> cũng là SNAPSHOT
+/// <see cref="ProductionPlan.OperatorNames"/> tại thời điểm scan, theo đúng cơ chế snapshot ở trên. Khác với
+/// 6 field snapshot kể trên, <see cref="OperatorNames"/> KHÔNG thuộc nhóm bị khóa tuyệt đối khi kế hoạch đã có
+/// scan — Tổ trưởng vẫn sửa được tự do ở ProductionPlan (giống Số lượng/Takt time), không cần khóa field này.
 /// </remarks>
 public class Scan
 {
@@ -70,6 +75,11 @@ public class Scan
 
     /// <summary>Snapshot ProductionPlan.TaktTimeSeconds tại thời điểm scan (US-10, xem remarks).</summary>
     public decimal TaktTimeSeconds { get; set; }
+
+    /// <summary>Snapshot ProductionPlan.OperatorNames tại thời điểm scan (US-10 AC1/AC5, bổ sung 19/08/2026) —
+    /// KHÔNG phải định danh cá nhân theo lượt scan, chỉ là danh sách người vận hành khai báo CHUNG cho kế hoạch
+    /// (xem remarks class-level và mục 8.2 SRS).</summary>
+    public string OperatorNames { get; set; } = string.Empty;
 
     /// <summary>Thời điểm scan (UTC).</summary>
     public DateTime ScannedAtUtc { get; set; }

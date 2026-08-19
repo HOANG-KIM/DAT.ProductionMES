@@ -64,6 +64,21 @@ public class ScanServiceTests
         _productionPlanStageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStage>());
+
+        // US-21 AC8: GetHistoryAsync tra thêm IRepository<WorkStation>.FindAsync để lấy tên trạm — mặc định rỗng
+        // (WorkStationName trả về chuỗi rỗng), từng test AC8 override qua SetupExistingWorkStations nếu cần.
+        _workStationRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<WorkStation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<WorkStation>());
+    }
+
+    /// <summary>US-21 AC8: mô phỏng bảng WorkStation hiện có trong DB, dùng cho GetHistoryAsync.</summary>
+    private void SetupExistingWorkStations(List<WorkStation> existingWorkStations)
+    {
+        _workStationRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<WorkStation, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<WorkStation, bool>> predicate, CancellationToken _) =>
+                existingWorkStations.Where(predicate.Compile()).ToList());
     }
 
     /// <summary>US-19: mô phỏng bảng ReworkUnlock hiện có trong DB.</summary>
@@ -281,7 +296,7 @@ public class ScanServiceTests
     }
 
     // US-10 AC1 — Lượt scan lưu đúng 6 field snapshot (Customer/Model/Lot/Revision/PlannedQuantity/TaktTimeSeconds)
-    // từ ProductionPlan tại thời điểm scan.
+    // từ ProductionPlan tại thời điểm scan. US-10 AC1/AC5 (bổ sung 19/08/2026): cũng snapshot đúng OperatorNames.
     [Fact]
     public async Task CreateAsync_ScanThanhCong_LuuDungSnapshot6FieldTuProductionPlan()
     {
@@ -308,6 +323,7 @@ public class ScanServiceTests
                 Revision = "B",
                 PlannedQuantity = 500,
                 TaktTimeSeconds = 25.5m,
+                OperatorNames = "Nguyễn Văn A, Trần Thị B",
             });
 
         _productionPlanStageServiceMock.Setup(s => s.GetByProductionPlanAsync(1, It.IsAny<CancellationToken>()))
@@ -325,6 +341,7 @@ public class ScanServiceTests
         Assert.Equal("B", result.Revision);
         Assert.Equal(500, result.PlannedQuantity);
         Assert.Equal(25.5m, result.TaktTimeSeconds);
+        Assert.Equal("Nguyễn Văn A, Trần Thị B", result.OperatorNames);
 
         _scanRepositoryMock.Verify(r => r.AddAsync(It.Is<Scan>(s =>
                 s.Customer == "Khách hàng A" &&
@@ -332,7 +349,8 @@ public class ScanServiceTests
                 s.Lot == "LOT001" &&
                 s.Revision == "B" &&
                 s.PlannedQuantity == 500 &&
-                s.TaktTimeSeconds == 25.5m),
+                s.TaktTimeSeconds == 25.5m &&
+                s.OperatorNames == "Nguyễn Văn A, Trần Thị B"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -353,5 +371,168 @@ public class ScanServiceTests
 
         Assert.Equal(ScanResult.Ok, result.Result);
         _productionPlanStageRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlanStage>()), Times.Never);
+    }
+
+    // Mở rộng 18/08/2026 (US-21 AC7): GetHistoryAsync thêm filter Lot/Model/Customer/Revision/StageId, kết hợp
+    // AND với các filter cũ (US-10 AC3) — phục vụ drill-down từ báo cáo tổng hợp (US-21).
+    [Fact]
+    public async Task GetHistoryAsync_LocTheoLot_ChiTraVeDungLotDo()
+    {
+        SetupExistingScans(new List<Scan>
+        {
+            new() { Id = 1, TagCode = "A", Lot = "LOT1", StageId = LapRapStageId, LineId = 1, ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok },
+            new() { Id = 2, TagCode = "B", Lot = "LOT2", StageId = LapRapStageId, LineId = 1, ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok },
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1" });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("LOT1", item.Lot);
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_LocTheoStageIdModelCustomerRevision_KetHopAND()
+    {
+        SetupExistingScans(new List<Scan>
+        {
+            new()
+            {
+                Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, Model = "M1", Customer = "C1",
+                Revision = "R1", ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok,
+            },
+            // Khác Model -> không khớp dù cùng StageId/Customer/Revision.
+            new()
+            {
+                Id = 2, TagCode = "B", StageId = LapRapStageId, LineId = 1, Model = "M2", Customer = "C1",
+                Revision = "R1", ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok,
+            },
+            // Khác StageId -> không khớp dù các field còn lại giống hệt.
+            new()
+            {
+                Id = 3, TagCode = "C", StageId = ThongDienStageId, LineId = 1, Model = "M1", Customer = "C1",
+                Revision = "R1", ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok,
+            },
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery
+        {
+            StageId = LapRapStageId,
+            Model = "M1",
+            Customer = "C1",
+            Revision = "R1",
+        });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(1, item.Id);
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_HienThiDayDuLyDoNgVaNguoiXacNhan_PhucVuDrillDownAC8()
+    {
+        SetupExistingScans(new List<Scan>
+        {
+            new()
+            {
+                Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, Lot = "LOT1",
+                Result = ScanResult.Ng, RejectionReason = "Trầy xước", ConfirmedByUserId = 7,
+                ConfirmedByUserName = "to.truong", ScannedAtUtc = DateTime.UtcNow,
+            },
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1" });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(ScanResult.Ng, item.Result);
+        Assert.Equal("Trầy xước", item.RejectionReason);
+        Assert.Equal(7, item.ConfirmedByUserId);
+        Assert.Equal("to.truong", item.ConfirmedByUserName);
+    }
+
+    // US-21 AC8: hiển thị đúng tên trạm làm việc thực hiện lượt scan (không phải tên Operator).
+    [Fact]
+    public async Task GetHistoryAsync_TraVeDungTenTramLamViec_PhucVuDrillDownAC8()
+    {
+        SetupExistingScans(new List<Scan>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, WorkStationId = 5, Lot = "LOT1", ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok },
+        });
+        SetupExistingWorkStations(new List<WorkStation> { new() { Id = 5, Name = "Trạm Lắp ráp 01", LineId = 1, StageId = LapRapStageId } });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1" });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(5, item.WorkStationId);
+        Assert.Equal("Trạm Lắp ráp 01", item.WorkStationName);
+    }
+
+    // US-21 AC10/AC11: lượt Ok không có trạng thái rework (null) — chỉ có ý nghĩa với lượt Ng.
+    [Fact]
+    public async Task GetHistoryAsync_LuotOk_KhongCoTrangThaiRework()
+    {
+        SetupExistingScans(new List<Scan>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, Lot = "LOT1", ScannedAtUtc = DateTime.UtcNow, Result = ScanResult.Ok },
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1" });
+
+        var item = Assert.Single(result.Items);
+        Assert.Null(item.ReworkStatus);
+        Assert.Null(item.ReworkUnlockedByUserName);
+    }
+
+    // US-21 AC10/AC11: lượt Ng đã được mở khóa (ReworkUnlock) và chưa scan lại -> "WaitingRescan" kèm đúng người mở khóa.
+    [Fact]
+    public async Task GetHistoryAsync_LuotNgDaMoKhoaChuaScanLai_TraVeTrangThaiChoScanLaiKemNguoiSuaHang()
+    {
+        var ngAt = new DateTime(2026, 8, 18, 8, 0, 0, DateTimeKind.Utc);
+        var unlockAt = ngAt.AddMinutes(5);
+
+        SetupExistingScans(new List<Scan>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, Lot = "LOT1", ScannedAtUtc = ngAt, Result = ScanResult.Ng },
+        });
+        SetupExistingReworkUnlocks(new List<ReworkUnlock>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, UnlockedAtUtc = unlockAt, UnlockedByUserId = 9, UnlockedByUserName = "to_truong_b", Note = "Đã thay linh kiện." },
+        });
+
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1" });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(ReworkStatus.WaitingRescan, item.ReworkStatus);
+        Assert.Equal("to_truong_b", item.ReworkUnlockedByUserName);
+        Assert.Equal(unlockAt, item.ReworkUnlockedAtUtc);
+        Assert.Equal("Đã thay linh kiện.", item.ReworkUnlockNote);
+        Assert.Null(item.ReworkStillNgOccurrence);
+    }
+
+    // US-21 AC10: trạng thái rework phải suy luận trên TOÀN BỘ lịch sử, không bị giới hạn bởi filter From/To của
+    // chính lượt tra cứu — lượt mở khóa/scan lại nằm NGOÀI khoảng đang xem vẫn phải được tính đúng.
+    [Fact]
+    public async Task GetHistoryAsync_ReworkUnlockNamNgoaiKhoangThoiGianDangLoc_VanTinhDungTrangThai()
+    {
+        var ngAt = new DateTime(2026, 8, 18, 8, 0, 0, DateTimeKind.Utc);
+        var unlockAt = ngAt.AddDays(1); // Nằm ngoài khoảng [ngAt, ngAt+1h] đang lọc bên dưới.
+        var okAt = unlockAt.AddMinutes(5);
+
+        SetupExistingScans(new List<Scan>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, LineId = 1, Lot = "LOT1", ScannedAtUtc = ngAt, Result = ScanResult.Ng },
+            new() { Id = 2, TagCode = "A", StageId = LapRapStageId, LineId = 1, Lot = "LOT1", ScannedAtUtc = okAt, Result = ScanResult.Ok },
+        });
+        SetupExistingReworkUnlocks(new List<ReworkUnlock>
+        {
+            new() { Id = 1, TagCode = "A", StageId = LapRapStageId, UnlockedAtUtc = unlockAt, UnlockedByUserId = 9, UnlockedByUserName = "to_truong_b" },
+        });
+
+        // Chỉ lọc đúng khoảng chứa lượt Ng (không chứa unlock/rescan) -> kết quả trả về đúng 1 lượt Ng, nhưng
+        // trạng thái rework của nó phải phản ánh đúng "đã sửa xong" dựa trên lịch sử ĐẦY ĐỦ.
+        var result = await _sut.GetHistoryAsync(new ScanHistoryQuery { Lot = "LOT1", FromUtc = ngAt, ToUtc = ngAt.AddHours(1) });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(ScanResult.Ng, item.Result);
+        Assert.Equal(ReworkStatus.Fixed, item.ReworkStatus);
+        Assert.Equal("to_truong_b", item.ReworkUnlockedByUserName);
     }
 }
