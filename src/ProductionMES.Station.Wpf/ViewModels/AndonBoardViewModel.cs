@@ -150,6 +150,17 @@ public partial class AndonBoardViewModel : ObservableObject
     [ObservableProperty]
     private int plannedQuantity;
 
+    /// <summary>
+    /// US-21a AC8 (viết lại hoàn toàn 19/08/2026) — "Tổng số lượng Lot" (nhập tay) cạnh ô LOT, CHỈ hiển thị khi
+    /// server trả về khác null (server đã tự quyết định ẩn khi <see cref="HasActivePlan"/> = false hoặc khi Lot
+    /// CHƯA XÁC ĐỊNH — chưa từng có ai nhập).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLotTotalQuantityVisible))]
+    private int? lotTotalQuantity;
+
+    public bool IsLotTotalQuantityVisible => LotTotalQuantity.HasValue;
+
     /// <summary>TAKT TIME đã format phút:giây (tái dùng <see cref="TaktTimeFormat.ToDisplay"/> đã dùng ở US-05), rỗng khi <see cref="HasActivePlan"/> = false.</summary>
     [ObservableProperty]
     private string taktTimeLabel = string.Empty;
@@ -308,6 +319,7 @@ public partial class AndonBoardViewModel : ObservableObject
         Model = board.Model;
         Lot = board.Lot;
         PlannedQuantity = board.PlannedQuantity;
+        LotTotalQuantity = board.LotTotalQuantity;
         TaktTimeLabel = board.HasActivePlan ? TaktTimeFormat.ToVerboseDisplay(board.TaktTimeSeconds) : string.Empty;
         StartingTimeLabel = board.HasActivePlan && board.PlanStartTime.HasValue ? board.PlanStartTime.Value.ToString("HH:mm") : string.Empty;
         OperatorNamesLabel = board.OperatorNames;

@@ -25,6 +25,12 @@ public class ProductionPlanDto
 
     public decimal StandardQuantityPerHour { get; set; }
 
+    /// <summary>
+    /// US-05 AC7/AC9 (=US-21a) — "Tổng số lượng Lot" hiện có của <see cref="Lot"/> (nhập tay), <c>null</c> = "Chưa
+    /// xác định". Hiển thị lại tự động khi mở kế hoạch để sửa (AC2 US-21a).
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
+
     /// <summary>Hiển thị Takt time dạng "m:ss" (US-05 AC1e) — thay cho hiển thị số giây thô trên DataGrid.</summary>
     public string TaktTimeDisplay => TaktTimeFormat.ToDisplay(TaktTimeSeconds);
 

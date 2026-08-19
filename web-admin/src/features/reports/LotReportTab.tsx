@@ -102,6 +102,19 @@ export function LotReportTab() {
       align: 'right',
       render: (value: number) => <span style={{ color: value > 0 ? '#E53935' : undefined, fontWeight: 600 }}>{value}</span>,
     },
+    {
+      // US-21a AC5: so sánh Đủ/Chưa đủ theo TỪNG dòng riêng biệt (KHÔNG gộp 1 số cho cả Lot).
+      title: 'Đủ số lượng Lot?',
+      dataIndex: 'isSufficientQuantity',
+      key: 'isSufficientQuantity',
+      align: 'center',
+      render: (value: boolean | null) => {
+        if (value === null) {
+          return <Tag>Chưa xác định</Tag>;
+        }
+        return value ? <Tag color="success">Đủ</Tag> : <Tag color="error">Chưa đủ</Tag>;
+      },
+    },
   ];
 
   return (
@@ -156,6 +169,14 @@ export function LotReportTab() {
                 <Descriptions.Item label="Model">{renderMultiValue(summaryQuery.data.models)}</Descriptions.Item>
                 <Descriptions.Item label="Khách hàng">{renderMultiValue(summaryQuery.data.customers)}</Descriptions.Item>
                 <Descriptions.Item label="Revision">{renderMultiValue(summaryQuery.data.revisions)}</Descriptions.Item>
+                {/* US-21a AC1/AC5/AC6 (viết lại hoàn toàn 19/08/2026): "Tổng số lượng Lot" nhập tay tại Station.Wpf (US-05 AC7-AC9), KHÔNG phải SUM. */}
+                <Descriptions.Item label="Tổng số lượng Lot">
+                  <Typography.Text strong>
+                    {summaryQuery.data.lotTotalQuantity === null
+                      ? 'Chưa xác định'
+                      : summaryQuery.data.lotTotalQuantity.toLocaleString('vi-VN')}
+                  </Typography.Text>
+                </Descriptions.Item>
               </Descriptions>
             </Card>
 

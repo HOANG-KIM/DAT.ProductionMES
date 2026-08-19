@@ -26,6 +26,12 @@ public class AndonBoardDto
     /// <summary>Số lượng kế hoạch (PROD.PLAN) — 0 khi <see cref="HasActivePlan"/> = false.</summary>
     public int PlannedQuantity { get; set; }
 
+    /// <summary>
+    /// US-21a AC8 (viết lại hoàn toàn 19/08/2026) — "Tổng số lượng Lot" NHẬP TAY, null khi không có kế hoạch
+    /// active HOẶC khi Lot CHƯA XÁC ĐỊNH (chưa từng có ai nhập — client ẩn ô khi null).
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
+
     /// <summary>Takt time (giây/sản phẩm) — format phút:giây làm ở client bằng <c>TaktTimeFormat.ToDisplay</c> (US-05).</summary>
     public decimal TaktTimeSeconds { get; set; }
 

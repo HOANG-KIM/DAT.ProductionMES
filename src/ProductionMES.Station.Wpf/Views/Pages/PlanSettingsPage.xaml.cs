@@ -64,4 +64,13 @@ public partial class PlanSettingsPage : Page
             textBox.Text = "00:00";
         }
     }
+
+    /// <summary>
+    /// US-05 AC9 (=US-21a AC4/AC9): rời khỏi ô "Lot" -> tra cứu ngay (không cần rời màn hình) để gợi ý "Tổng SL
+    /// Lot" hiện có + breakdown đã chạy OK, hoặc đánh dấu Lot hoàn toàn mới (AC7).
+    /// </summary>
+    private async void LotTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.LoadLotInfoCommand.ExecuteAsync(null);
+    }
 }

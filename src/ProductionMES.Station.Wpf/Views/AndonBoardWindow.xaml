@@ -175,6 +175,12 @@
                     <TextBlock Text="{Binding TaktTimeLabel}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,0,40,0" VerticalAlignment="Bottom"/>
                     <TextBlock Text="LOT:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
                     <TextBlock Text="{Binding Lot}" FontSize="28" FontWeight="Bold" Foreground="White" VerticalAlignment="Bottom"/>
+                    <!-- US-21a AC8 (viết lại hoàn toàn 19/08/2026): "Tổng số lượng Lot" (nhập tay) cạnh ô LOT, chỉ hiện khi Lot đã xác định (ViewModel quyết định qua IsLotTotalQuantityVisible). -->
+                    <StackPanel Orientation="Horizontal" Margin="40,0,0,0"
+                                Visibility="{Binding IsLotTotalQuantityVisible, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="SL LOT:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding LotTotalQuantity}" FontSize="28" FontWeight="Bold" Foreground="White" VerticalAlignment="Bottom"/>
+                    </StackPanel>
                 </StackPanel>
 
                 <Border Grid.Column="1" Background="#1A1E27" BorderBrush="#2A3040" BorderThickness="1" CornerRadius="6"

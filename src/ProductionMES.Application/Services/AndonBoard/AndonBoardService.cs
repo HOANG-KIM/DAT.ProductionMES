@@ -1,5 +1,6 @@
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.AndonBoard;
+using ProductionMES.Application.Services.Lots;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
@@ -17,6 +18,10 @@ namespace ProductionMES.Application.Services.AndonBoard;
 /// "ACTUAL"/"NG" tra cứu theo (ProductionPlanId, StageId) — giống hệt <c>ProductionPlanStageService.GetRunCountAsync</c>
 /// (US-05a AC4), KHÔNG lọc thêm theo WorkStationId, vì 1 cặp (Kế hoạch, Công đoạn) chỉ có ý nghĩa 1 tiến độ duy
 /// nhất bất kể trạm vật lý nào thực hiện (dù thực tế hiện tại mỗi Line+Stage thường chỉ có 1 WorkStation).
+///
+/// US-21a AC8 (viết lại hoàn toàn 19/08/2026): "Tổng SL Lot" đọc từ entity <see cref="Domain.Entities.Lot"/> qua
+/// <see cref="ILotService"/> (nhập tay, KHÔNG phải SUM) — <c>null</c> khi chưa xác định, client (Station.Wpf) tự
+/// ẩn ô này (xem <c>AndonBoardDto.LotTotalQuantity</c>).
 /// </remarks>
 public class AndonBoardService : IAndonBoardService
 {
@@ -26,10 +31,12 @@ public class AndonBoardService : IAndonBoardService
     private const int MaxHourRows = 24;
 
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILotService _lotService;
 
-    public AndonBoardService(IUnitOfWork unitOfWork)
+    public AndonBoardService(IUnitOfWork unitOfWork, ILotService lotService)
     {
         _unitOfWork = unitOfWork;
+        _lotService = lotService;
     }
 
     public async Task<AndonBoardDto> GetForWorkStationAsync(int workStationId, CancellationToken cancellationToken = default)
@@ -55,6 +62,10 @@ public class AndonBoardService : IAndonBoardService
 
         var productionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(runningPlanStage.ProductionPlanId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {runningPlanStage.ProductionPlanId}.");
+
+        // US-21a AC8: Tổng SL Lot — đọc entity Lot theo Code (nhập tay), null khi chưa xác định (client tự ẩn).
+        var lotDto = await _lotService.GetByCodeAsync(productionPlan.Lot, cancellationToken);
+        var lotTotalQuantity = lotDto?.TotalQuantity;
 
         var breakWindowEntities = await _unitOfWork.Repository<BreakWindow>().FindAsync(
             x => x.LineId == workStation.LineId, cancellationToken);
@@ -104,6 +115,7 @@ public class AndonBoardService : IAndonBoardService
             Model = productionPlan.Model,
             Lot = productionPlan.Lot,
             PlannedQuantity = productionPlan.PlannedQuantity,
+            LotTotalQuantity = lotTotalQuantity,
             TaktTimeSeconds = productionPlan.TaktTimeSeconds,
             PlanStartTime = productionPlan.StartTime,
             OperatorNames = productionPlan.OperatorNames,

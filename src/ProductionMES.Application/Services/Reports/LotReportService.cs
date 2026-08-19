@@ -6,7 +6,9 @@ using ProductionMES.Domain.Enums;
 namespace ProductionMES.Application.Services.Reports;
 
 /// <summary>
-/// Implementation <see cref="ILotReportService"/> (US-21/FR-21, vòng 3 — 18/08/2026, AC1-AC5).
+/// Implementation <see cref="ILotReportService"/> (US-21/FR-21, vòng 3 — 18/08/2026, AC1-AC5; US-21a AC5/AC6,
+/// viết lại hoàn toàn 19/08/2026 — "Tổng số lượng Lot" đọc từ entity <see cref="Lot"/> nhập tay, KHÔNG còn tính
+/// SUM(PlannedQuantity) như bản đề xuất ban đầu).
 /// </summary>
 /// <remarks>
 /// <b>AC4 — xác định danh sách (Line, Công đoạn) của 1 Lot</b>: hợp (union) 2 nguồn — (a) <c>LineId</c>/<c>StageId</c>
@@ -20,6 +22,12 @@ namespace ProductionMES.Application.Services.Reports;
 /// [FromUtc, ToUtc] tùy chọn — KHÔNG dùng <c>AndonBoardCalculator</c>/gộp theo <c>ProductionPlanId</c> như
 /// <see cref="ProductionReportService"/> (bản vòng 2), vì AC6 (vòng 3) không yêu cầu PLAN/BALANCE nên không cần
 /// biết "kế hoạch tham chiếu" của từng lượt scan, chỉ cần đúng Lot + Line + Công đoạn + khoảng thời gian.
+///
+/// <b>US-21a AC5/AC6</b>: "Tổng số lượng Lot" tra trực tiếp entity <see cref="Lot"/> theo <c>Code = lot</c> qua
+/// <c>IUnitOfWork</c> (KHÔNG qua <c>Services.Lots.ILotService</c> — tránh phụ thuộc vòng, vì <c>LotService</c>
+/// đọc lại chính <see cref="GetLotSummaryAsync"/> này để tính soft-confirm AC3/AC8 US-05). <c>null</c> khi chưa
+/// từng có ai nhập (AC6 "Chưa xác định") — mỗi dòng breakdown (<see cref="LotStageRowDto.IsSufficientQuantity"/>)
+/// so sánh riêng OkCount với giá trị này, KHÔNG gộp 1 số cho cả Lot (đã chốt với Ban quản lý).
 /// </remarks>
 public class LotReportService : ILotReportService
 {
@@ -41,7 +49,8 @@ public class LotReportService : ILotReportService
             return Array.Empty<LotSearchItemDto>();
         }
 
-        // Không có entity Lot riêng (CLAUDE.md, mục Data access) — quét DISTINCT ProductionPlan.Lot khớp gần đúng.
+        // Không có entity Lot riêng cho việc TÌM KIẾM (chỉ dùng entity Lot cho "Tổng số lượng Lot") — vẫn quét
+        // DISTINCT ProductionPlan.Lot khớp gần đúng như trước, vì đây là autocomplete theo lịch sử kế hoạch.
         var plans = await _unitOfWork.Repository<ProductionPlan>().FindAsync(p => p.Lot.Contains(trimmed), cancellationToken);
 
         return plans
@@ -67,6 +76,10 @@ public class LotReportService : ILotReportService
         var customers = plans.Select(p => p.Customer).Distinct().OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
         var revisions = plans.Select(p => p.Revision ?? string.Empty).Distinct().OrderBy(r => r, StringComparer.OrdinalIgnoreCase).ToList();
 
+        // US-21a AC1/AC5: "Tổng số lượng Lot" = giá trị NHẬP TAY trên entity Lot (Code = lot), KHÔNG phải SUM.
+        var lotEntity = (await _unitOfWork.Repository<Lot>().FindAsync(l => l.Code == lot, cancellationToken)).FirstOrDefault();
+        var lotTotalQuantity = lotEntity?.TotalQuantity;
+
         var planIds = plans.Select(p => p.Id).ToHashSet();
         var planStages = await _unitOfWork.Repository<ProductionPlanStage>().FindAsync(ps => planIds.Contains(ps.ProductionPlanId), cancellationToken);
 
@@ -86,24 +99,41 @@ public class LotReportService : ILotReportService
 
         if (pairs.Count == 0)
         {
-            return new LotSummaryDto { Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc, Rows = Array.Empty<LotStageRowDto>() };
+            return new LotSummaryDto
+            {
+                Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc,
+                Rows = Array.Empty<LotStageRowDto>(),
+                LotTotalQuantity = lotTotalQuantity,
+            };
         }
 
         var lineIds = pairs.Select(p => p.LineId).Distinct().ToList();
+        var lines = (await _unitOfWork.Repository<Line>().FindAsync(l => lineIds.Contains(l.Id), cancellationToken)).ToList();
+
         var stageIds = pairs.Select(p => p.StageId).Distinct().ToList();
-        var lines = await _unitOfWork.Repository<Line>().FindAsync(l => lineIds.Contains(l.Id), cancellationToken);
         var stages = await _unitOfWork.Repository<Stage>().FindAsync(s => stageIds.Contains(s.Id), cancellationToken);
 
-        var rows = pairs.Select(p => new LotStageRowDto
+        var rows = pairs.Select(p =>
         {
-            LineId = p.LineId,
-            LineName = lines.FirstOrDefault(l => l.Id == p.LineId)?.Name ?? $"#{p.LineId}",
-            StageId = p.StageId,
-            StageName = stages.FirstOrDefault(s => s.Id == p.StageId)?.Name ?? $"#{p.StageId}",
-            OkCount = scans.Count(s => s.LineId == p.LineId && s.StageId == p.StageId && s.Result == ScanResult.Ok),
-            NgCount = scans.Count(s => s.LineId == p.LineId && s.StageId == p.StageId && s.Result == ScanResult.Ng),
+            var okCount = scans.Count(s => s.LineId == p.LineId && s.StageId == p.StageId && s.Result == ScanResult.Ok);
+            var ngCount = scans.Count(s => s.LineId == p.LineId && s.StageId == p.StageId && s.Result == ScanResult.Ng);
+            return new LotStageRowDto
+            {
+                LineId = p.LineId,
+                LineName = lines.FirstOrDefault(l => l.Id == p.LineId)?.Name ?? $"#{p.LineId}",
+                StageId = p.StageId,
+                StageName = stages.FirstOrDefault(s => s.Id == p.StageId)?.Name ?? $"#{p.StageId}",
+                OkCount = okCount,
+                NgCount = ngCount,
+                // US-21a AC5: so sánh THEO TỪNG DÒNG riêng biệt, null khi LotTotalQuantity chưa xác định (AC6).
+                IsSufficientQuantity = lotTotalQuantity.HasValue ? okCount >= lotTotalQuantity.Value : null,
+            };
         }).ToList();
 
-        return new LotSummaryDto { Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc, Rows = rows };
+        return new LotSummaryDto
+        {
+            Lot = lot, Models = models, Customers = customers, Revisions = revisions, FromUtc = fromUtc, ToUtc = toUtc, Rows = rows,
+            LotTotalQuantity = lotTotalQuantity,
+        };
     }
 }

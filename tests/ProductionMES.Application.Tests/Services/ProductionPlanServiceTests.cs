@@ -1,6 +1,8 @@
 using Moq;
 using ProductionMES.Application.Abstractions.Persistence;
+using ProductionMES.Application.DTOs.Lots;
 using ProductionMES.Application.DTOs.ProductionPlans;
+using ProductionMES.Application.Services.Lots;
 using ProductionMES.Application.Services.ProductionPlans;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
@@ -9,10 +11,13 @@ using ProductionMES.Domain.Exceptions;
 namespace ProductionMES.Application.Tests.Services;
 
 /// <summary>
-/// Unit test cho ProductionPlanService, bám theo AC1/AC2/AC4/AC5 của US-05 và AC1 của US-06
-/// (Documents/BACKLOG-user-story.md, cập nhật 13/08/2026). AC1 (US-05a — ràng buộc active theo cặp Line/Công
+/// Unit test cho ProductionPlanService, bám theo AC1/AC2/AC4/AC5/AC7-AC9 của US-05 và AC1 của US-06
+/// (Documents/BACKLOG-user-story.md, cập nhật 19/08/2026). AC1 (US-05a — ràng buộc active theo cặp Line/Công
 /// đoạn) và AC5 (US-05a — đóng sớm) được kiểm thử ở ProductionPlanStageServiceTests, vì vòng đời trạng thái nay
-/// thuộc entity ProductionPlanStage.
+/// thuộc entity ProductionPlanStage. AC7-AC9 (US-21a, viết lại hoàn toàn 19/08/2026 — "Tổng số lượng Lot" nhập
+/// tay) đi qua <see cref="ILotService"/> (mock riêng) — <c>HasAnyProductionPlanAsync</c> mặc định <c>true</c>
+/// ("Lot đã tồn tại", không bắt buộc <c>LotTotalQuantity</c>) để không phá vỡ các test AC1-AC6 không liên quan,
+/// từng test AC7-AC9 override lại qua <see cref="SetupLotIsNew"/>.
 /// </summary>
 public class ProductionPlanServiceTests
 {
@@ -21,6 +26,7 @@ public class ProductionPlanServiceTests
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly Mock<ILotService> _lotServiceMock = new();
     private readonly ProductionPlanService _sut;
 
     public ProductionPlanServiceTests()
@@ -29,7 +35,7 @@ public class ProductionPlanServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<Line>()).Returns(_lineRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
-        _sut = new ProductionPlanService(_unitOfWorkMock.Object);
+        _sut = new ProductionPlanService(_unitOfWorkMock.Object, _lotServiceMock.Object);
 
         _lineRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Line { Id = 1, Name = "Line 1", IsActive = true });
@@ -42,7 +48,24 @@ public class ProductionPlanServiceTests
         _scanRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Scan>());
+
+        // AC7 (US-21a): mặc định "Lot đã tồn tại" (không bắt buộc LotTotalQuantity) — test AC7-AC9 override qua SetupLotIsNew.
+        _lotServiceMock.Setup(s => s.HasAnyProductionPlanAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _lotServiceMock.Setup(s => s.GetByCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((LotDto?)null);
+        _lotServiceMock
+            .Setup(s => s.UpsertTotalQuantityAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string code, int total, bool _, string? user, CancellationToken _) => new LotDto { Code = code, TotalQuantity = total, UpdatedByUserName = user });
     }
+
+    /// <summary>AC7/AC8/AC9: mô phỏng Lot HOÀN TOÀN MỚI (chưa từng có ProductionPlan nào).</summary>
+    private void SetupLotIsNew() =>
+        _lotServiceMock.Setup(s => s.HasAnyProductionPlanAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+    /// <summary>AC8: mô phỏng LotService từ chối (chưa Confirm) khi giảm dưới thực tế đã chạy.</summary>
+    private void SetupLotUpsertRejectsWithoutConfirm() =>
+        _lotServiceMock
+            .Setup(s => s.UpsertTotalQuantityAsync(It.IsAny<string>(), It.IsAny<int>(), false, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new BusinessRuleException("Tổng số lượng Lot mới NHỎ HƠN số lượng đã chạy OK thực tế."));
 
     /// <summary>Mô phỏng kế hoạch ĐÃ có bản ghi Scan (AC6 — khóa sửa Customer/Model/Lot/Revision).</summary>
     private void SetupExistingScans(List<Scan> existingScans)
@@ -72,7 +95,7 @@ public class ProductionPlanServiceTests
     {
         var request = BuildValidCreateRequest();
 
-        var result = await _sut.CreateAsync(request);
+        var result = await _sut.CreateAsync(request, updatedByUserName: null);
 
         Assert.Equal("Model X", result.Model);
         Assert.Equal("LOT001", result.Lot);
@@ -86,7 +109,7 @@ public class ProductionPlanServiceTests
         var request = BuildValidCreateRequest();
         request.Revision = null;
 
-        var result = await _sut.CreateAsync(request);
+        var result = await _sut.CreateAsync(request, updatedByUserName: null);
 
         Assert.Null(result.Revision);
     }
@@ -99,7 +122,7 @@ public class ProductionPlanServiceTests
 
         var request = BuildValidCreateRequest(2);
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, updatedByUserName: null));
     }
 
     [Fact]
@@ -107,7 +130,7 @@ public class ProductionPlanServiceTests
     {
         var request = BuildValidCreateRequest(99);
 
-        await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateAsync(request));
+        await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateAsync(request, updatedByUserName: null));
     }
 
     // AC4 — Cập nhật kế hoạch chưa từng Running (Draft): tự do cập nhật, không cần Confirm.
@@ -133,7 +156,7 @@ public class ProductionPlanServiceTests
             Confirm = false,
         };
 
-        var result = await _sut.UpdateAsync(1, request);
+        var result = await _sut.UpdateAsync(1, request, updatedByUserName: null);
 
         Assert.Equal("Model mới", result.Model);
         Assert.Equal(200, result.PlannedQuantity);
@@ -164,7 +187,7 @@ public class ProductionPlanServiceTests
             Confirm = false,
         };
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, updatedByUserName: null));
         _productionPlanRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlan>()), Times.Never);
     }
 
@@ -192,7 +215,7 @@ public class ProductionPlanServiceTests
             Confirm = true,
         };
 
-        var result = await _sut.UpdateAsync(1, request);
+        var result = await _sut.UpdateAsync(1, request, updatedByUserName: null);
 
         Assert.Equal(500, result.PlannedQuantity);
         _productionPlanRepositoryMock.Verify(r => r.Update(existing), Times.Once);
@@ -224,7 +247,7 @@ public class ProductionPlanServiceTests
             Confirm = false,
         };
 
-        var result = await _sut.UpdateAsync(1, request);
+        var result = await _sut.UpdateAsync(1, request, updatedByUserName: null);
 
         Assert.Equal("Khách hàng mới", result.Customer);
     }
@@ -253,7 +276,7 @@ public class ProductionPlanServiceTests
             Confirm = true, // Confirm=true KHÔNG override được rule này
         };
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, updatedByUserName: null));
         _productionPlanRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlan>()), Times.Never);
     }
 
@@ -281,7 +304,7 @@ public class ProductionPlanServiceTests
             Confirm = false,
         };
 
-        var result = await _sut.UpdateAsync(1, request);
+        var result = await _sut.UpdateAsync(1, request, updatedByUserName: null);
 
         Assert.Equal("Model mới", result.Model);
         _productionPlanRepositoryMock.Verify(r => r.Update(existing), Times.Once);
@@ -294,8 +317,97 @@ public class ProductionPlanServiceTests
         var request = BuildValidCreateRequest();
         request.TaktTimeSeconds = 30;
 
-        var result = await _sut.CreateAsync(request);
+        var result = await _sut.CreateAsync(request, updatedByUserName: null);
 
         Assert.Equal(120m, result.StandardQuantityPerHour);
+    }
+
+    // US-05 AC7 (=US-21a AC1): tạo kế hoạch cho Lot HOÀN TOÀN MỚI mà KHÔNG nhập LotTotalQuantity -> từ chối.
+    [Fact]
+    public async Task CreateAsync_LotHoanToanMoiKhongNhapLotTotalQuantity_NemBusinessRuleException()
+    {
+        SetupLotIsNew();
+        var request = BuildValidCreateRequest();
+        request.LotTotalQuantity = null;
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, updatedByUserName: null));
+        _productionPlanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<ProductionPlan>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // US-05 AC7: tạo kế hoạch cho Lot HOÀN TOÀN MỚI kèm LotTotalQuantity hợp lệ -> tạo thành công, upsert Lot.
+    [Fact]
+    public async Task CreateAsync_LotHoanToanMoiCoNhapLotTotalQuantity_TaoThanhCongVaUpsertLot()
+    {
+        SetupLotIsNew();
+        var request = BuildValidCreateRequest();
+        request.LotTotalQuantity = 1500;
+
+        var result = await _sut.CreateAsync(request, updatedByUserName: "to.truong");
+
+        Assert.Equal("LOT001", result.Lot);
+        _lotServiceMock.Verify(s => s.UpsertTotalQuantityAsync("LOT001", 1500, false, "to.truong", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // US-05 AC7: Lot ĐÃ TỒN TẠI -> không bắt buộc LotTotalQuantity, tạo thành công bình thường (mặc định constructor: HasAnyProductionPlanAsync = true).
+    [Fact]
+    public async Task CreateAsync_LotDaTonTaiKhongNhapLotTotalQuantity_VanTaoThanhCong()
+    {
+        var request = BuildValidCreateRequest();
+        request.LotTotalQuantity = null;
+
+        var result = await _sut.CreateAsync(request, updatedByUserName: null);
+
+        Assert.Equal("LOT001", result.Lot);
+        _lotServiceMock.Verify(s => s.UpsertTotalQuantityAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // US-05 AC8 (=US-21a AC3): sửa LotTotalQuantity xuống dưới thực tế đã chạy, chưa Confirm -> từ chối (LotService ném BusinessRuleException).
+    [Fact]
+    public async Task UpdateAsync_GiamLotTotalQuantityDuoiThucTeChuaConfirm_NemBusinessRuleException()
+    {
+        SetupLotUpsertRejectsWithoutConfirm();
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+            LotTotalQuantity = 500,
+            Confirm = false,
+        };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, updatedByUserName: null));
+        _productionPlanRepositoryMock.Verify(r => r.Update(It.IsAny<ProductionPlan>()), Times.Never);
+    }
+
+    // US-05 AC8: cùng tình huống trên nhưng đã Confirm = true -> LotService không từ chối (mock chỉ throw khi confirm=false) -> cập nhật thành công.
+    [Fact]
+    public async Task UpdateAsync_GiamLotTotalQuantityDuoiThucTeDaConfirm_CapNhatThanhCong()
+    {
+        SetupLotUpsertRejectsWithoutConfirm();
+        var existing = new ProductionPlan
+        {
+            Id = 1, LineId = 1, Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+        };
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var request = new UpdateProductionPlanRequest
+        {
+            Customer = "A", Model = "M", Lot = "L",
+            PlannedQuantity = 1000, TaktTimeSeconds = 30, StartTime = DateTime.Today, OperatorNames = "A",
+            LotTotalQuantity = 500,
+            Confirm = true,
+        };
+
+        var result = await _sut.UpdateAsync(1, request, updatedByUserName: "to.truong");
+
+        Assert.Equal("L", result.Lot);
+        _lotServiceMock.Verify(s => s.UpsertTotalQuantityAsync("L", 500, true, "to.truong", It.IsAny<CancellationToken>()), Times.Once);
     }
 }

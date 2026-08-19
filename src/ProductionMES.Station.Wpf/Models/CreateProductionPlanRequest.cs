@@ -20,4 +20,10 @@ public class CreateProductionPlanRequest
     public DateTime StartTime { get; set; }
 
     public string OperatorNames { get; set; } = string.Empty;
+
+    /// <summary>US-05 AC7 (=US-21a AC1) — bắt buộc khi Lot hoàn toàn mới, server tự kiểm tra (409 nếu thiếu).</summary>
+    public int? LotTotalQuantity { get; set; }
+
+    /// <summary>US-05 AC8 (=US-21a AC3) — xác nhận khi Lot đã tồn tại có "Tổng số lượng Lot" giảm dưới thực tế đã chạy.</summary>
+    public bool Confirm { get; set; }
 }

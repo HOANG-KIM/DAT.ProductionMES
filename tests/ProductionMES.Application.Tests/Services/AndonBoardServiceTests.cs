@@ -1,7 +1,9 @@
 using System.Linq.Expressions;
 using Moq;
 using ProductionMES.Application.Abstractions.Persistence;
+using ProductionMES.Application.DTOs.Lots;
 using ProductionMES.Application.Services.AndonBoard;
+using ProductionMES.Application.Services.Lots;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
@@ -23,6 +25,7 @@ public class AndonBoardServiceTests
     private readonly Mock<IRepository<BreakWindow>> _breakWindowRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly Mock<ILotService> _lotServiceMock = new();
     private readonly AndonBoardService _sut;
 
     public AndonBoardServiceTests()
@@ -33,13 +36,15 @@ public class AndonBoardServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<BreakWindow>()).Returns(_breakWindowRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
 
-        _sut = new AndonBoardService(_unitOfWorkMock.Object);
+        _sut = new AndonBoardService(_unitOfWorkMock.Object, _lotServiceMock.Object);
 
         SetupExistingBreakWindows(new List<BreakWindow>());
         SetupExistingScans(new List<Scan>());
         _productionPlanStageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<ProductionPlanStage, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ProductionPlanStage>());
+        // US-21a AC8: mặc định Lot CHƯA XÁC ĐỊNH (chưa từng có ai nhập) — test riêng override qua _lotServiceMock.
+        _lotServiceMock.Setup(s => s.GetByCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((LotDto?)null);
     }
 
     private void SetupExistingBreakWindows(List<BreakWindow> breakWindows)
@@ -58,7 +63,8 @@ public class AndonBoardServiceTests
                 scans.Where(predicate.Compile()).ToList());
     }
 
-    private void SetupRunningPlan(int workStationId, int lineId, int stageId, int productionPlanId, DateTime startTime, decimal taktTimeSeconds)
+    private void SetupRunningPlan(
+        int workStationId, int lineId, int stageId, int productionPlanId, DateTime startTime, decimal taktTimeSeconds)
     {
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(workStationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = workStationId, LineId = lineId, StageId = stageId, Name = $"Trạm {workStationId}" });
@@ -72,12 +78,13 @@ public class AndonBoardServiceTests
             .ReturnsAsync((Expression<Func<ProductionPlanStage, bool>> predicate, CancellationToken _) =>
                 new List<ProductionPlanStage> { runningPlanStage }.Where(predicate.Compile()).ToList());
 
+        var runningPlan = new ProductionPlan
+        {
+            Id = productionPlanId, LineId = lineId, StartTime = startTime, TaktTimeSeconds = taktTimeSeconds, PlannedQuantity = 1_000_000,
+            Model = "33800-82M71/D", Lot = "LOT-01", OperatorNames = "HOANG, MINH, TUAN",
+        };
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(productionPlanId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProductionPlan
-            {
-                Id = productionPlanId, LineId = lineId, StartTime = startTime, TaktTimeSeconds = taktTimeSeconds, PlannedQuantity = 1_000_000,
-                Model = "33800-82M71/D", Lot = "LOT-01", OperatorNames = "HOANG, MINH, TUAN",
-            });
+            .ReturnsAsync(runningPlan);
     }
 
     // Phòng vệ: trạm không tồn tại -> EntityNotFoundException, không NullReference.
@@ -194,5 +201,45 @@ public class AndonBoardServiceTests
         var withBreak = await _sut.GetForWorkStationAsync(1);
 
         Assert.Equal(2, withBreak.PlanCumulative);
+    }
+
+    // US-21a AC8 (viết lại hoàn toàn 19/08/2026): Lot CHƯA XÁC ĐỊNH (chưa từng có ai nhập "Tổng số lượng Lot") -> null (client tự ẩn ô).
+    [Fact]
+    public async Task GetForWorkStationAsync_LotChuaXacDinh_LotTotalQuantityNull()
+    {
+        var startTime = DateTime.Now.AddHours(-1);
+        SetupRunningPlan(workStationId: 1, lineId: 1, stageId: 100, productionPlanId: 10, startTime, taktTimeSeconds: 60m);
+        // Mặc định constructor: _lotServiceMock.GetByCodeAsync trả về null (chưa xác định).
+
+        var result = await _sut.GetForWorkStationAsync(1);
+
+        Assert.Null(result.LotTotalQuantity);
+    }
+
+    // US-21a AC8: Lot ĐÃ có ai nhập "Tổng số lượng Lot" -> hiển thị đúng giá trị nhập tay (KHÔNG phải SUM/PlannedQuantity).
+    [Fact]
+    public async Task GetForWorkStationAsync_LotDaCoTongSoLuongNhapTay_HienThiDungGiaTri()
+    {
+        var startTime = DateTime.Now.AddHours(-1);
+        SetupRunningPlan(workStationId: 1, lineId: 1, stageId: 100, productionPlanId: 10, startTime, taktTimeSeconds: 60m);
+        _lotServiceMock
+            .Setup(s => s.GetByCodeAsync("LOT-01", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LotDto { Code = "LOT-01", TotalQuantity = 2000 });
+
+        var result = await _sut.GetForWorkStationAsync(1);
+
+        Assert.Equal(2000, result.LotTotalQuantity);
+    }
+
+    // Không có kế hoạch active -> LotTotalQuantity null (không truy vấn/tính gì thêm).
+    [Fact]
+    public async Task GetForWorkStationAsync_KhongCoKeHoachActive_LotTotalQuantityNull()
+    {
+        _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = 100, Name = "Trạm chưa có kế hoạch" });
+
+        var result = await _sut.GetForWorkStationAsync(1);
+
+        Assert.Null(result.LotTotalQuantity);
     }
 }

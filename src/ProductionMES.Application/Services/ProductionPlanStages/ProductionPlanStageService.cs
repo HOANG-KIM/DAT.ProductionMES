@@ -1,5 +1,6 @@
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.DTOs.ProductionPlanStages;
+using ProductionMES.Application.Services.Lots;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
 using ProductionMES.Domain.Exceptions;
@@ -21,10 +22,12 @@ namespace ProductionMES.Application.Services.ProductionPlanStages;
 public class ProductionPlanStageService : IProductionPlanStageService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILotService _lotService;
 
-    public ProductionPlanStageService(IUnitOfWork unitOfWork)
+    public ProductionPlanStageService(IUnitOfWork unitOfWork, ILotService lotService)
     {
         _unitOfWork = unitOfWork;
+        _lotService = lotService;
     }
 
     public async Task<IReadOnlyList<ProductionPlanStageDto>> GetByProductionPlanAsync(int productionPlanId, CancellationToken cancellationToken = default)
@@ -176,6 +179,11 @@ public class ProductionPlanStageService : IProductionPlanStageService
             s => s.StageId == stageId && s.Result == ScanResult.Ok && planIds.Contains(s.ProductionPlanId), cancellationToken);
         var runCountByPlanId = okScans.GroupBy(s => s.ProductionPlanId).ToDictionary(g => g.Key, g => g.Count());
 
+        // US-21a AC7: "Tổng SL Lot" của mỗi dòng đọc từ entity Lot (nhập tay, KHÔNG phải SUM) theo Code — gộp 1
+        // truy vấn cho toàn bộ các Lot xuất hiện trong danh sách (tránh N+1).
+        var lots = plans.Select(p => p.Lot).Distinct().ToList();
+        var lotByCode = await _lotService.GetByCodesAsync(lots, cancellationToken);
+
         return plans
             .Select(plan =>
             {
@@ -205,6 +213,7 @@ public class ProductionPlanStageService : IProductionPlanStageService
                     PlanStatus = x.planStatus,
                     RunCount = runCount,
                     RemainingCount = Math.Max(0, x.plan.PlannedQuantity - runCount),
+                    LotTotalQuantity = lotByCode.TryGetValue(x.plan.Lot, out var lotDto) ? lotDto.TotalQuantity : null,
                 };
             })
             .ToList();

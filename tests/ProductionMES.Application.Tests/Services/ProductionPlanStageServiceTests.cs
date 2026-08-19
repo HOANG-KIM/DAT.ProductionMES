@@ -1,6 +1,8 @@
 using Moq;
 using ProductionMES.Application.Abstractions.Persistence;
+using ProductionMES.Application.DTOs.Lots;
 using ProductionMES.Application.DTOs.ProductionPlanStages;
+using ProductionMES.Application.Services.Lots;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
@@ -21,6 +23,7 @@ public class ProductionPlanStageServiceTests
     private readonly Mock<IRepository<LineStageSequence>> _lineStageSequenceRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+    private readonly Mock<ILotService> _lotServiceMock = new();
     private readonly ProductionPlanStageService _sut;
 
     public ProductionPlanStageServiceTests()
@@ -29,7 +32,10 @@ public class ProductionPlanStageServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<LineStageSequence>()).Returns(_lineStageSequenceRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
-        _sut = new ProductionPlanStageService(_unitOfWorkMock.Object);
+        _lotServiceMock
+            .Setup(s => s.GetByCodesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, LotDto>());
+        _sut = new ProductionPlanStageService(_unitOfWorkMock.Object, _lotServiceMock.Object);
 
         _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProductionPlan { Id = 1, LineId = 1, PlannedQuantity = 1000 });
@@ -365,5 +371,50 @@ public class ProductionPlanStageServiceTests
         var result = await _sut.GetByLineAndStageAsync(1, 99);
 
         Assert.Empty(result);
+    }
+
+    // US-21a AC7 (viết lại hoàn toàn 19/08/2026): "Tổng SL Lot" đọc từ entity Lot theo Code (nhập tay), KHÔNG
+    // phải SUM(PlannedQuantity) — tra theo tập hợp Code xuất hiện trong danh sách kế hoạch của Line đang xem.
+    [Fact]
+    public async Task GetByLineAndStageAsync_LotDaCoTongSoLuongNhapTay_TraVeDungGiaTriDaNhap()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running },
+        });
+        _lotServiceMock
+            .Setup(s => s.GetByCodesAsync(It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<string, LotDto> { ["LOT-A"] = new LotDto { Code = "LOT-A", TotalQuantity = 1500 } });
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10);
+
+        var plan = Assert.Single(result);
+        Assert.Equal(1, plan.ProductionPlanId);
+        Assert.Equal(1000, plan.PlannedQuantity);
+        Assert.Equal(1500, plan.LotTotalQuantity);
+    }
+
+    // US-21a AC6: Lot CHƯA từng có ai nhập "Tổng số lượng Lot" -> null ("Chưa xác định"), không suy luận từ PlannedQuantity.
+    [Fact]
+    public async Task GetByLineAndStageAsync_LotChuaXacDinh_TraVeNull()
+    {
+        SetupProductionPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", PlannedQuantity = 1000, TaktTimeSeconds = 12, StartTime = new DateTime(2026, 8, 14) },
+        });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, StageId = 10, LineId = 1, PlanStatus = PlanStatus.Running },
+        });
+        // Mặc định constructor: GetByCodesAsync trả về dictionary rỗng (không có Lot nào được nhập).
+
+        var result = await _sut.GetByLineAndStageAsync(1, 10);
+
+        var plan = Assert.Single(result);
+        Assert.Null(plan.LotTotalQuantity);
     }
 }

@@ -12,6 +12,7 @@ using ProductionMES.Station.Wpf.Services.Navigation;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
 using ProductionMES.Station.Wpf.Services.Realtime;
+using ProductionMES.Station.Wpf.Services.Reports;
 using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
 using ProductionMES.Station.Wpf.Services.Scans;
 using ProductionMES.Station.Wpf.Services.Stages;
@@ -117,6 +118,13 @@ public partial class App : Application
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
         services.AddHttpClient<ILineApiClient, LineApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<SupervisorAuthHandler>();
+
+        // US-05 AC9 (=US-21a AC9): gợi ý "Tổng SL Lot" + breakdown OK khi Tổ trưởng gõ/chọn Lot đã tồn tại tại
+        // màn "Cài đặt kế hoạch" — tái dùng permission Report.View, cùng scheme Bearer Supervisor.
+        services.AddHttpClient<ILotReportApiClient, LotReportApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();

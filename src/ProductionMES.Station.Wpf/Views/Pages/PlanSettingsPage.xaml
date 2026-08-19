@@ -7,6 +7,7 @@
       Loaded="Page_Loaded">
     <Page.Resources>
         <converters:LineIdToNameConverter x:Key="LineIdToNameConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Page.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -80,7 +81,27 @@
                 <TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 
                 <TextBlock Text="Lot" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
-                <TextBox Text="{Binding Lot, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
+                <TextBox Text="{Binding Lot, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,2"
+                         LostFocus="LotTextBox_LostFocus"/>
+
+                <!-- US-05 AC7 (=US-21a AC1): "Tổng số lượng Lot" — nhập tay, bắt buộc khi Lot hoàn toàn mới (AC7),
+                     hiển thị lại tự động khi Lot đã tồn tại nhưng vẫn sửa được tự do (AC2). -->
+                <TextBlock Foreground="{StaticResource StatusWarningBrush}" FontSize="11" Margin="0,0,0,2" FontWeight="Bold"
+                           Visibility="{Binding IsLotNew, Converter={StaticResource BoolToVisibility}}"
+                           Text="Lot hoàn toàn mới — bắt buộc nhập &quot;Tổng số lượng Lot&quot;"/>
+                <TextBlock Text="Tổng số lượng Lot (nhập tay, dùng chung mọi kế hoạch cùng Lot)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                <TextBox Text="{Binding LotTotalQuantity, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,2,0,2"/>
+
+                <!-- US-05 AC9 (=US-21a AC4/AC9): breakdown "đã chạy OK theo (Line, Công đoạn)" của Lot đang gõ/chọn, hỗ trợ nhập PlannedQuantity chính xác. -->
+                <DataGrid ItemsSource="{Binding LotBreakdownRows}" AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserAddRows="False" HeadersVisibility="Column" MaxHeight="120" Margin="0,0,0,10"
+                          Visibility="{Binding HasLotBreakdownRows, Converter={StaticResource BoolToVisibility}}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Line" Binding="{Binding LineName}"/>
+                        <DataGridTextColumn Header="Công đoạn" Binding="{Binding StageName}"/>
+                        <DataGridTextColumn Header="Đã chạy OK" Binding="{Binding OkCount}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
 
                 <TextBlock Text="Revision (không bắt buộc)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding Revision, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>

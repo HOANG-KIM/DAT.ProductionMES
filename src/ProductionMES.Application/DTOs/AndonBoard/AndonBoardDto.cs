@@ -31,6 +31,14 @@ public class AndonBoardDto
     /// <summary>Số lượng kế hoạch (PROD.PLAN, <c>ProductionPlan.PlannedQuantity</c>) — chỉ có giá trị khi <see cref="HasActivePlan"/> = true.</summary>
     public int PlannedQuantity { get; set; }
 
+    /// <summary>
+    /// US-21a AC8 (viết lại hoàn toàn 19/08/2026) — "Tổng số lượng Lot" NHẬP TAY (entity <c>Domain.Entities.Lot</c>,
+    /// KHÔNG phải SUM PlannedQuantity). <c>null</c> khi KHÔNG có kế hoạch active (<see cref="HasActivePlan"/> =
+    /// false) HOẶC khi Lot này CHƯA XÁC ĐỊNH (chưa từng có ai nhập). Client chỉ hiển thị ô "Tổng SL Lot" khi field
+    /// này có giá trị.
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
+
     /// <summary>Takt time (giây/sản phẩm, <c>ProductionPlan.TaktTimeSeconds</c>) — đơn vị giây, client tự format phút:giây (giống US-05).</summary>
     public decimal TaktTimeSeconds { get; set; }
 

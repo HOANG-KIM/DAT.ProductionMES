@@ -53,6 +53,9 @@
                     <DataGridTextColumn Header="Trạng thái" Binding="{Binding PlanStatus}"/>
                     <DataGridTextColumn Header="Đã chạy" Binding="{Binding RunCount}"/>
                     <DataGridTextColumn Header="Còn lại" Binding="{Binding RemainingCount}"/>
+                    <DataGridTextColumn Header="SL kế hoạch" Binding="{Binding PlannedQuantity}"/>
+                    <!-- US-21a AC7: "SL Lot" (nhập tay) cạnh Số lượng kế hoạch riêng của dòng đó. -->
+                    <DataGridTextColumn Header="SL Lot" Binding="{Binding LotTotalQuantityValueDisplay}"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -72,10 +75,12 @@
                 </TextBlock>
 
                 <TextBlock Text="Số lượng / Takt time" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                <TextBlock Margin="0,0,0,8">
+                <TextBlock Margin="0,0,0,2">
                     <Run Text="{Binding PlannedQuantity, Mode=OneWay}"/> sp · <Run Text="{Binding TaktTimeDisplay, Mode=OneWay}"/>
                     (≈ <Run Text="{Binding StandardQuantityPerHour, Mode=OneWay}"/> sp/giờ)
                 </TextBlock>
+                <!-- US-21a AC7: nhãn "SL Lot" (nhập tay) cạnh Số lượng kế hoạch riêng của dòng đang chọn. -->
+                <TextBlock Text="{Binding LotTotalQuantityDisplay}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,8"/>
 
                 <TextBlock Text="Thời gian bắt đầu" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
                 <TextBlock Text="{Binding StartTimeDisplay}" Margin="0,0,0,8"/>

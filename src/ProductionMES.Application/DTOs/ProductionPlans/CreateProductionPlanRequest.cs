@@ -25,4 +25,19 @@ public class CreateProductionPlanRequest
     public DateTime StartTime { get; set; }
 
     public string OperatorNames { get; set; } = string.Empty;
+
+    /// <summary>
+    /// US-05 AC7 (=US-21a AC1) — "Tổng số lượng Lot", nhập tay. BẮT BUỘC (khác <c>null</c>) khi <see cref="Lot"/>
+    /// là Lot HOÀN TOÀN MỚI (chưa từng có <c>ProductionPlan</c> nào trước đó) — Service tự kiểm tra qua
+    /// <c>Services.Lots.ILotService.HasAnyProductionPlanAsync</c>, KHÔNG validate ở đây (cần truy vấn DB). Nếu Lot
+    /// đã tồn tại, để <c>null</c> nghĩa là "giữ nguyên giá trị hiện có", không bắt buộc gửi lại.
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
+
+    /// <summary>
+    /// US-05 AC8 (=US-21a AC3) — xác nhận sửa "Tổng số lượng Lot" xuống dưới số đã chạy OK thực tế (soft-confirm).
+    /// Dùng RIÊNG cho tình huống Lot đã tồn tại (VD tạo kế hoạch mới cho 1 Lot đã có lịch sử chạy ở Line khác) —
+    /// mặc định <c>false</c>.
+    /// </summary>
+    public bool Confirm { get; set; }
 }

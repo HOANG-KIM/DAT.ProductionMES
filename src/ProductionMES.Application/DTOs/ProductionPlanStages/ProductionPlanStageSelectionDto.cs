@@ -42,4 +42,10 @@ public class ProductionPlanStageSelectionDto
 
     /// <summary>"Còn lại" = PlannedQuantity − RunCount, không nhỏ hơn 0 (US-05a AC4).</summary>
     public int RemainingCount { get; set; }
+
+    /// <summary>
+    /// US-21a AC7 (viết lại hoàn toàn 19/08/2026) — "Tổng số lượng Lot" NHẬP TAY (entity <see cref="Domain.Entities.Lot"/>,
+    /// KHÔNG phải SUM(PlannedQuantity)). <c>null</c> = "Chưa xác định" (chưa từng có ai nhập giá trị này cho Lot này).
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
 }

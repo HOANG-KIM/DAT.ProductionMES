@@ -10,6 +10,7 @@ using ProductionMES.Station.Wpf.Models;
 using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.Lines;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
+using ProductionMES.Station.Wpf.Services.Reports;
 
 namespace ProductionMES.Station.Wpf.ViewModels;
 
@@ -48,6 +49,7 @@ public partial class PlanSettingsViewModel : ObservableObject
 {
     private readonly IProductionPlanApiClient _apiClient;
     private readonly ILineApiClient _lineApiClient;
+    private readonly ILotReportApiClient _lotReportApiClient;
 
     [ObservableProperty]
     private ObservableCollection<ProductionPlanDto> plans = new();
@@ -132,6 +134,25 @@ public partial class PlanSettingsViewModel : ObservableObject
     [ObservableProperty]
     private string operatorNames = string.Empty;
 
+    /// <summary>
+    /// US-05 AC7 (=US-21a AC1) — "Tổng số lượng Lot", nhập tay, dùng chung 1 nguồn duy nhất cho mọi kế hoạch cùng
+    /// Lot. <c>null</c> = chưa nhập/chưa xác định. Tự động điền lại khi gõ/chọn 1 Lot đã tồn tại (AC2/AC9, xem
+    /// <see cref="LoadLotInfoAsync"/>) — vẫn sửa được tự do.
+    /// </summary>
+    [ObservableProperty]
+    private int? lotTotalQuantity;
+
+    /// <summary>AC7: true khi Lot đang gõ HOÀN TOÀN MỚI (chưa từng có kế hoạch nào trước đó) — hiển thị hint bắt buộc nhập <see cref="LotTotalQuantity"/>.</summary>
+    [ObservableProperty]
+    private bool isLotNew;
+
+    /// <summary>AC9: breakdown "đã chạy OK theo từng (Line, Công đoạn)" của Lot đang gõ/chọn — rỗng nếu Lot mới hoặc chưa tra cứu.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLotBreakdownRows))]
+    private ObservableCollection<LotStageRowDto> lotBreakdownRows = new();
+
+    public bool HasLotBreakdownRows => LotBreakdownRows.Count > 0;
+
     [ObservableProperty]
     private string statusMessage = string.Empty;
 
@@ -145,10 +166,11 @@ public partial class PlanSettingsViewModel : ObservableObject
 
     private readonly int _defaultLineId;
 
-    public PlanSettingsViewModel(IProductionPlanApiClient apiClient, ILineApiClient lineApiClient, StationOptions options)
+    public PlanSettingsViewModel(IProductionPlanApiClient apiClient, ILineApiClient lineApiClient, ILotReportApiClient lotReportApiClient, StationOptions options)
     {
         _apiClient = apiClient;
         _lineApiClient = lineApiClient;
+        _lotReportApiClient = lotReportApiClient;
         _defaultLineId = options.LineId;
         LineId = options.LineId;
     }
@@ -247,6 +269,9 @@ public partial class PlanSettingsViewModel : ObservableObject
         StartDate = DateTime.Today;
         StartTimeOfDay = "00:00";
         OperatorNames = string.Empty;
+        LotTotalQuantity = null;
+        IsLotNew = false;
+        LotBreakdownRows = new ObservableCollection<LotStageRowDto>();
         StatusMessage = string.Empty;
     }
 
@@ -272,7 +297,56 @@ public partial class PlanSettingsViewModel : ObservableObject
         StartDate = value.StartTime.Date;
         StartTimeOfDay = value.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
         OperatorNames = value.OperatorNames;
+        // AC2 (US-21a): hiển thị lại tự động "Tổng số lượng Lot" hiện có của kế hoạch đang mở để sửa.
+        LotTotalQuantity = value.LotTotalQuantity;
+        IsLotNew = false;
+        _ = LoadLotInfoAsync();
         StatusMessage = string.Empty;
+    }
+
+    /// <summary>
+    /// US-05 AC9 (=US-21a AC4/AC9): gọi khi Tổ trưởng rời khỏi ô "Lot" (LostFocus) hoặc khi mở kế hoạch cũ để
+    /// sửa — tra cứu Lot qua báo cáo Lot-centric (tái dùng <c>GET api/v1/reports/lots/{lot}</c>, KHÔNG gọi API
+    /// mới): Lot chưa từng tồn tại (404) -> <see cref="IsLotNew"/> = true (bắt buộc nhập AC7); Lot đã tồn tại ->
+    /// điền lại "Tổng số lượng Lot" hiện có (AC2, không ép nhập lại) + breakdown đã chạy OK (AC9). Lỗi mạng/server
+    /// tạm thời KHÔNG chặn nhập liệu (cùng idiom gợi ý lý do NG, US-18 AC4) — chỉ bỏ qua âm thầm.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadLotInfoAsync()
+    {
+        var lotCode = Lot?.Trim();
+        LotBreakdownRows = new ObservableCollection<LotStageRowDto>();
+
+        if (string.IsNullOrWhiteSpace(lotCode))
+        {
+            IsLotNew = false;
+            return;
+        }
+
+        try
+        {
+            var summary = await _lotReportApiClient.GetSummaryAsync(lotCode);
+            if (summary is null)
+            {
+                // AC7: Lot hoàn toàn mới -> bắt buộc nhập "Tổng số lượng Lot".
+                IsLotNew = true;
+                return;
+            }
+
+            IsLotNew = false;
+            LotTotalQuantity = summary.LotTotalQuantity;
+            LotBreakdownRows = new ObservableCollection<LotStageRowDto>(summary.Rows);
+        }
+        catch (ApiException)
+        {
+            // Không chặn nhập liệu vì lỗi tải gợi ý — Tổ trưởng vẫn có thể tự nhập/lưu, server vẫn validate lại.
+        }
+        catch (HttpRequestException)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+        }
     }
 
     /// <summary>Parse <see cref="StartDate"/> + <see cref="StartTimeOfDay"/> thành DateTime đầy đủ (US-05 AC1d) —
@@ -317,6 +391,17 @@ public partial class PlanSettingsViewModel : ObservableObject
             return;
         }
 
+        // US-05 AC7 (=US-21a AC1): chặn sớm phía client khi Lot HOÀN TOÀN MỚI (IsLotNew — cập nhật qua
+        // LoadLotInfoAsync, LostFocus ô Lot) mà chưa nhập "Tổng số lượng Lot" — tránh gọi API rồi hiện nhầm popup
+        // "Xác nhận lưu thay đổi?" (dành cho AC8 soft-confirm, KHÔNG áp dụng cho rule bắt buộc này — AC7 không có
+        // đường Confirm để bỏ qua). Server vẫn validate lại (409) nếu IsLotNew chưa kịp cập nhật (vd Lưu ngay sau
+        // khi gõ Lot mà chưa rời ô).
+        if (IsLotNew && LotTotalQuantity is null)
+        {
+            StatusMessage = $"Lot \"{Lot}\" hoàn toàn mới — bắt buộc nhập \"Tổng số lượng Lot\" trước khi lưu kế hoạch.";
+            return;
+        }
+
         TaktTimeSeconds = taktTimeSecondsValue;
 
         IsBusy = true;
@@ -324,21 +409,7 @@ public partial class PlanSettingsViewModel : ObservableObject
         {
             if (EditingId is null)
             {
-                var created = await _apiClient.CreateAsync(new CreateProductionPlanRequest
-                {
-                    LineId = LineId,
-                    Customer = Customer,
-                    Model = Model,
-                    Lot = Lot,
-                    Revision = string.IsNullOrWhiteSpace(Revision) ? null : Revision,
-                    PlannedQuantity = PlannedQuantity,
-                    TaktTimeSeconds = taktTimeSecondsValue,
-                    StartTime = startTimeValue,
-                    OperatorNames = OperatorNames,
-                });
-                Plans.Add(created);
-                StatusMessage = $"✓ Đã tạo kế hoạch {created.Lot}.";
-                New();
+                await CreateWithConfirmRetryAsync(taktTimeSecondsValue, startTimeValue, confirm: false);
             }
             else
             {
@@ -363,6 +434,51 @@ public partial class PlanSettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// US-05 AC7/AC8 (=US-21a AC1/AC3): tạo kế hoạch mới, kèm "Tổng số lượng Lot" — server có thể từ chối 409 khi
+    /// (a) Lot hoàn toàn mới mà thiếu <see cref="LotTotalQuantity"/> (AC7 — KHÔNG có đường Confirm để bỏ qua,
+    /// chỉ có thể sửa bằng cách nhập giá trị), hoặc (b) Lot đã tồn tại nhưng giảm "Tổng số lượng Lot" xuống dưới
+    /// thực tế đã chạy (AC8 — soft-confirm, cùng UX 409-retry đã có ở <see cref="UpdateWithConfirmRetryAsync"/>).
+    /// </summary>
+    private async Task CreateWithConfirmRetryAsync(decimal taktTimeSecondsValue, DateTime startTimeValue, bool confirm)
+    {
+        var request = new CreateProductionPlanRequest
+        {
+            LineId = LineId,
+            Customer = Customer,
+            Model = Model,
+            Lot = Lot,
+            Revision = string.IsNullOrWhiteSpace(Revision) ? null : Revision,
+            PlannedQuantity = PlannedQuantity,
+            TaktTimeSeconds = taktTimeSecondsValue,
+            StartTime = startTimeValue,
+            OperatorNames = OperatorNames,
+            LotTotalQuantity = LotTotalQuantity,
+            Confirm = confirm,
+        };
+
+        try
+        {
+            var created = await _apiClient.CreateAsync(request);
+            Plans.Add(created);
+            StatusMessage = $"✓ Đã tạo kế hoạch {created.Lot}.";
+            New();
+        }
+        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Conflict && !confirm)
+        {
+            var proceed = MessageBox.Show(
+                ex.Message + "\n\nXác nhận lưu thay đổi?",
+                "Cần xác nhận",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) == MessageBoxResult.Yes;
+
+            if (proceed)
+            {
+                await CreateWithConfirmRetryAsync(taktTimeSecondsValue, startTimeValue, confirm: true);
+            }
+        }
+    }
+
     private async Task UpdateWithConfirmRetryAsync(int id, decimal taktTimeSecondsValue, DateTime startTimeValue, bool confirm)
     {
         var request = new UpdateProductionPlanRequest
@@ -375,6 +491,7 @@ public partial class PlanSettingsViewModel : ObservableObject
             TaktTimeSeconds = taktTimeSecondsValue,
             StartTime = startTimeValue,
             OperatorNames = OperatorNames,
+            LotTotalQuantity = LotTotalQuantity,
             Confirm = confirm,
         };
 

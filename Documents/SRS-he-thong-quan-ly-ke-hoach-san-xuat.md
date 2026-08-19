@@ -265,14 +265,34 @@ làm trục phụ). Vòng 3 này đổi hẳn TRỤC CHÍNH sang Lot theo yêu c
 tại US-21, `Documents/BACKLOG-user-story.md`. Phần code backend vòng 2 (nhóm/gộp theo Lot, PLAN/BALANCE) phần lớn
 tái dùng được làm nền, nhưng UI phải viết lại đáng kể (đổi entrypoint từ bảng nhiều dòng sang tìm/chọn 1 Lot).
 
-**FR-21a — Tổng số lượng kế hoạch theo Lot** *(mới, đề xuất 18/08/2026)*
-- Hệ thống hiện chưa có 1 con số "tổng số lượng của Lot" độc lập — mỗi `ProductionPlan` chỉ lưu `PlannedQuantity`
-  riêng cho kế hoạch/Line đó (FR-05).
-- Bổ sung hiển thị "Tổng số lượng kế hoạch của Lot" = tổng `PlannedQuantity` của mọi `ProductionPlan` cùng giá trị
-  Lot (không phân biệt Line), tại 3 nơi: màn hình báo cáo Lot-centric (FR-21), màn hình "Chọn kế hoạch"
-  (FR-05a/US-05b), và Andon board (FR-09/US-09).
-- Đây là giá trị TÍNH TOÁN (SUM), không phải field lưu trữ mới — xem giới hạn/rủi ro tại mục 8.2 (ý nghĩa
-  `PlannedQuantity` khi 1 Lot chạy nhiều Line chưa được xác nhận).
+**FR-21a — "Tổng số lượng Lot"** *(viết lại hoàn toàn 19/08/2026 — thay thế bản SUM 18/08/2026 do sai bản chất
+nghiệp vụ; đã chốt với Ban quản lý)*
+- "Tổng số lượng Lot" là **giá trị NHẬP TAY**, không phải giá trị tính toán (SUM) — đại diện cho tổng số lượng của
+  CẢ lô hàng (Lot) đã biết trước (vd theo đơn hàng khách hàng), dùng để đối chiếu xem Lot đã sản xuất đủ chưa.
+  Lưu ở entity mới `Lot` (`Code`, `TotalQuantity`, `UpdatedAtUtc`, `UpdatedByUserName`), độc lập với
+  `ProductionPlan.PlannedQuantity` (vẫn là số lượng riêng của từng kế hoạch/Line/công đoạn, không đổi ý nghĩa).
+  `ProductionPlan.Lot` (string) giữ nguyên không đổi — `Lot` là entity nhẹ tra theo `Code`, không có FK (đúng
+  convention không dùng khóa ngoại ở DB, xem CLAUDE.md), không đụng vào luồng snapshot `Scan.Lot`/autocomplete/
+  GroupBy theo Lot đã ổn định ở nhiều Service.
+- Nhập tại màn hình "Cài đặt kế hoạch" (FR-05, `Station.Wpf`, Tổ trưởng/Admin):
+  - **Bắt buộc nhập** khi tạo kế hoạch cho 1 Lot HOÀN TOÀN MỚI (Lot chưa từng có `ProductionPlan` nào trước đó) —
+    không cho lưu kế hoạch nếu bỏ trống trong trường hợp này.
+  - Khi Lot đã tồn tại (đã có `Lot.TotalQuantity` từ trước), giá trị hiển thị lại tự động, KHÔNG bắt nhập lại;
+    vẫn sửa được tự do nếu cần (không thuộc nhóm khóa tuyệt đối ở mục 6 quy tắc 14, vd Khách hàng/Model/Revision).
+  - Khi SỬA (không phải tạo mới) giá trị `TotalQuantity` xuống thấp hơn số lượng OK lớn nhất đã ghi nhận ở bất kỳ
+    (Line, Công đoạn) nào của Lot đó, hệ thống cảnh báo rõ ràng (nêu Line/Công đoạn + số đã chạy vi phạm) và yêu
+    cầu xác nhận (Confirm) trước khi lưu — **không chặn cứng tuyệt đối** (khác nhóm khóa Khách hàng/Model/Lot/
+    Revision), vì đơn hàng thực tế có thể được điều chỉnh giảm sau khi đã chạy dư.
+- Khi Tổ trưởng chọn 1 Lot đã tồn tại tại màn "Cài đặt kế hoạch", hệ thống hiển thị ngay "Tổng SL Lot" hiện có +
+  breakdown "đã chạy OK theo từng (Line, Công đoạn)" của Lot đó, hỗ trợ nhập `PlannedQuantity` chính xác cho kế
+  hoạch mới.
+- Hiển thị "Tổng SL Lot" tại 3 nơi: báo cáo Lot-centric (FR-21), màn "Chọn kế hoạch" (FR-05a/US-05b), Andon board
+  (FR-09/US-09) — Lot chưa từng nhập giá trị này (trường hợp dữ liệu cũ trước khi có FR-21a) hiển thị "Chưa xác
+  định" (không phải 0, không ẩn hẳn), ở Andon board thì ẩn hẳn ô "TỔNG SL LOT" khi chưa xác định.
+- Báo cáo Lot-centric (FR-21) hiển thị thêm, cho MỖI dòng (Line, Công đoạn): "Đã chạy OK / Tổng SL Lot" kèm nhãn
+  Đủ/Chưa đủ (so sánh `OkCount` với `Lot.TotalQuantity`) — đã chốt với Ban quản lý: so sánh theo TỪNG dòng riêng
+  biệt, KHÔNG gộp thành 1 con số duy nhất cho cả Lot, vì hệ thống không có khái niệm "công đoạn cuối cùng" cố định
+  (trình tự công đoạn có thể khác nhau giữa các Line, xem FR-03).
 
 **FR-22 — Quản lý người dùng & phân quyền**
 - Phân quyền theo nhóm người dùng ở mục 2.2 (Công nhân / Tổ trưởng / Admin / Ban quản lý), bổ sung quyền riêng cho thao tác "Mở khóa rework" (FR-19) — chỉ Tổ trưởng mới thực hiện được.
@@ -329,6 +349,11 @@ tái dùng được làm nền, nhưng UI phải viết lại đáng kể (đổ
 12. Mỗi cặp (Kế hoạch, Công đoạn) có vòng đời trạng thái riêng `Draft/Running/Paused/Completed/Cancelled` (FR-05a) thay vì 1 cờ bật/tắt chung cho cả kế hoạch — cho phép tạm dừng và chạy lại nhiều lần mà không mất/nhầm tiến độ (tính động từ lịch sử scan OK), đồng thời cho phép từng công đoạn của cùng 1 kế hoạch **đóng độc lập** (vd công đoạn A chạy đủ số lượng thì tự đóng `Completed` dù công đoạn B, C của cùng kế hoạch chưa đủ). Ràng buộc "1 kế hoạch `Running` tại 1 thời điểm" (FR-05) áp dụng theo cặp **(Line, Công đoạn)**, không theo cả Line — công đoạn A của 1 Line được phép chuyển sang kế hoạch mới trong khi công đoạn B, C của cùng Line vẫn đang chạy/tạm dừng kế hoạch cũ, đúng thực tế dây chuyền có WIP giữa các trạm.
 13. Tổ trưởng có thể cấu hình/áp dụng kế hoạch cho **bất kỳ công đoạn nào cùng Line**, không giới hạn theo công đoạn vật lý của trạm đang thao tác — màn hình "Chọn kế hoạch" (mục 5.2) cho chọn Công đoạn độc lập với công đoạn của trạm hiện tại, phục vụ Tổ trưởng quản lý nhiều công đoạn từ 1 vị trí.
 14. Lịch sử scan (`Scan`) lưu **snapshot** Khách hàng/Model/Lot/Revision/Số lượng kế hoạch/Takt time tại đúng thời điểm scan (FR-10), không tra cứu động qua kế hoạch hiện tại. Để snapshot này luôn đúng, khi kế hoạch đã có ít nhất 1 bản ghi scan, hệ thống **khóa tuyệt đối** Khách hàng/Model/Lot/Revision của kế hoạch đó — không cho sửa dưới bất kỳ hình thức nào (kể cả Confirm), khác với Số lượng/Takt time vẫn cho sửa kèm xác nhận (FR-05). Nhập sai các trường bị khóa sau khi đã có scan → tạo kế hoạch mới, không sửa kế hoạch cũ.
+15. **"Tổng số lượng Lot" là dữ liệu nhập tay độc lập** (entity `Lot`, field `TotalQuantity`), KHÔNG suy ra bằng
+    cách cộng (SUM) `PlannedQuantity` của các `ProductionPlan` cùng Lot — quyết định lại 19/08/2026 (đã chốt với
+    Ban quản lý), thay thế hướng SUM đã chốt tạm 18/08/2026 sau khi xác nhận SUM sai bản chất nghiệp vụ. Bắt buộc
+    nhập khi tạo kế hoạch cho Lot hoàn toàn mới; sửa giảm xuống dưới số đã chạy thực tế chỉ cảnh báo + xác nhận,
+    không chặn cứng (xem FR-21a).
 
 **Bổ sung 19/08/2026**: `Scan` snapshot thêm `OperatorNames` (Tên nhân viên vận hành, free-text — xem mục 8.1 "Trường Tên nhân viên") theo đúng cơ chế snapshot trên, nhưng field này **KHÔNG** thuộc nhóm bị khóa tuyệt đối — Tổ trưởng vẫn sửa `OperatorNames` của kế hoạch tự do bất kỳ lúc nào (không phải dữ liệu định danh lô hàng như Customer/Model/Lot/Revision), giống cách Số lượng/Takt time được sửa: việc sửa sau này không ảnh hưởng snapshot đã lưu ở các lượt scan trước đó.
 
@@ -412,4 +437,12 @@ tái dùng được làm nền, nhưng UI phải viết lại đáng kể (đổ
 - [ ] **(mới 18/08/2026, US-21 Lot-centric)** Luồng scan OK thông thường không gắn với định danh cá nhân Operator (đúng thiết kế ADR-005 — Operator không đăng nhập cá nhân) — báo cáo theo Lot chỉ hiển thị được **Trạm làm việc** đã thực hiện lượt scan, không hiển thị được tên người thao tác thực tế. Cần Ban quản lý xác nhận: chấp nhận hiển thị Trạm làm việc thay tên người, hay cần bổ sung 1 cơ chế định danh Operator nhẹ (vd chọn tên đầu ca, không phải đăng nhập cá nhân đầy đủ) — đây là thay đổi kiến trúc lớn (đụng ADR-005), không tự quyết.
   **Cập nhật 19/08/2026**: theo yêu cầu bổ sung của Ban quản lý, đã snapshot thêm `ProductionPlan.OperatorNames` vào `Scan` (FR-10) và hiển thị tại drill-down báo cáo Lot (FR-21, US-21 AC12). Đây là **giải pháp bổ sung/tham khảo, KHÔNG phải giải pháp triệt để cho gap này** — `OperatorNames` là free-text khai báo ở cấp `ProductionPlan` (áp dụng chung mọi công đoạn của kế hoạch, không phân biệt theo từng công đoạn/lượt scan cụ thể), do đó chỉ trả lời "kế hoạch tại công đoạn này được khai báo có những ai phụ trách", KHÔNG xác định được chính xác cá nhân nào đã thực hiện MỘT lượt scan cụ thể. Gap gốc (thiếu định danh Operator theo từng lượt, đụng ADR-005) **vẫn còn tồn tại, chưa cần Ban quản lý xác nhận thêm** — họ đã chấp nhận rõ mức độ chính xác này khi giao yêu cầu ("để biết được ở công đoạn đó có những ai thực hiện", không đòi hỏi định danh theo từng lượt).
 - [x] **Đã chốt 18/08/2026** — "Người sửa hàng" (US-21 AC11): Ban quản lý quyết định dùng chính danh tính người ĐĂNG NHẬP vào chức năng "Mở khóa rework" (`ReworkUnlockPage`, US-19) làm "Người sửa hàng" (`ReworkUnlock.UnlockedByUserName`) — KHÔNG cần thu thập thêm dữ liệu mới. Điều kiện bắt buộc đi kèm: đăng nhập vào chức năng này phải **hết hiệu lực ngay sau khi dùng xong 1 lần**, mỗi lần vào lại chức năng "Mở khóa rework" đều phải đăng nhập lại — nếu không, danh tính ghi nhận có thể sai (người đăng nhập lần đầu vẫn đứng tên dù người khác thao tác sửa hàng ở lần sau, do phiên đăng nhập dùng chung không tự hết hạn). Đây là **thay đổi bắt buộc cho US-19** (đổi từ phiên đăng nhập Tổ trưởng DÙNG CHUNG hiện tại — `ISupervisorSessionService`, giống `PlanSettingsPage`/`LineStageSequencePage` — sang đăng nhập lại mỗi lần, cùng idiom re-auth-mỗi-lần đã có sẵn ở luồng Scan NG US-18) — xem AC mới bổ sung tại US-19, `Documents/BACKLOG-user-story.md`. US-21 AC11 cập nhật lại nhãn "Người sửa hàng" (không còn là "Người mở khóa" tạm bợ) NHƯNG phụ thuộc đúng vào việc US-19 đã áp dụng re-auth-mỗi-lần — nếu chưa, dữ liệu hiển thị có thể không chính xác.
-- [ ] **(mới 18/08/2026, US-21a)** Ý nghĩa của `ProductionPlan.PlannedQuantity` khi 1 Lot chạy qua nhiều Line (mỗi Line 1 kế hoạch riêng) chưa được xác nhận: là số lượng RIÊNG của từng Line (cộng dồn hợp lệ để ra tổng Lot), hay là con số Lot gốc được khai LẶP LẠI giống nhau ở mỗi kế hoạch (cộng dồn sẽ sai, bị nhân đôi/nhân ba)? Ảnh hưởng trực tiếp công thức "Tổng số lượng Lot" đề xuất ở FR-21a.
+- [x] **Đã xử lý 19/08/2026 (đổi hướng, không còn là SUM)** — (mới 18/08/2026, US-21a) Ý nghĩa của
+  `ProductionPlan.PlannedQuantity` khi 1 Lot chạy qua nhiều Line: Ban quản lý xác nhận **"Tổng số lượng Lot" không
+  được suy ra từ PlannedQuantity dưới bất kỳ hình thức nào (SUM hay khác)** — đây là 1 field nhập tay độc lập
+  (entity `Lot`, xem FR-21a viết lại). Vì vậy câu hỏi gốc (PlannedQuantity riêng từng Line hay khai lặp lại) không
+  còn ảnh hưởng tới công thức "Tổng số lượng Lot" nữa — mỗi `PlannedQuantity` vẫn giữ đúng ý nghĩa gốc là số lượng
+  MỤC TIÊU của riêng kế hoạch đó tại đúng (Line, Công đoạn), không cần diễn giải thêm cho mục đích cộng dồn Lot.
+- [x] **Đã chốt 19/08/2026** — Cách hiển thị "đủ/chưa đủ" ở báo cáo Lot-centric (US-21a): Ban quản lý xác nhận so
+  sánh theo TỪNG dòng (Line, Công đoạn) riêng biệt (`OkCount` dòng đó so với `Lot.TotalQuantity`), không cần 1 con
+  số tổng hợp duy nhất cho cả Lot — không cần định nghĩa thêm khái niệm "công đoạn cuối cùng của Lot".

@@ -19,6 +19,9 @@ public class UpdateProductionPlanRequest
 
     public string OperatorNames { get; set; } = string.Empty;
 
-    /// <summary>AC5: xác nhận sửa Số lượng/Takt time khi kế hoạch đã có công đoạn Running/Paused.</summary>
+    /// <summary>US-05 AC7 (=US-21a AC1) — bắt buộc khi Lot (sau khi sửa) hoàn toàn mới, server tự kiểm tra (409 nếu thiếu).</summary>
+    public int? LotTotalQuantity { get; set; }
+
+    /// <summary>AC5: xác nhận sửa Số lượng/Takt time khi kế hoạch đã có công đoạn Running/Paused. Dùng CHUNG cho AC8 (US-21a AC3 — giảm "Tổng số lượng Lot" dưới thực tế).</summary>
     public bool Confirm { get; set; }
 }

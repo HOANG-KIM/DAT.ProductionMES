@@ -38,5 +38,11 @@ public class CreateProductionPlanRequestValidator : AbstractValidator<CreateProd
         RuleFor(x => x.OperatorNames)
             .NotEmpty().WithMessage("Tên nhân viên vận hành không được để trống.")
             .MaximumLength(500).WithMessage("Tên nhân viên vận hành tối đa 500 ký tự.");
+
+        // US-05 AC7 (=US-21a AC1): "bắt buộc khi Lot hoàn toàn mới" cần tra DB (Service, không validate ở đây) —
+        // chỉ ràng buộc format thuần túy: nếu CÓ nhập thì phải > 0.
+        RuleFor(x => x.LotTotalQuantity)
+            .GreaterThan(0).When(x => x.LotTotalQuantity.HasValue)
+            .WithMessage("Tổng số lượng Lot phải lớn hơn 0.");
     }
 }

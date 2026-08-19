@@ -17,6 +17,7 @@ public class LotReportServiceTests
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
     private readonly Mock<IRepository<Line>> _lineRepositoryMock = new();
     private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
+    private readonly Mock<IRepository<Lot>> _lotRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly LotReportService _sut;
 
@@ -27,6 +28,7 @@ public class LotReportServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Line>()).Returns(_lineRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<Lot>()).Returns(_lotRepositoryMock.Object);
 
         _sut = new LotReportService(_unitOfWorkMock.Object);
 
@@ -35,6 +37,7 @@ public class LotReportServiceTests
         SetupScans(new List<Scan>());
         SetupLines(new List<Line>());
         SetupStages(new List<Stage>());
+        SetupLots(new List<Lot>());
     }
 
     private void SetupPlans(List<ProductionPlan> plans) =>
@@ -61,6 +64,11 @@ public class LotReportServiceTests
         _stageRepositoryMock
             .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Stage, bool>>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Expression<Func<Stage, bool>> predicate, CancellationToken _) => stages.Where(predicate.Compile()).ToList());
+
+    private void SetupLots(List<Lot> lots) =>
+        _lotRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Lot, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Expression<Func<Lot, bool>> predicate, CancellationToken _) => lots.Where(predicate.Compile()).ToList());
 
     // AC1/AC2: tìm Lot khớp gần đúng, không phân biệt hoa/thường, giới hạn kết quả trùng lặp.
     [Fact]
@@ -191,6 +199,85 @@ public class LotReportServiceTests
         Assert.NotNull(result);
         var row = Assert.Single(result!.Rows);
         Assert.Equal(1, row.OkCount);
+    }
+
+    // US-21a AC5 (viết lại hoàn toàn 19/08/2026): "Tổng số lượng Lot" đọc từ entity Lot (nhập tay), KHÔNG phải SUM(PlannedQuantity).
+    [Fact]
+    public async Task GetLotSummaryAsync_LotDaCoTongSoLuongNhapTay_TraVeDungGiaTri()
+    {
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1", PlannedQuantity = 1000 },
+            new() { Id = 2, LineId = 2, Lot = "LOT-A", Model = "M1", Customer = "C1", PlannedQuantity = 500 },
+        });
+        SetupLots(new List<Lot> { new() { Id = 1, Code = "LOT-A", TotalQuantity = 1800 } });
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Equal(1800, result!.LotTotalQuantity); // KHÔNG phải SUM(1000+500) = 1500.
+    }
+
+    // US-21a AC6: Lot CHƯA từng có ai nhập "Tổng số lượng Lot" -> null ("Chưa xác định"), không suy luận từ PlannedQuantity.
+    [Fact]
+    public async Task GetLotSummaryAsync_LotChuaXacDinh_TraVeNull()
+    {
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1", PlannedQuantity = 1000 },
+        });
+        // Mặc định constructor: SetupLots(rỗng) -> chưa có ai nhập.
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Null(result!.LotTotalQuantity);
+    }
+
+    // US-21a AC5: mỗi dòng (Line, Công đoạn) so sánh OkCount với LotTotalQuantity riêng biệt -> "Đủ"/"Chưa đủ" theo TỪNG dòng.
+    [Fact]
+    public async Task GetLotSummaryAsync_LotDaCoTongSoLuong_MoiDongSoSanhOkCountRiengBiet()
+    {
+        SetupPlans(new List<ProductionPlan> { new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1" } });
+        SetupPlanStages(new List<ProductionPlanStage>
+        {
+            new() { Id = 1, ProductionPlanId = 1, LineId = 1, StageId = 10, PlanStatus = PlanStatus.Running },
+            new() { Id = 2, ProductionPlanId = 1, LineId = 1, StageId = 20, PlanStatus = PlanStatus.Running },
+        });
+        SetupScans(new List<Scan>
+        {
+            new() { Id = 1, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
+            new() { Id = 2, LineId = 1, StageId = 10, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
+            new() { Id = 3, LineId = 1, StageId = 20, Lot = "LOT-A", Result = ScanResult.Ok, ScannedAtUtc = DateTime.UtcNow },
+        });
+        SetupLines(new List<Line> { new() { Id = 1, Name = "Line 1" } });
+        SetupStages(new List<Stage> { new() { Id = 10, Name = "Lắp ráp" }, new() { Id = 20, Name = "Đóng gói" } });
+        SetupLots(new List<Lot> { new() { Id = 1, Code = "LOT-A", TotalQuantity = 2 } }); // Đủ cho Stage 10 (2 OK), chưa đủ Stage 20 (1 OK).
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        var stage10Row = result!.Rows.Single(r => r.StageId == 10);
+        var stage20Row = result.Rows.Single(r => r.StageId == 20);
+        Assert.True(stage10Row.IsSufficientQuantity);
+        Assert.False(stage20Row.IsSufficientQuantity);
+    }
+
+    // US-21a AC1: vẫn hoạt động đúng dù (Line, Công đoạn) chưa từng có ProductionPlanStage/Scan nào (Rows rỗng).
+    [Fact]
+    public async Task GetLotSummaryAsync_ChuaCoPlanStageHoacScanNao_VanTraVeDungLotTotalQuantity()
+    {
+        SetupPlans(new List<ProductionPlan>
+        {
+            new() { Id = 1, LineId = 1, Lot = "LOT-A", Model = "M1", Customer = "C1", PlannedQuantity = 1000 },
+        });
+        SetupLots(new List<Lot> { new() { Id = 1, Code = "LOT-A", TotalQuantity = 1000 } });
+
+        var result = await _sut.GetLotSummaryAsync("LOT-A", null, null);
+
+        Assert.NotNull(result);
+        Assert.Empty(result!.Rows);
+        Assert.Equal(1000, result.LotTotalQuantity);
     }
 
     // AC5: lọc theo khoảng thời gian -> chỉ đếm lượt scan trong khoảng, không tính lượt ngoài khoảng.

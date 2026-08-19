@@ -1,8 +1,9 @@
 namespace ProductionMES.Application.DTOs.Reports;
 
 /// <summary>
-/// Chi tiết vòng đời sản xuất của 1 Lot (US-21 AC3/AC4/AC5, vòng 3 — Lot-centric). Trả về <c>null</c> ở tầng
-/// Service khi Lot không tồn tại (AC2 — "Không tìm thấy Lot", KHÔNG phải lỗi hệ thống, Controller trả 404).
+/// Chi tiết vòng đời sản xuất của 1 Lot (US-21 AC3/AC4/AC5, vòng 3 — Lot-centric; US-21a AC5/AC6, viết lại hoàn
+/// toàn 19/08/2026). Trả về <c>null</c> ở tầng Service khi Lot không tồn tại (AC2 — "Không tìm thấy Lot", KHÔNG
+/// phải lỗi hệ thống, Controller trả 404).
 /// </summary>
 public class LotSummaryDto
 {
@@ -30,6 +31,12 @@ public class LotSummaryDto
 
     public DateTime? ToUtc { get; set; }
 
-    /// <summary>AC4 — danh sách (Line, Công đoạn) Lot này đã từng sản xuất, kèm OK/NG.</summary>
+    /// <summary>AC4 — danh sách (Line, Công đoạn) Lot này đã từng sản xuất, kèm OK/NG + Đủ/Chưa đủ (US-21a AC5).</summary>
     public IReadOnlyList<LotStageRowDto> Rows { get; set; } = Array.Empty<LotStageRowDto>();
+
+    /// <summary>
+    /// US-21a AC1/AC5 (viết lại hoàn toàn 19/08/2026) — "Tổng số lượng Lot" NHẬP TAY (entity <see cref="Domain.Entities.Lot"/>,
+    /// KHÔNG phải SUM(PlannedQuantity)). <c>null</c> = "Chưa xác định" (AC6 — Lot chưa từng có ai nhập giá trị này).
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
 }

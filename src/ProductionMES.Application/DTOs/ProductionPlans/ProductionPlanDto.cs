@@ -32,4 +32,11 @@ public class ProductionPlanDto
     /// Entity → DTO, không lưu cột riêng trong DB.
     /// </summary>
     public decimal StandardQuantityPerHour { get; set; }
+
+    /// <summary>
+    /// US-05 AC7/AC9 (=US-21a) — "Tổng số lượng Lot" hiện có của <see cref="Lot"/> (đọc từ entity
+    /// <c>Domain.Entities.Lot</c>, nhập tay) — <c>null</c> = "Chưa xác định". Hiển thị lại tự động khi mở kế
+    /// hoạch để sửa (AC2 US-21a), không bắt nhập lại.
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
 }

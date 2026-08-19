@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductionMES.Api.Authorization;
@@ -42,21 +43,23 @@ public class ProductionPlansController : ControllerBase
         return productionPlan is null ? NotFound() : Ok(productionPlan);
     }
 
-    /// <summary>Tạo mới 1 kế hoạch sản xuất, chưa active (AC1).</summary>
+    /// <summary>Tạo mới 1 kế hoạch sản xuất, chưa active (AC1). AC7-AC9 (US-21a): có thể bị từ chối 409 nếu Lot hoàn toàn mới mà thiếu "Tổng số lượng Lot", hoặc cần Confirm khi giảm dưới thực tế đã chạy.</summary>
     [HttpPost]
     [Authorize(Policy = PermissionPolicies.ProductionPlanCreate)]
     public async Task<ActionResult<ProductionPlanDto>> Create([FromBody] CreateProductionPlanRequest request, CancellationToken cancellationToken)
     {
-        var created = await _productionPlanService.CreateAsync(request, cancellationToken);
+        var updatedByUserName = User.FindFirst(ClaimTypes.Name)?.Value;
+        var created = await _productionPlanService.CreateAsync(request, updatedByUserName, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    /// <summary>Cập nhật thông tin 1 kế hoạch (AC4/AC5) — có thể bị từ chối nếu chưa Confirm (AC5).</summary>
+    /// <summary>Cập nhật thông tin 1 kế hoạch (AC4/AC5/AC7-AC9) — có thể bị từ chối nếu chưa Confirm (AC5/AC8).</summary>
     [HttpPut("{id:int}")]
     [Authorize(Policy = PermissionPolicies.ProductionPlanUpdate)]
     public async Task<ActionResult<ProductionPlanDto>> Update(int id, [FromBody] UpdateProductionPlanRequest request, CancellationToken cancellationToken)
     {
-        var updated = await _productionPlanService.UpdateAsync(id, request, cancellationToken);
+        var updatedByUserName = User.FindFirst(ClaimTypes.Name)?.Value;
+        var updated = await _productionPlanService.UpdateAsync(id, request, updatedByUserName, cancellationToken);
         return Ok(updated);
     }
 }

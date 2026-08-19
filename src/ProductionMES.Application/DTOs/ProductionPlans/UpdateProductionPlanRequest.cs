@@ -21,10 +21,18 @@ public class UpdateProductionPlanRequest
     public string OperatorNames { get; set; } = string.Empty;
 
     /// <summary>
+    /// US-05 AC7 (=US-21a AC1) — "Tổng số lượng Lot", nhập tay. BẮT BUỘC (khác <c>null</c>) khi <see cref="Lot"/>
+    /// (sau khi sửa) là Lot HOÀN TOÀN MỚI (chưa từng có <c>ProductionPlan</c> nào khác trước đó). Để <c>null</c>
+    /// nghĩa là "giữ nguyên giá trị hiện có" — không bắt buộc gửi lại mỗi lần sửa kế hoạch.
+    /// </summary>
+    public int? LotTotalQuantity { get; set; }
+
+    /// <summary>
     /// AC5: kế hoạch đã có ít nhất 1 công đoạn đang Running/Paused mà sửa Số lượng kế hoạch hoặc Takt time là
     /// tình huống "chạy dở, sửa nhầm có thể sai lệch tiến độ". Mặc định <c>false</c> — nếu service phát hiện
     /// tình huống này và cờ này vẫn <c>false</c>, sẽ từ chối kèm cảnh báo rõ ràng (không phải lỗi cấu hình) để
     /// client hiển thị popup xác nhận rồi gọi lại với <c>Confirm = true</c>.
+    /// Dùng CHUNG cho cả AC8 (US-21a AC3 — sửa "Tổng số lượng Lot" xuống dưới số đã chạy OK thực tế).
     /// </summary>
     public bool Confirm { get; set; }
 }
