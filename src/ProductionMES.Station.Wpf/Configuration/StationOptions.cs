@@ -66,4 +66,16 @@ public class StationOptions
     /// 30 giây — đủ mượt để PLAN không bị "đứng hình" lâu mà không gọi server quá dày.
     /// </summary>
     public int AndonBoardRefreshIntervalSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Thời gian (giây) không có tương tác nào (chuột/bàn phím) tại các trang chế độ Tổ trưởng dùng chung phiên
+    /// đăng nhập (<c>PlanSettingsPage</c>/<c>PlanSelectionPage</c>/<c>LineStageSequencePage</c>/
+    /// <c>StationConfigPage</c> — ADR-006) trước khi tự động clear session (<c>ISupervisorSessionService.Clear()</c>)
+    /// và quay về Trang chủ. Là idle timer thật (reset lại mỗi khi có tương tác, không phải đếm cố định kể từ lúc
+    /// đăng nhập) — tránh đá Tổ trưởng ra giữa chừng khi đang nhập dở form. Cấu hình cục bộ theo trạm, cùng nhóm
+    /// với <see cref="ArduinoTimeoutSeconds"/>/<see cref="NgModeTimeoutSeconds"/>. Mặc định 600 giây (10 phút).
+    /// KHÔNG áp dụng cho <c>ReworkUnlockPage</c> (US-19 AC7 đã bắt buộc đăng nhập lại mỗi lần vào, không dùng
+    /// <c>ISupervisorSessionService</c> dùng chung).
+    /// </summary>
+    public int SupervisorSessionIdleTimeoutSeconds { get; set; } = 600;
 }

@@ -16,4 +16,11 @@ public interface IWindowCoordinator
 
     /// <summary>Chuyển sang Main Screen (đưa lên trước, không đóng Andon Board).</summary>
     void ShowMainScreen();
+
+    /// <summary>
+    /// Thoát hẳn ứng dụng — gỡ khóa Closing của <c>AndonBoardWindow</c> (mặc định luôn bị chặn, xem
+    /// <c>AndonBoardWindow.xaml.cs</c>) rồi gọi <see cref="System.Windows.Application.Shutdown()"/>. Chỉ dùng
+    /// cho đúng 1 nút "Thoát ứng dụng" ở Trang chủ — không dùng lại cho bất kỳ luồng nào khác.
+    /// </summary>
+    void ExitApplication();
 }

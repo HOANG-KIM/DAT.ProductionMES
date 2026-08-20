@@ -16,6 +16,7 @@ using ProductionMES.Station.Wpf.Services.Reports;
 using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
 using ProductionMES.Station.Wpf.Services.Scans;
 using ProductionMES.Station.Wpf.Services.Stages;
+using ProductionMES.Station.Wpf.Services.WorkStations;
 using ProductionMES.Station.Wpf.ViewModels;
 using ProductionMES.Station.Wpf.Views;
 using ProductionMES.Station.Wpf.Views.Pages;
@@ -75,7 +76,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _host?.Services.GetService<IScanHubClient>()?.StopAsync().GetAwaiter().GetResult();
+        var scanHubClient = _host?.Services.GetService<IScanHubClient>();
+        if (scanHubClient is not null)
+        {
+            // Không chờ vô thời hạn: HubConnection dùng WithAutomaticReconnect() (ScanHubClient.cs) có thể khiến
+            // StopAsync() treo lâu nếu đang kẹt giữa chu kỳ reconnect (mất mạng/server không phản hồi) — việc
+            // thoát ứng dụng không được phép phụ thuộc vào trạng thái mạng lúc đó.
+            Task.WhenAny(scanHubClient.StopAsync(), Task.Delay(TimeSpan.FromSeconds(2))).GetAwaiter().GetResult();
+        }
+
         _host?.Dispose();
         base.OnExit(e);
     }
@@ -118,6 +127,12 @@ public partial class App : Application
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
         services.AddHttpClient<ILineApiClient, LineApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<SupervisorAuthHandler>();
+
+        // Màn "Cấu hình trạm": chọn WorkStation từ danh mục thay vì gõ tay Id (US-04, WorkStation.View).
+        services.AddHttpClient<IWorkStationApiClient, WorkStationApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
@@ -165,6 +180,8 @@ public partial class App : Application
         services.AddTransient<LineStageSequenceViewModel>();
         services.AddTransient<ReworkUnlockPage>();
         services.AddTransient<ReworkUnlockViewModel>();
+        services.AddTransient<StationConfigPage>();
+        services.AddTransient<StationConfigViewModel>();
         services.AddTransient<LoginDialog>();
         services.AddTransient<LoginDialogViewModel>();
     }

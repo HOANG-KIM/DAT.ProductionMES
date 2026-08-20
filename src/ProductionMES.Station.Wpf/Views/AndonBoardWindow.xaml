@@ -320,9 +320,6 @@
             </Border>
         </Grid>
 
-        <TextBlock Grid.Row="2" Margin="24" Foreground="#5C6577" FontSize="16"
-                    Text="Esc: chuyển sang Main Screen (chế độ Tổ trưởng) · Alt+Tab: hành vi Windows chuẩn"/>
-
         <!--
           US-18 AC1/AC2/AC3 (đổi sang khung modal 18/08/2026, thay cho full-screen đỏ tuyệt đối trước đây —
           theo yêu cầu người dùng): phủ toàn bộ 3 dòng của Grid gốc (RowSpan=3) bằng lớp nền LÀM TỐI (không

@@ -8,8 +8,11 @@ using ProductionMES.Station.Wpf.ViewModels;
 namespace ProductionMES.Station.Wpf.Views.Pages;
 
 /// <summary>
-/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 4 lối vào chế độ Tổ trưởng, mỗi lối yêu cầu
-/// đăng nhập Supervisor nếu chưa có phiên đang mở (ADR-005), rồi điều hướng nội bộ qua <see cref="MainWindow"/>.
+/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 4 tile thao tác vận hành/chất lượng (dùng
+/// thường xuyên) + 1 nút nhỏ "Cấu hình trạm" cạnh dải thông tin TRẠM/LINE/CÔNG ĐOẠN (thiết lập hiếm khi đổi,
+/// tách khỏi hàng tile chính để không đánh đồng trọng số với các thao tác dùng nhiều lần mỗi ca). Mỗi lối vào
+/// chế độ Tổ trưởng yêu cầu đăng nhập Supervisor nếu chưa có phiên đang mở (ADR-005), rồi điều hướng nội bộ qua
+/// <see cref="MainWindow"/>.
 /// </summary>
 public partial class HomePage : Page
 {
@@ -61,9 +64,38 @@ public partial class HomePage : Page
         ((MainWindow)Window.GetWindow(this)!).NavigateToReworkUnlock();
     }
 
+    private void StationConfigTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (RequireAuth())
+        {
+            ((MainWindow)Window.GetWindow(this)!).NavigateToStationConfig();
+        }
+    }
+
     private void BackToAndonButton_Click(object sender, RoutedEventArgs e)
     {
         _coordinator.ShowAndonBoard();
+    }
+
+    /// <summary>
+    /// Thoát hẳn ứng dụng (đóng cả <c>AndonBoardWindow</c> lẫn <see cref="MainWindow"/>) — KHÔNG yêu cầu đăng
+    /// nhập Tổ trưởng (quyết định 20/08/2026: ai cũng thoát được, ưu tiên tiện dụng cho IT/bảo trì/cuối ca hơn
+    /// khóa kiosk tuyệt đối). Có hộp thoại xác nhận vì đây là hành động khó hoàn tác và ảnh hưởng cả xưởng (tắt
+    /// hiển thị Andon Board) — bấm nhầm 1 cú vẫn cần thêm 1 bước xác nhận mới thực sự thoát.
+    /// </summary>
+    private void ExitApplicationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Thoát ứng dụng sẽ tắt cả màn hình Andon Board — công nhân sẽ không còn xem được bảng PLAN/ACTUAL/BALANCE cho tới khi mở lại ứng dụng.\n\nBạn có chắc chắn muốn thoát?",
+            "Xác nhận thoát ứng dụng",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            _coordinator.ExitApplication();
+        }
     }
 
     /// <summary>Trả về true nếu đã (hoặc vừa) đăng nhập Supervisor thành công — false nếu người dùng bấm Hủy ở dialog.</summary>

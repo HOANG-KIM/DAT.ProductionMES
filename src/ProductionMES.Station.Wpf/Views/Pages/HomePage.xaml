@@ -12,20 +12,31 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,28">
-            <StackPanel Orientation="Horizontal">
-                <StackPanel Margin="0,0,26,0">
-                    <TextBlock Text="TRẠM" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                    <TextBlock Text="{Binding WorkStationName}" FontWeight="Bold" FontSize="14"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <StackPanel Margin="0,0,26,0">
+                        <TextBlock Text="TRẠM" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                        <TextBlock Text="{Binding WorkStationName}" FontWeight="Bold" FontSize="14"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,26,0">
+                        <TextBlock Text="LINE" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                        <TextBlock Text="{Binding LineName}" FontWeight="Bold" FontSize="14"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="CÔNG ĐOẠN" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                        <TextBlock Text="{Binding StageName}" FontWeight="Bold" FontSize="14"/>
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Margin="0,0,26,0">
-                    <TextBlock Text="LINE" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                    <TextBlock Text="{Binding LineName}" FontWeight="Bold" FontSize="14"/>
-                </StackPanel>
-                <StackPanel>
-                    <TextBlock Text="CÔNG ĐOẠN" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
-                    <TextBlock Text="{Binding StageName}" FontWeight="Bold" FontSize="14"/>
-                </StackPanel>
-            </StackPanel>
+
+                <Button Grid.Column="1" x:Name="StationConfigTile" Content="🔧" FontSize="16" Padding="10,6"
+                        VerticalAlignment="Center" ToolTip="Cấu hình trạm — chọn trạm làm việc, chỉnh timeout Arduino/Scan NG, chu kỳ làm mới Andon Board…"
+                        Click="StationConfigTile_Click"/>
+            </Grid>
         </Border>
 
         <UniformGrid Grid.Row="1" Columns="4" Rows="1">
@@ -59,10 +70,11 @@
             </Button>
         </UniformGrid>
 
-        <TextBlock Grid.Row="2" Text="Yêu cầu đăng nhập Tổ trưởng — thao tác được ghi audit theo tài khoản"
-                   Foreground="{StaticResource TextMutedBrush}" FontSize="11" HorizontalAlignment="Center" Margin="0,14,0,0"/>
-
-        <Button Grid.Row="3" x:Name="BackToAndonButton" Content="◧ Quay lại Andon Board (Alt+Tab)"
-                Height="Auto" HorizontalAlignment="Center" Padding="16,9" Margin="0,26,0,0" Click="BackToAndonButton_Click"/>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
+            <Button x:Name="BackToAndonButton" Content="◧ Quay lại Andon Board (Alt+Tab)"
+                    Height="Auto" Padding="16,9" Click="BackToAndonButton_Click"/>
+            <Button x:Name="ExitApplicationButton" Content="🚪 Thoát ứng dụng"
+                    Height="Auto" Padding="16,9" Margin="12,0,0,0" Click="ExitApplicationButton_Click"/>
+        </StackPanel>
     </Grid>
 </Page>

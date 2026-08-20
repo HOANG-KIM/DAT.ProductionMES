@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using ProductionMES.Station.Wpf.Models;
+using ProductionMES.Station.Wpf.Services.Auth;
 using ProductionMES.Station.Wpf.ViewModels;
 
 namespace ProductionMES.Station.Wpf.Views.Pages;
@@ -9,11 +10,13 @@ namespace ProductionMES.Station.Wpf.Views.Pages;
 public partial class PlanSettingsPage : Page
 {
     private readonly PlanSettingsViewModel _viewModel;
+    private readonly ISupervisorSessionService _sessionService;
 
-    public PlanSettingsPage(PlanSettingsViewModel viewModel)
+    public PlanSettingsPage(PlanSettingsViewModel viewModel, ISupervisorSessionService sessionService)
     {
         InitializeComponent();
         _viewModel = viewModel;
+        _sessionService = sessionService;
         DataContext = _viewModel;
     }
 
@@ -23,8 +26,14 @@ public partial class PlanSettingsPage : Page
         await _viewModel.LoadCommand.ExecuteAsync(null);
     }
 
+    /// <summary>
+    /// Nút "← Trang chủ" là tín hiệu "đã xong việc, chủ động rời khu vực nâng quyền" (các trang chế độ Tổ trưởng
+    /// đã có nút liên kết chéo trực tiếp qua lại lẫn nhau, không cần vòng qua đây) — clear session ngay trước khi
+    /// điều hướng, không chờ idle timeout.
+    /// </summary>
     private void HomeButton_Click(object sender, RoutedEventArgs e)
     {
+        _sessionService.Clear();
         ((MainWindow)Window.GetWindow(this)!).NavigateToHome();
     }
 

@@ -1,0 +1,24 @@
+<Window x:Class="ProductionMES.Station.Wpf.Views.RestartPromptDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Đã lưu cấu hình"
+        Width="420" SizeToContent="Height" MinHeight="160"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Đã lưu cấu hình trạm — cần khởi động lại ứng dụng để áp dụng."
+                   TextWrapping="Wrap" FontSize="13" Margin="0,0,0,20"/>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="LaterButton" Content="Để sau" Width="90" Margin="0,0,8,0" Click="LaterButton_Click"/>
+            <Button x:Name="RestartButton" Content="Khởi động lại ngay" Width="150" IsDefault="True" Click="RestartButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

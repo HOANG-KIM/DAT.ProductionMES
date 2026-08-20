@@ -17,6 +17,10 @@ public partial class AndonBoardWindow : Window
     private readonly IWindowCoordinator _coordinator;
     private readonly AndonBoardViewModel _viewModel;
 
+    /// <summary>true chỉ khi <see cref="AllowExit"/> đã được gọi (qua nút "Thoát ứng dụng" ở Trang chủ, xem
+    /// <c>WindowCoordinator.ExitApplication</c>) — mọi lần Closing khác (Alt+F4, đóng nhầm) vẫn bị chặn.</summary>
+    private bool _exitAllowed;
+
     public AndonBoardWindow(IWindowCoordinator coordinator, AndonBoardViewModel viewModel)
     {
         InitializeComponent();
@@ -25,7 +29,8 @@ public partial class AndonBoardWindow : Window
         DataContext = viewModel;
 
         // Không có nút đóng thật (WindowStyle=None) — chặn Alt+F4 vô tình tắt board luôn hiển thị cho công nhân.
-        Closing += (_, e) => e.Cancel = true;
+        // Chỉ mở khóa khi _exitAllowed = true (xem AllowExit), đúng luồng "Thoát ứng dụng" chủ động.
+        Closing += (_, e) => e.Cancel = !_exitAllowed;
 
         // US-09: luôn tự cuộn xuống dòng cuối (dòng "hiện tại") mỗi khi Rows đổi (làm mới định kỳ hoặc scan mới),
         // không bắt operator phải tự kéo cuộn để thấy số liệu mới nhất. Dispatcher.BeginInvoke ở Background
@@ -208,4 +213,7 @@ public partial class AndonBoardWindow : Window
         ScanInputBox.Focus();
         Keyboard.Focus(ScanInputBox);
     }
+
+    /// <summary>Gỡ khóa Closing đúng 1 lần cho luồng "Thoát ứng dụng" chủ động — gọi từ <c>WindowCoordinator.ExitApplication</c>.</summary>
+    public void AllowExit() => _exitAllowed = true;
 }
