@@ -74,7 +74,9 @@
             <Button x:Name="BackToAndonButton" Content="◧ Quay lại Andon Board (Alt+Tab)"
                     Height="Auto" Padding="16,9" Click="BackToAndonButton_Click"/>
             <Button x:Name="ExitApplicationButton" Content="🚪 Thoát ứng dụng"
-                    Height="Auto" Padding="16,9" Margin="12,0,0,0" Click="ExitApplicationButton_Click"/>
+                    Height="Auto" Padding="16,9" Margin="12,0,0,0"
+                    Background="{StaticResource StatusNgBrush}" Foreground="White" BorderBrush="{StaticResource StatusNgBrush}"
+                    Click="ExitApplicationButton_Click"/>
         </StackPanel>
     </Grid>
 </Page>
