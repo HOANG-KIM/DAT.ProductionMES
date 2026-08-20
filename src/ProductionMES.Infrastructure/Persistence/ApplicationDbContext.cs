@@ -30,6 +30,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Lot> Lots => Set<Lot>();
 
+    public DbSet<LotHistory> LotHistories => Set<LotHistory>();
+
     public DbSet<LineStageSequence> LineStageSequences => Set<LineStageSequence>();
 
     public DbSet<Scan> Scans => Set<Scan>();

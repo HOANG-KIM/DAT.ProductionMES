@@ -73,4 +73,12 @@ public class LotReportsController : ControllerBase
         var fileName = $"bao-cao-lot-{lot}.xlsx";
         return File(content, XlsxContentType, fileName);
     }
+
+    /// <summary>Lịch sử thay đổi "Tổng số lượng Lot" (US-21a, mới nhất trước) — truy vết ai/khi nào đã đổi giá trị này.</summary>
+    [HttpGet("{lot}/history")]
+    public async Task<ActionResult<IReadOnlyList<LotHistoryItemDto>>> GetHistory(string lot, CancellationToken cancellationToken = default)
+    {
+        var result = await _lotReportService.GetLotHistoryAsync(lot, cancellationToken);
+        return Ok(result);
+    }
 }

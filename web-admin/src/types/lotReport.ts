@@ -51,3 +51,13 @@ export interface LotSummaryQuery {
   from?: string;
   to?: string;
 }
+
+/** Khớp `LotHistoryItemDto` — 1 dòng lịch sử thay đổi "Tổng số lượng Lot" (mới nhất trước). */
+export interface LotHistoryItem {
+  /** `null` nếu đây là lần đầu tiên Lot này được đặt giá trị. */
+  oldTotalQuantity: number | null;
+  newTotalQuantity: number;
+  /** Giờ tường tại nhà máy (giờ Việt Nam), KHÔNG quy đổi UTC — xem API-Conventions.md mục 10. */
+  changedAtUtc: string;
+  changedByUserName: string | null;
+}

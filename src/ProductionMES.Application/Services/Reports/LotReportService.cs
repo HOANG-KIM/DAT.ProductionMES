@@ -144,4 +144,20 @@ public class LotReportService : ILotReportService
             FirstScannedAtUtc = firstScannedAtUtc,
         };
     }
+
+    public async Task<IReadOnlyList<LotHistoryItemDto>> GetLotHistoryAsync(string lot, CancellationToken cancellationToken = default)
+    {
+        var history = await _unitOfWork.Repository<LotHistory>().FindAsync(h => h.LotCode == lot, cancellationToken);
+
+        return history
+            .OrderByDescending(h => h.ChangedAtUtc)
+            .Select(h => new LotHistoryItemDto
+            {
+                OldTotalQuantity = h.OldTotalQuantity,
+                NewTotalQuantity = h.NewTotalQuantity,
+                ChangedAtUtc = h.ChangedAtUtc,
+                ChangedByUserName = h.ChangedByUserName,
+            })
+            .ToList();
+    }
 }

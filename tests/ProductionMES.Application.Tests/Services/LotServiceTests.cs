@@ -16,6 +16,7 @@ public class LotServiceTests
 {
     private readonly Mock<IRepository<Lot>> _lotRepositoryMock = new();
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
+    private readonly Mock<IRepository<LotHistory>> _lotHistoryRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<ILotReportService> _lotReportServiceMock = new();
     private readonly LotService _sut;
@@ -24,6 +25,7 @@ public class LotServiceTests
     {
         _unitOfWorkMock.Setup(u => u.Repository<Lot>()).Returns(_lotRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<LotHistory>()).Returns(_lotHistoryRepositoryMock.Object);
         _sut = new LotService(_unitOfWorkMock.Object, _lotReportServiceMock.Object);
 
         SetupLots(new List<Lot>());
@@ -119,6 +121,12 @@ public class LotServiceTests
         Assert.Equal("to.truong", result.UpdatedByUserName);
         _lotRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Lot>(), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // Lần đầu đặt giá trị cũng ghi lịch sử, OldTotalQuantity = null (chưa từng có row Lot trước đó).
+        _lotHistoryRepositoryMock.Verify(
+            r => r.AddAsync(
+                It.Is<LotHistory>(h => h.LotCode == "LOT-A" && h.OldTotalQuantity == null && h.NewTotalQuantity == 1000),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     // US-21a AC2: đã có row Lot -> upsert cập nhật tại chỗ, không tạo bản ghi mới.
@@ -134,6 +142,23 @@ public class LotServiceTests
         Assert.Equal(1500, existing.TotalQuantity);
         _lotRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Lot>(), It.IsAny<CancellationToken>()), Times.Never);
         _lotRepositoryMock.Verify(r => r.Update(existing), Times.Once);
+        _lotHistoryRepositoryMock.Verify(
+            r => r.AddAsync(
+                It.Is<LotHistory>(h => h.LotCode == "LOT-A" && h.OldTotalQuantity == 1000 && h.NewTotalQuantity == 1500),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    // Lưu lại ĐÚNG giá trị cũ (không đổi) -> KHÔNG ghi thêm dòng lịch sử (tránh nhiễu log).
+    [Fact]
+    public async Task UpsertTotalQuantityAsync_LuuLaiGiaTriCu_KhongGhiLichSu()
+    {
+        var existing = new Lot { Id = 1, Code = "LOT-A", TotalQuantity = 1000 };
+        SetupLots(new List<Lot> { existing });
+
+        await _sut.UpsertTotalQuantityAsync("LOT-A", 1000, confirm: false, updatedByUserName: "to.truong");
+
+        _lotHistoryRepositoryMock.Verify(r => r.AddAsync(It.IsAny<LotHistory>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // US-21a AC3 (=US-05 AC8): giảm xuống dưới OkCount đã chạy thực tế, chưa Confirm -> từ chối, nêu rõ Line/Công đoạn.

@@ -15,4 +15,11 @@ public interface ILotReportService
 
     /// <summary>AC3/AC4/AC5 — chi tiết 1 Lot. Trả về <c>null</c> nếu <paramref name="lot"/> chưa từng có kế hoạch nào (AC2 "Không tìm thấy Lot").</summary>
     Task<LotSummaryDto?> GetLotSummaryAsync(string lot, DateTime? fromUtc, DateTime? toUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lịch sử thay đổi "Tổng số lượng Lot" (mới nhất trước) — rỗng nếu Lot chưa từng được đặt giá trị này lần
+    /// nào (KHÔNG phân biệt với trường hợp Lot không tồn tại, vì đây thuần là truy vết, không phải nguồn xác
+    /// định "Lot có tồn tại hay không" như <see cref="GetLotSummaryAsync"/>).
+    /// </summary>
+    Task<IReadOnlyList<LotHistoryItemDto>> GetLotHistoryAsync(string lot, CancellationToken cancellationToken = default);
 }

@@ -75,6 +75,11 @@ public class LotService : ILotService
         // API-Conventions.md mục 10).
         var now = DateTime.Now;
 
+        // Ghi lịch sử truy vết CHỈ khi giá trị thực sự đổi (bỏ qua lần lưu lại đúng giá trị cũ) — tránh nhiễu log.
+        // OldTotalQuantity = null nghĩa là lần đầu tiên Lot này được đặt giá trị (chưa từng có row Lot trước đó).
+        var oldTotalQuantity = existing?.TotalQuantity;
+        var quantityChanged = oldTotalQuantity != totalQuantity;
+
         if (existing is null)
         {
             existing = new Lot
@@ -92,6 +97,20 @@ public class LotService : ILotService
             existing.UpdatedAtUtc = now;
             existing.UpdatedByUserName = updatedByUserName;
             repository.Update(existing);
+        }
+
+        if (quantityChanged)
+        {
+            await _unitOfWork.Repository<LotHistory>().AddAsync(
+                new LotHistory
+                {
+                    LotCode = code,
+                    OldTotalQuantity = oldTotalQuantity,
+                    NewTotalQuantity = totalQuantity,
+                    ChangedAtUtc = now,
+                    ChangedByUserName = updatedByUserName,
+                },
+                cancellationToken);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

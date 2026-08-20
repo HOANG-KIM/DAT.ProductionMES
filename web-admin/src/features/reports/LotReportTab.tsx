@@ -1,5 +1,5 @@
 import { Alert, AutoComplete, Button, Card, DatePicker, Descriptions, Empty, Input, message, Space, Spin, Table, Tag, Typography } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, HistoryOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
@@ -9,6 +9,7 @@ import { useLotSearch } from './useLotSearch';
 import { useLotSummary } from './useLotSummary';
 import { ScanHistoryDrilldownDrawer } from './ScanHistoryDrilldownDrawer';
 import type { ScanHistoryDrilldownTarget } from './ScanHistoryDrilldownDrawer';
+import { LotHistoryModal } from './LotHistoryModal';
 import type { LotStageRow } from '../../types/lotReport';
 
 const { RangePicker } = DatePicker;
@@ -42,6 +43,7 @@ export function LotReportTab() {
   const [range, setRange] = useState<DateRange | null>(null);
   const [drilldownTarget, setDrilldownTarget] = useState<ScanHistoryDrilldownTarget | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [historyModalLot, setHistoryModalLot] = useState<string | null>(null);
 
   const debouncedSearchText = useDebouncedValue(searchText, 300);
   const searchQuery = useLotSearch(debouncedSearchText);
@@ -223,11 +225,21 @@ export function LotReportTab() {
                 </Descriptions.Item>
                 {/* US-21a AC1/AC5/AC6 (viết lại hoàn toàn 19/08/2026): "Số lượng Lot" nhập tay tại Station.Wpf (US-05 AC7-AC9), KHÔNG phải SUM. */}
                 <Descriptions.Item label="Số lượng Lot">
-                  <Typography.Text strong>
-                    {summaryQuery.data.lotTotalQuantity === null
-                      ? 'Chưa xác định'
-                      : summaryQuery.data.lotTotalQuantity.toLocaleString('vi-VN')}
-                  </Typography.Text>
+                  <Space>
+                    <Typography.Text strong>
+                      {summaryQuery.data.lotTotalQuantity === null
+                        ? 'Chưa xác định'
+                        : summaryQuery.data.lotTotalQuantity.toLocaleString('vi-VN')}
+                    </Typography.Text>
+                    <Button
+                      size="small"
+                      type="link"
+                      icon={<HistoryOutlined />}
+                      onClick={() => setHistoryModalLot(summaryQuery.data.lot)}
+                    >
+                      Lịch sử thay đổi
+                    </Button>
+                  </Space>
                 </Descriptions.Item>
               </Descriptions>
             </Card>
@@ -268,6 +280,7 @@ export function LotReportTab() {
       </Space>
 
       <ScanHistoryDrilldownDrawer target={drilldownTarget} onClose={() => setDrilldownTarget(null)} />
+      <LotHistoryModal lot={historyModalLot} onClose={() => setHistoryModalLot(null)} />
     </div>
   );
 }

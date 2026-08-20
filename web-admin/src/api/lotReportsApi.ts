@@ -1,5 +1,5 @@
 import { httpClient } from './httpClient';
-import type { LotSearchItem, LotSummary, LotSummaryQuery } from '../types/lotReport';
+import type { LotHistoryItem, LotSearchItem, LotSummary, LotSummaryQuery } from '../types/lotReport';
 
 const BASE_PATH = '/api/v1/reports/lots';
 
@@ -29,5 +29,11 @@ export async function exportLotReport(lot: string, query: LotSummaryQuery): Prom
     params: query,
     responseType: 'blob',
   });
+  return response.data;
+}
+
+/** `GET /api/v1/reports/lots/{lot}/history` — lịch sử thay đổi "Tổng số lượng Lot" (mới nhất trước). */
+export async function getLotHistory(lot: string): Promise<LotHistoryItem[]> {
+  const response = await httpClient.get<LotHistoryItem[]>(`${BASE_PATH}/${encodeURIComponent(lot)}/history`);
   return response.data;
 }
