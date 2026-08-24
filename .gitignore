@@ -36,6 +36,11 @@ appsettings.Development.json
 *.db-shm
 *.db-wal
 
+# US-24: file mẫu tem in (template .xlsx) tải lên qua PackingTemplateStorage — dữ liệu runtime, không commit
+# nội dung thật (giữ thư mục qua .gitkeep, giống appsettings.Development.json không commit nhưng vẫn cần chạy được).
+src/ProductionMES.Api/App_Data/PackingTemplates/*
+!src/ProductionMES.Api/App_Data/PackingTemplates/.gitkeep
+
 # Test results
 [Tt]est[Rr]esult*/
 *.trx

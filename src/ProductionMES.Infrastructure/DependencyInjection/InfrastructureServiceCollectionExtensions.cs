@@ -5,8 +5,10 @@ using ProductionMES.Application.Abstractions.Auth;
 using ProductionMES.Application.Abstractions.Authorization;
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Security;
+using ProductionMES.Application.Abstractions.Storage;
 using ProductionMES.Infrastructure.Persistence;
 using ProductionMES.Infrastructure.Security;
+using ProductionMES.Infrastructure.Storage;
 
 namespace ProductionMES.Infrastructure.DependencyInjection;
 
@@ -37,6 +39,11 @@ public static class InfrastructureServiceCollectionExtensions
         // (an toàn gọi nhiều lần) nên không cần kiểm tra đã đăng ký hay chưa.
         services.AddMemoryCache();
         services.AddScoped<IRolePermissionCache, RolePermissionCache>();
+
+        // US-24: lưu file mẫu tem in (template .xlsx) trên filesystem server — interface ở Application, implementation
+        // cụ thể ở Infrastructure (cùng pattern IApiKeyGenerator/IJwtTokenGenerator). PackingTemplateStorageOptions.BasePath
+        // được Api resolve thành đường dẫn tuyệt đối lúc khởi động (xem Program.cs) trước khi bind vào Options pattern.
+        services.AddScoped<IPackingTemplateStorage, PackingTemplateFileStorage>();
 
         return services;
     }

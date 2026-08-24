@@ -34,6 +34,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<LineStageSequence> LineStageSequences => Set<LineStageSequence>();
 
+    public DbSet<PackingModelConfig> PackingModelConfigs => Set<PackingModelConfig>();
+
     public DbSet<Scan> Scans => Set<Scan>();
 
     public DbSet<ReworkUnlock> ReworkUnlocks => Set<ReworkUnlock>();

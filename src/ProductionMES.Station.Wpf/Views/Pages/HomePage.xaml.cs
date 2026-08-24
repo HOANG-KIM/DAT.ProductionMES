@@ -8,7 +8,7 @@ using ProductionMES.Station.Wpf.ViewModels;
 namespace ProductionMES.Station.Wpf.Views.Pages;
 
 /// <summary>
-/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 4 tile thao tác vận hành/chất lượng (dùng
+/// Trang chủ (Main Screen) — launcher tối giản: thông tin trạm + 5 tile thao tác vận hành/chất lượng (dùng
 /// thường xuyên) + 1 nút nhỏ "Cấu hình trạm" cạnh dải thông tin TRẠM/LINE/CÔNG ĐOẠN (thiết lập hiếm khi đổi,
 /// tách khỏi hàng tile chính để không đánh đồng trọng số với các thao tác dùng nhiều lần mỗi ca). Mỗi lối vào
 /// chế độ Tổ trưởng yêu cầu đăng nhập Supervisor nếu chưa có phiên đang mở (ADR-005), rồi điều hướng nội bộ qua
@@ -62,6 +62,14 @@ public partial class HomePage : Page
     private void ReworkUnlockTile_Click(object sender, RoutedEventArgs e)
     {
         ((MainWindow)Window.GetWindow(this)!).NavigateToReworkUnlock();
+    }
+
+    private void PackingModelConfigTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (RequireAuth())
+        {
+            ((MainWindow)Window.GetWindow(this)!).NavigateToPackingModelConfig();
+        }
     }
 
     private void StationConfigTile_Click(object sender, RoutedEventArgs e)

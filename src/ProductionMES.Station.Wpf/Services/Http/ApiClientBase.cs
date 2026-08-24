@@ -48,7 +48,14 @@ public abstract class ApiClientBase
     protected virtual string UnauthorizedMessage =>
         "Phiên đăng nhập Tổ trưởng đã hết hạn hoặc chưa đăng nhập — vui lòng đăng nhập lại.";
 
-    private async Task<ApiException> ToApiExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    /// <summary>
+    /// Chuyển 1 <see cref="HttpResponseMessage"/> lỗi (không phải <c>IsSuccessStatusCode</c>) thành
+    /// <see cref="ApiException"/> — <c>protected</c> (không chỉ dùng nội bộ <see cref="SendAsync{TResponse}"/>) để
+    /// client nào cần gọi <see cref="ApiClientBase.HttpClient"/> trực tiếp (vd multipart upload/binary download,
+    /// không đi qua <c>SendAsync</c> JSON thuần — xem <c>PackingModelConfigApiClient</c>, US-24) vẫn dùng chung
+    /// đúng 1 logic đọc lỗi.
+    /// </summary>
+    protected async Task<ApiException> ToApiExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {

@@ -4,6 +4,7 @@ import {
   BarChartOutlined,
   DesktopOutlined,
   DownOutlined,
+  InboxOutlined,
   LogoutOutlined,
   PartitionOutlined,
   SafetyCertificateOutlined,
@@ -59,6 +60,14 @@ export function AppLayout() {
         key: '/work-stations',
         icon: <DesktopOutlined />,
         label: 'Quản lý Trạm làm việc',
+      });
+    }
+
+    if (hasPermission('PackingModelConfig.View')) {
+      catalogItems.push({
+        key: '/packing-model-configs',
+        icon: <InboxOutlined />,
+        label: 'Cấu hình đóng gói theo Model',
       });
     }
 

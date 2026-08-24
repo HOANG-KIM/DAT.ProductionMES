@@ -64,4 +64,9 @@ public static class PermissionPolicies
 
     // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn — Supervisor/Admin/Manager, cùng đối tượng với ScanView.
     public const string ReportView = "Report.View";
+
+    // US-24: cấu hình Quy cách đóng gói theo Model — Admin (web-admin) + Supervisor (Station.Wpf nâng quyền), AC6.
+    public const string PackingModelConfigView = "PackingModelConfig.View";
+    public const string PackingModelConfigCreate = "PackingModelConfig.Create";
+    public const string PackingModelConfigUpdate = "PackingModelConfig.Update";
 }

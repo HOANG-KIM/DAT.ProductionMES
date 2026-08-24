@@ -5,6 +5,7 @@ import { RouteGuard } from '../components/RouteGuard';
 import { LoginPage } from '../features/auth/LoginPage';
 import { HomePage } from '../features/home/HomePage';
 import { LineListPage } from '../features/lines/LineListPage';
+import { PackingModelConfigListPage } from '../features/packing-model-configs/PackingModelConfigListPage';
 import { PermissionManagementPage } from '../features/permissions/PermissionManagementPage';
 import { ProductionReportPage } from '../features/reports/ProductionReportPage';
 import { StageListPage } from '../features/stages/StageListPage';
@@ -47,6 +48,14 @@ export function AppRoutes() {
             element={
               <PermissionGuard permission="WorkStation.View">
                 <WorkStationListPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="/packing-model-configs"
+            element={
+              <PermissionGuard permission="PackingModelConfig.View">
+                <PackingModelConfigListPage />
               </PermissionGuard>
             }
           />

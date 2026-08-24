@@ -27,7 +27,8 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
             <Button Content="Cài đặt kế hoạch" Margin="0,0,8,0" IsEnabled="False"/>
             <Button Content="Chọn kế hoạch" Click="PlanSelectionButton_Click" Margin="0,0,8,0"/>
-            <Button Content="Trình tự công đoạn (Line)" Click="LineStageSequenceButton_Click"/>
+            <Button Content="Trình tự công đoạn (Line)" Click="LineStageSequenceButton_Click" Margin="0,0,8,0"/>
+            <Button Content="Cấu hình đóng gói" Click="PackingModelConfigButton_Click"/>
             <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource StatusWarningBrush}" Margin="16,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
 

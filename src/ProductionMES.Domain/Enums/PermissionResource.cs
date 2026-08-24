@@ -40,4 +40,12 @@ public enum PermissionResource
     /// quyền (ADR-004) sau này nếu cần.
     /// </summary>
     Report = 8,
+
+    /// <summary>
+    /// Cấu hình Quy cách đóng gói theo Model (US-24/FR-24, công đoạn Đóng thùng) — dùng <c>View</c>/<c>Create</c>/
+    /// <c>Update</c> (không có <c>Delete</c>/<c>Deactivate</c> — chưa có AC nào yêu cầu xoá/vô hiệu hóa cấu hình).
+    /// Quản lý được từ CẢ web-admin (Admin) lẫn Station.Wpf (Tổ trưởng nâng quyền tại trạm) — cấp cho cả 2 role
+    /// (AC6), khác các resource danh mục khác trước đây chỉ Admin.
+    /// </summary>
+    PackingModelConfig = 9,
 }

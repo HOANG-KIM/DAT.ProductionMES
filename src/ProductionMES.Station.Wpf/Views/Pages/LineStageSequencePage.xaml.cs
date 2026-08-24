@@ -45,4 +45,9 @@ public partial class LineStageSequencePage : Page
     {
         ((MainWindow)Window.GetWindow(this)!).NavigateToPlanSelection();
     }
+
+    private void PackingModelConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        ((MainWindow)Window.GetWindow(this)!).NavigateToPackingModelConfig();
+    }
 }

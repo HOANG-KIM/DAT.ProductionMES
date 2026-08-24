@@ -47,6 +47,11 @@ public partial class PlanSettingsPage : Page
         ((MainWindow)Window.GetWindow(this)!).NavigateToLineStageSequence();
     }
 
+    private void PackingModelConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        ((MainWindow)Window.GetWindow(this)!).NavigateToPackingModelConfig();
+    }
+
     /// <summary>
     /// US-05 AC1e "Ngoại lệ khi xoá trắng": nếu ô Takt time bị xoá trắng và mất focus mà không nhập lại gì, tự
     /// phục hồi về giá trị mặc định thay vì để trống. Set lại <c>Text</c> sẽ tự đẩy ngược vào

@@ -16,31 +16,33 @@ Tài liệu này đặc tả đầy đủ yêu cầu chức năng và phi chức
 - Làm căn cứ nghiệm thu (acceptance criteria) khi bàn giao sản phẩm.
 
 ### 1.2 Phạm vi
-Hệ thống quản lý việc theo dõi sản xuất tại các công đoạn (lắp ráp, thông điện, ngoại quan…) trên nhiều Line sản xuất, thông qua việc scan tem sản phẩm tại từng trạm, đối chiếu với kế hoạch sản xuất (takt time, sản lượng mục tiêu), và giao tiếp với thiết bị Arduino qua cổng COM tại một số trạm.
+Hệ thống quản lý việc theo dõi sản xuất tại các công đoạn (lắp ráp, thông điện, ngoại quan, đóng thùng…) trên nhiều Line sản xuất, thông qua việc scan tem sản phẩm tại từng trạm, đối chiếu với kế hoạch sản xuất (takt time, sản lượng mục tiêu), và giao tiếp với thiết bị Arduino qua cổng COM tại một số trạm.
 
 Phạm vi **bao gồm**:
 - Web API trung tâm + cơ sở dữ liệu MySQL.
 - Ứng dụng WPF tại từng trạm làm việc.
 - Giao tiếp Serial (COM port) với Arduino.
+- **Công đoạn Đóng thùng** (FR-24/FR-25/FR-26, cập nhật 20/08/2026 — xem mục 8.1): quét tem đóng gói theo quy cách, tự động in tem dán thùng, theo dõi tiến độ — là 1 công đoạn bình thường trong danh mục/trình tự công đoạn, không phải module/ứng dụng tách biệt.
 
 Phạm vi **không bao gồm** (trừ khi có yêu cầu bổ sung riêng):
 - Tích hợp ERP/MES cấp cao hơn của nhà máy.
 - Ứng dụng di động cho quản lý xem báo cáo từ xa.
 - Cấu hình logic bên trong firmware Arduino (chỉ quy định giao thức lệnh gửi/nhận).
-- **Module Đóng thùng**: mô hình xử lý khác hẳn các công đoạn còn lại (đếm lũy kế số lượng sản phẩm theo thùng, in tem thùng khi đủ số lượng cài đặt, thay vì scan-đối-chiếu-công-đoạn-trước từng sản phẩm) — dự kiến là 1 ứng dụng/quy trình riêng biệt, sẽ đặc tả trong tài liệu riêng khi có quyết định chính thức. Không còn xếp chung vào danh mục công đoạn của hệ thống này.
 
 ### 1.3 Định nghĩa & thuật ngữ
 
 | Thuật ngữ | Giải thích |
 |---|---|
 | Line / Dây chuyền | Một chuyền sản xuất vật lý, gồm nhiều trạm nối tiếp nhau |
-| Công đoạn | Một bước xử lý trên sản phẩm (lắp ráp, thông điện, ngoại quan…), dùng chung danh mục cho mọi Line — không bao gồm Đóng thùng (xem mục 1.2, phạm vi không bao gồm) |
+| Công đoạn | Một bước xử lý trên sản phẩm (lắp ráp, thông điện, ngoại quan, đóng thùng…), dùng chung danh mục cho mọi Line |
 | Trạm làm việc | Vị trí vật lý (PC + màn hình + máy scan, có thể kèm Arduino) thực hiện 1 công đoạn của 1 Line cụ thể |
 | Tem | Mã định danh duy nhất dán trên từng sản phẩm, được scan tại mỗi công đoạn |
 | Takt time | Thời gian tiêu chuẩn (giây) để hoàn thành 1 sản phẩm tại 1 công đoạn, dùng làm cơ sở tính sản lượng/giờ |
 | Kế hoạch sản xuất | Kế hoạch cho 1 lô/ca sản xuất trên 1 Line cụ thể, gồm sản phẩm, số lượng mục tiêu, takt time |
 | Chỉ số âm/dương | Chênh lệch giữa sản lượng thực tế lũy kế và sản lượng kế hoạch lũy kế tại một thời điểm |
 | Khung giờ nghỉ | Khoảng thời gian (giờ bắt đầu–giờ kết thúc) không sản xuất, cấu hình theo từng Line (vd nghỉ trưa 12:00–13:00, nghỉ giữa giờ) — dùng để tính đúng sản lượng kế hoạch lũy kế (xem FR-01, FR-09a) |
+| Thùng (Box) | 1 đơn vị đóng gói tại công đoạn Đóng thùng, chứa 1 số lượng sản phẩm cố định theo Quy cách đóng gói của Model, đánh số thứ tự tăng dần (BoxNo) theo từng kế hoạch sản xuất (xem FR-25) |
+| Quy cách đóng gói | Số lượng sản phẩm tối đa chứa trong 1 thùng, cấu hình theo từng Model (FR-24) — khi số lượng quét đủ, hệ thống tự in tem thùng và chuyển sang thùng kế tiếp |
 
 ### 1.4 Tài liệu tham chiếu
 Tài liệu thiết kế kiến trúc hệ thống (kèm sơ đồ, schema CSDL, các interface chính) đã được thống nhất trong quá trình trao đổi trước SRS này — dùng làm tài liệu kỹ thuật đi kèm, không lặp lại chi tiết trong SRS.
@@ -319,6 +321,27 @@ nghiệp vụ; đã chốt với Ban quản lý)*
 **FR-23 — Xuất báo cáo Excel**
 - Cho phép xuất báo cáo tổng hợp (FR-21) và báo cáo tỷ lệ lỗi (FR-20) ra file Excel (.xlsx), theo bộ lọc đã chọn trên màn hình báo cáo (Line, khoảng thời gian, công đoạn).
 
+**FR-24 — Cấu hình Quy cách đóng gói theo Model** *(bổ sung 20/08/2026 — công đoạn Đóng thùng, xem mục 1.2/8.1)*
+- Mỗi Model sản phẩm có 1 bộ cấu hình đóng gói: Quy cách đóng gói (số lượng sản phẩm/thùng), Khối lượng (gross weight), Tên sản phẩm, Nhà sản xuất, và 1 file mẫu tem in (template) dùng khi in tem dán thùng (FR-26).
+- Quản lý được (xem/thêm/sửa, tải mẫu tem lên/xuống) từ **cả 2 nơi**: web-admin (Admin) và `Station.Wpf` (Tổ trưởng đăng nhập nâng quyền tại trạm) — cùng 1 dữ liệu dùng chung qua API trung tâm, sửa ở đâu cũng ra kết quả giống nhau, không tách riêng theo từng client.
+- "Model" khớp với `ProductionPlan.Model` (free-text hiện có, không tách danh mục riêng) theo kiểu không phân biệt hoa/thường + tự trim khoảng trắng, kèm autocomplete gợi ý Model đã cấu hình — chỉ áp dụng riêng cho bước tra cứu này, không đổi cách `ProductionPlan.Model` dùng ở nơi khác (mục 6 quy tắc 19).
+- Chi tiết AC: `Documents/BACKLOG-user-story.md` US-24.
+
+**FR-25 — Quét tem đóng thùng, đếm số lượng, tự động in tem thùng** *(bổ sung 20/08/2026)*
+- "Đóng thùng" là 1 công đoạn (Stage) bình thường trong danh mục công đoạn (FR-02) và trình tự công đoạn của Line (FR-03), thường xếp cuối trình tự — mọi lượt scan tại đây tuân thủ đúng FR-08 (chống trùng tem theo (Mã tem, Công đoạn) toàn hệ thống + kiểm tra đã qua công đoạn liền trước) như mọi công đoạn khác, không có luồng/API riêng ngoài quy tắc chung.
+- Mỗi lượt scan OK tại công đoạn này cộng dồn vào số lượng đã quét của **thùng hiện tại** (Box) của kế hoạch đang chạy. Khi đủ Quy cách đóng gói (FR-24) → tự động in 1 tem dán thùng (nội dung xem FR-26), số thùng (BoxNo) tự tăng thêm 1, bộ đếm reset về 0 cho thùng kế tiếp.
+- Số thùng bắt đầu chỉ cần nhập tay **đúng 1 lần** khi kế hoạch chưa từng đóng thùng nào qua công đoạn này (để nối tiếp số thùng đã đóng trước đó bằng cách khác) — các thùng sau tự động tăng, hệ thống tự nhớ đúng số thùng/số lượng đang dở kể cả khi tắt/mở lại ứng dụng, không yêu cầu nhập lại. Sửa số thùng hiện tại (nhập sai/đóng bù) cần Supervisor xác nhận (đăng nhập nâng quyền, cùng cơ chế re-auth-mỗi-lần của US-18).
+- Số lượng mục tiêu của 1 thùng (dùng để so sánh "đủ chưa") được **snapshot đúng giá trị Quy cách đóng gói tại thời điểm mở thùng** — nếu Quy cách đóng gói của Model bị sửa (FR-24) trong lúc thùng đang đóng dở, thùng đó KHÔNG bị ảnh hưởng, quy cách mới chỉ áp dụng từ thùng mở sau đó (mục 6 quy tắc 17).
+- Tem trùng tại công đoạn này bị từ chối và lưu lịch sử **đúng theo quy tắc mặc định của FR-08 — không có ngoại lệ ghi đè**. Điểm bổ sung riêng: hệ thống yêu cầu Supervisor xác nhận (cùng cơ chế re-auth-mỗi-lần của US-18) **đã biết tình huống** trước khi Operator được tiếp tục thao tác — xác nhận này chỉ lưu vết audit, KHÔNG cộng thêm số lượng vào thùng hiện tại, KHÔNG tạo thêm bản ghi OK (mục 6 quy tắc 16). Không áp dụng cho bất kỳ công đoạn nào khác.
+- Mọi lượt scan tại công đoạn này (OK, chưa qua công đoạn trước, trùng tem bị từ chối, trùng tem đã được Supervisor xác nhận) đều lưu lịch sử, theo đúng nguyên tắc chung (mục 6 quy tắc 6).
+- Cơ chế in tem cụ thể (công nghệ/thiết bị) là quyết định kỹ thuật, không thuộc phạm vi đặc tả nghiệp vụ này. Khi có lỗi in (kể cả lỗi vật lý không phát hiện được ở tầng code), hệ thống **không chặn** đóng thùng kế tiếp — luôn có thao tác In lại thủ công (mục 6 quy tắc 20).
+- Chi tiết AC: `Documents/BACKLOG-user-story.md` US-25.
+
+**FR-26 — Theo dõi tiến độ đóng thùng** *(bổ sung 20/08/2026)*
+- Tại trạm: hiển thị số lượng đã quét trong thùng hiện tại / quy cách cần đủ, cập nhật real-time khi có lượt scan mới.
+- Ở mức quản lý (Tổ trưởng/Manager): xem tổng quan tiến độ đóng thùng của các kế hoạch đang chạy (số thùng đã đóng, tổng số lượng đã đóng thùng OK), đối chiếu với "Tổng số lượng Lot" (FR-21a) để tính % hoàn thành so với tổng đơn hàng — Lot chưa nhập Tổng số lượng thì hiển thị "Chưa xác định", theo đúng quy ước chung của FR-21a. **Không có trạng thái riêng** cho "đã đóng thùng xong toàn bộ Lot" — chỉ hiển thị %/nhãn Đủ-Chưa đủ, dùng lại đúng quy ước đã có ở US-21/US-21a (mục 6 quy tắc 18).
+- Chi tiết AC: `Documents/BACKLOG-user-story.md` US-26.
+
 ---
 
 ## 4. YÊU CẦU PHI CHỨC NĂNG
@@ -373,6 +396,11 @@ nghiệp vụ; đã chốt với Ban quản lý)*
     Ban quản lý), thay thế hướng SUM đã chốt tạm 18/08/2026 sau khi xác nhận SUM sai bản chất nghiệp vụ. Bắt buộc
     nhập khi tạo kế hoạch cho Lot hoàn toàn mới; sửa giảm xuống dưới số đã chạy thực tế chỉ cảnh báo + xác nhận,
     không chặn cứng (xem FR-21a).
+16. Công đoạn **"Đóng thùng"** (FR-24/FR-25/FR-26, bổ sung 20/08/2026) là 1 công đoạn bình thường trong danh mục/trình tự công đoạn — dùng lại nguyên vẹn FR-08 (chống trùng tem + kiểm tra công đoạn liền trước), **không có ngoại lệ ghi đè nào** (đúng quy tắc mặc định "từ chối cứng, không cho ghi đè" ở mục 8.1 — quyết định lại 20/08/2026, đảo ngược thiết kế nháp ban đầu). Điểm bổ sung riêng cho công đoạn này: khi tem trùng bị từ chối, hệ thống yêu cầu Supervisor đăng nhập nâng quyền (cùng cơ chế re-auth-mỗi-lần của US-18) để **xác nhận đã biết tình huống** trước khi Operator được tiếp tục thao tác bình thường — xác nhận này CHỈ lưu vết ai đã xử lý (audit), **KHÔNG cộng thêm số lượng vào thùng hiện tại, KHÔNG tạo thêm bản ghi scan OK, KHÔNG thay đổi kết quả từ chối đã lưu**. Không áp dụng cơ chế xác nhận này cho bất kỳ công đoạn nào khác trong hệ thống.
+17. Cấu hình **Quy cách đóng gói** (FR-24, entity cấu hình theo Model) khi bị sửa trong lúc 1 thùng tại "Đóng thùng" đang đóng dở: **không hồi tố** — thùng đang dở tiếp tục dùng đúng số lượng mục tiêu đã snapshot tại thời điểm MỞ thùng đó, quy cách mới chỉ áp dụng cho thùng MỞ SAU thời điểm sửa (quyết định 20/08/2026, cùng tinh thần snapshot đã áp dụng cho `Scan` — mục 6 quy tắc 14).
+18. Tiến độ đóng thùng theo Lot (FR-26, US-26) **không có trạng thái riêng** đánh dấu "đã đóng thùng xong toàn bộ Lot" — chỉ hiển thị % hoàn thành và nhãn **Đủ/Chưa đủ**, dùng lại đúng quy ước đã có ở báo cáo Lot-centric (US-21/AC6, US-21a) để nhất quán toàn hệ thống, không phát sinh khái niệm "hoàn thành" mới song song với `PlanStatus.Completed` (vốn tính theo từng cặp Kế hoạch-Công đoạn, không phải theo Lot — quyết định 20/08/2026).
+19. Cấu hình Quy cách đóng gói (FR-24) so khớp với `ProductionPlan.Model` theo kiểu **không phân biệt hoa/thường, tự động trim khoảng trắng thừa** (không so chuỗi tuyệt đối như bản nháp ban đầu), kèm gợi ý autocomplete Model đã có cấu hình khi nhập tại US-24 — **chỉ áp dụng riêng cho bước tra cứu cấu hình đóng gói này**, KHÔNG thay đổi cách `ProductionPlan.Model` được lưu/hiển thị/so khớp ở bất kỳ nơi nào khác trong hệ thống (báo cáo, Andon board, US-05...) — vẫn giữ nguyên free-text, không tách thành danh mục Model riêng (quyết định 20/08/2026).
+20. Khi máy in gặp lỗi lúc đủ số lượng để in tem thùng (FR-25/FR-26): hệ thống **không chặn** việc tiếp tục đóng thùng kế tiếp — cơ chế in (Excel COM automation) chỉ phát hiện và báo lỗi được ở mức lệnh gọi in (thiếu template/Excel/máy in), không phát hiện được lỗi vật lý (kẹt/hết giấy) sau khi đã gửi lệnh in. Luôn có sẵn thao tác **In lại thủ công** để Operator/Tổ trưởng chủ động in bù khi phát hiện tem chưa ra giấy (quyết định 20/08/2026).
 
 **Bổ sung 19/08/2026**: `Scan` snapshot thêm `OperatorNames` (Tên nhân viên vận hành, free-text — xem mục 8.1 "Trường Tên nhân viên") theo đúng cơ chế snapshot trên, nhưng field này **KHÔNG** thuộc nhóm bị khóa tuyệt đối — Tổ trưởng vẫn sửa `OperatorNames` của kế hoạch tự do bất kỳ lúc nào (không phải dữ liệu định danh lô hàng như Customer/Model/Lot/Revision), giống cách Số lượng/Takt time được sửa: việc sửa sau này không ảnh hưởng snapshot đã lưu ở các lượt scan trước đó.
 
@@ -412,6 +440,14 @@ nghiệp vụ; đã chốt với Ban quản lý)*
 | AC-26 | Kế hoạch Lot A (SL 1000) đang `Running`, đã scan OK 400 sản phẩm tại công đoạn X, Tổ trưởng bấm "Tạm dừng" | Kế hoạch chuyển `Paused`, không mất tiến độ; Line có thể Áp dụng kế hoạch khác |
 | AC-27 | Vài ngày sau, Tổ trưởng mở màn hình "Chọn kế hoạch", chọn lại Lot A (đang `Paused`) | Hiển thị rõ "Đã chạy 400/1000 — còn 600" (tính động từ lịch sử scan OK), không hiển thị nhầm như còn nguyên 1000 |
 | AC-28 | Tổ trưởng bấm "Đóng kế hoạch" cho 1 lot đang `Paused` chưa đủ số lượng | Hệ thống yêu cầu xác nhận trước khi chuyển sang `Cancelled`, nêu rõ số lượng còn thiếu |
+| AC-29 | Model chưa được cấu hình Quy cách đóng gói (FR-24), Operator cố scan tem đầu tiên tại "Đóng thùng" | Hệ thống chặn, báo lỗi yêu cầu cấu hình Quy cách đóng gói cho Model trước, không ghi nhận lượt scan là hợp lệ |
+| AC-30 | Quy cách đóng gói = 50, thùng hiện tại vừa được quét đủ 50 tem OK | Tự động in 1 tem dán thùng theo mẫu đã cấu hình cho Model, số thùng (BoxNo) tăng thêm 1, bộ đếm reset về 0 |
+| AC-31 | Tem đã được quét OK tại "Đóng thùng" trước đó, Operator quét lại đúng tem đó | Bị từ chối ngay theo đúng FR-08 (không ghi đè), lưu lịch sử; yêu cầu Supervisor đăng nhập nâng quyền xác nhận đã biết tình huống trước khi Operator tiếp tục thao tác — KHÔNG cộng thêm số lượng vào thùng hiện tại, KHÔNG tạo thêm bản ghi OK (mục 6 quy tắc 16) |
+| AC-32 | Kế hoạch đã đóng dở 1 số thùng tại "Đóng thùng", tắt/mở lại ứng dụng tại trạm | Hiển thị đúng số thùng hiện tại và số lượng đã quét dở của thùng đó, không yêu cầu nhập lại số thùng |
+| AC-33 | Thùng hiện tại đang đóng dở (vd 3/10), Admin/Tổ trưởng sửa Quy cách đóng gói của Model đó thành 8 (FR-24) | Thùng đang dở vẫn tiếp tục tính đủ ở mốc 10 (giá trị snapshot lúc mở thùng), không đổi giữa chừng; quy cách 8 chỉ áp dụng cho thùng mở sau đó (mục 6 quy tắc 17) |
+| AC-34 | Cấu hình đóng gói ghi Model "ABC-123", kế hoạch sản xuất ghi "abc-123 " (khác hoa/thường, dư khoảng trắng) | Hệ thống vẫn khớp đúng cấu hình đóng gói cho kế hoạch đó (so khớp không phân biệt hoa/thường, tự trim) — chỉ áp dụng cho bước tra cứu này, không đổi cách hiển thị/lưu Model ở nơi khác (mục 6 quy tắc 19) |
+| AC-35 | Tem dán thùng in lỗi/không ra giấy dù hệ thống đã ghi nhận đủ số lượng | Không bị chặn đóng thùng kế tiếp; Operator/Tổ trưởng có thể chủ động bấm "In lại" để in bù bất cứ lúc nào (mục 6 quy tắc 20) |
+| AC-36 | Trạm được cấu hình cho công đoạn "Lắp ráp" (khác "Đóng thùng"), Operator scan trùng tem tại trạm đó | Luồng scan tiêu chuẩn (FR-07/FR-08) — không có bộ đếm/thùng, không tự in tem; tem trùng bị từ chối cứng, KHÔNG có bước Supervisor xác nhận-đã-biết (đặc thù riêng của "Đóng thùng", mục 6 quy tắc 16) |
 
 ---
 
@@ -429,7 +465,7 @@ nghiệp vụ; đã chốt với Ban quản lý)*
 - Cơ chế xử lý khi lượt scan bị từ chối: giữ **mặc định từ chối cứng**, không cho ghi đè/xử lý ngoại lệ.
 - Có yêu cầu **xuất báo cáo ra Excel** (đã bổ sung FR-23), không yêu cầu xuất PDF ở giai đoạn này.
 - **Hạ tầng mạng LAN nội bộ nhà máy được đánh giá ổn định**, rủi ro mất mạng kéo dài diện rộng là thấp → **rút gọn FR-16**: bỏ cơ chế cảnh báo theo ngưỡng (200 bản ghi/15 phút) và báo cáo đối soát riêng; chỉ giữ lại hàng đợi cục bộ ghi trước + retry tự động + idempotency (GUID) để chống mất dữ liệu do crash/mất điện/server tạm ngưng — áp dụng đồng nhất cho mọi trạm, không phân biệt theo vị trí trong chuỗi công đoạn (xem FR-16 đã cập nhật).
-- **Module Đóng thùng tách khỏi phạm vi SRS này** — do mô hình xử lý khác hẳn (đếm lũy kế theo thùng, in tem khi đủ số lượng cài đặt, không phải scan-đối-chiếu-công-đoạn từng sản phẩm), dự kiến phát triển thành ứng dụng riêng, sẽ đặc tả trong tài liệu riêng khi có quyết định chính thức (xem mục 1.2).
+- **Đảo ngược quyết định trước đó, 20/08/2026 — Đóng thùng chính thức đưa vào phạm vi hệ thống này** (trước đây dự kiến tách thành ứng dụng riêng, xem lịch sử ở mục 1.2 bản cũ): "Đóng thùng" được mô hình hóa là 1 công đoạn (Stage) bình thường trong danh mục/trình tự công đoạn, tái sử dụng nguyên vẹn cơ chế scan/chống trùng/kiểm tra công đoạn liền trước (FR-08) — chỉ bổ sung thêm lớp đếm lũy kế theo thùng + tự động in tem khi đủ số lượng (FR-24/FR-25/FR-26), snapshot Quy cách đóng gói theo từng thùng (mục 6 quy tắc 17), quy ước hiển thị tiến độ theo Lot (mục 6 quy tắc 18), và bước Supervisor xác nhận-đã-biết khi có tem trùng — **không phải ghi đè**, chỉ audit, không cộng số lượng (mục 6 quy tắc 16, quyết định lại 20/08/2026). Lý do đảo ngược: tính năng port lại từ 1 app WinForms cũ độc lập (`PrintLabel`, DB `line_andon_history1`) sang tích hợp thẳng vào kiến trúc MES hiện tại, tận dụng được engine chống trùng/kiểm tra trình tự đã có thay vì tự viết lại. Cơ chế in tem giữ nguyên theo mẫu Excel template (quyết định kỹ thuật, không thuộc phạm vi SRS). Xem chi tiết `Documents/BACKLOG-user-story.md` US-24/US-25/US-26.
 - Danh mục lý do lỗi khi Scan NG: dùng **nhập tự do (free text)** kèm gợi ý autocomplete từ lịch sử, không cấu hình danh mục cố định trước (đã cập nhật FR-18).
 - Cách kích hoạt Chế độ Scan NG: giữ **cả 2 phương án** (nút bấm cho trạm có màn hình cảm ứng/chuột, mã vạch NG cố định cho trạm chỉ có đầu đọc mã vạch) — Admin cấu hình theo từng trạm tùy hạ tầng thực tế.
 - Các giá trị timeout (Chế độ Scan NG 30s, chờ Arduino 45s) **cấu hình qua file cấu hình cục bộ tại từng trạm** (ví dụ `appsettings.json`), không phải cấu hình tập trung ở Admin/server — cho phép chỉnh riêng theo từng trạm mà không cần deploy lại hay phụ thuộc kết nối server.
@@ -465,3 +501,8 @@ nghiệp vụ; đã chốt với Ban quản lý)*
 - [x] **Đã chốt 19/08/2026** — Cách hiển thị "đủ/chưa đủ" ở báo cáo Lot-centric (US-21a): Ban quản lý xác nhận so
   sánh theo TỪNG dòng (Line, Công đoạn) riêng biệt (`OkCount` dòng đó so với `Lot.TotalQuantity`), không cần 1 con
   số tổng hợp duy nhất cho cả Lot — không cần định nghĩa thêm khái niệm "công đoạn cuối cùng của Lot".
+- [x] **Đã chốt 20/08/2026** — Model trong cấu hình đóng gói (FR-24) so khớp với `ProductionPlan.Model` **không phân biệt hoa/thường + tự trim khoảng trắng** (không so chuỗi tuyệt đối), kèm autocomplete gợi ý — giữ nguyên free-text, **không** tách thành danh mục Model riêng. Phạm vi thay đổi CHỈ áp dụng cho bước tra cứu cấu hình đóng gói này, không đụng tới cách `ProductionPlan.Model` dùng ở nơi khác trong hệ thống (mục 6 quy tắc 19).
+- [x] **Đã chốt 20/08/2026** — Sau khi Supervisor xác nhận tem trùng tại "Đóng thùng" (FR-25, mục 6 quy tắc 16): **KHÔNG cộng thêm số lượng**, KHÔNG tạo thêm bản ghi OK — xác nhận chỉ mang tính audit (lưu vết ai đã biết/xử lý tình huống), cho phép Operator tiếp tục thao tác bình thường. Đảo ngược giả định ban đầu của backlog (được cộng thêm).
+- [x] **Đã chốt 20/08/2026** — Máy in gặp lỗi đúng lúc đủ số lượng để in tem thùng (FR-26): **không chặn** đóng thùng kế tiếp (cơ chế in Excel COM chỉ phát hiện được lỗi ở mức lệnh gọi, không phát hiện được lỗi vật lý sau khi gửi lệnh in) — luôn có sẵn thao tác In lại thủ công (mục 6 quy tắc 20).
+- [x] **Đã chốt 20/08/2026** — Cấu hình Quy cách đóng gói (FR-24) thay đổi khi đang đóng dở 1 thùng: **không hồi tố** — thùng đang dở tiếp tục dùng đúng số lượng mục tiêu đã snapshot lúc mở thùng, quy cách mới chỉ áp dụng cho thùng mở sau đó (mục 6 quy tắc 17).
+- [x] **Đã chốt 20/08/2026** — Không cần trạng thái riêng cho "đã đóng thùng xong toàn bộ Lot": chỉ hiển thị % hoàn thành, dùng lại đúng nhãn Đủ/Chưa đủ đã có ở US-21/US-21a — tránh phát sinh khái niệm "hoàn thành" mới song song với `PlanStatus.Completed` (mục 6 quy tắc 18).

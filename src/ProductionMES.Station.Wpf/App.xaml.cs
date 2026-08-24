@@ -9,6 +9,7 @@ using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.LineStageSequences;
 using ProductionMES.Station.Wpf.Services.Lines;
 using ProductionMES.Station.Wpf.Services.Navigation;
+using ProductionMES.Station.Wpf.Services.PackingModelConfigs;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
 using ProductionMES.Station.Wpf.Services.Realtime;
@@ -144,6 +145,15 @@ public partial class App : Application
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<SupervisorAuthHandler>();
 
+        // US-24: cấu hình Quy cách đóng gói theo Model — Bearer Tổ trưởng, cùng phiên dùng chung
+        // ISupervisorSessionService (SupervisorAuthHandler) với PlanSettings/PlanSelection/LineStageSequence
+        // (KHÔNG re-auth-mỗi-lần như US-18/US-19, vì đây là cấu hình danh mục thuần túy, không gắn danh tính audit
+        // đặc biệt như "người xác nhận NG"/"người mở khóa rework").
+        services.AddHttpClient<IPackingModelConfigApiClient, PackingModelConfigApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<SupervisorAuthHandler>();
+
         // US-19: "Mở khóa rework" — Bearer Tổ trưởng (Scan.ReworkUnlock). 18/08/2026 (AC7 — re-auth mỗi lần):
         // KHÔNG gắn SupervisorAuthHandler (khác các client MainWindow khác ở trên) — token ephemeral (không phải
         // phiên dùng chung ISupervisorSessionService) được ReworkUnlockViewModel gắn thủ công vào từng request
@@ -180,6 +190,8 @@ public partial class App : Application
         services.AddTransient<LineStageSequenceViewModel>();
         services.AddTransient<ReworkUnlockPage>();
         services.AddTransient<ReworkUnlockViewModel>();
+        services.AddTransient<PackingModelConfigPage>();
+        services.AddTransient<PackingModelConfigViewModel>();
         services.AddTransient<StationConfigPage>();
         services.AddTransient<StationConfigViewModel>();
         services.AddTransient<LoginDialog>();

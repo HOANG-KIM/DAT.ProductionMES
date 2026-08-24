@@ -14,6 +14,7 @@ using ProductionMES.Api.Hubs;
 using ProductionMES.Api.Realtime;
 using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DependencyInjection;
+using ProductionMES.Application.Options;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Enums;
 using ProductionMES.Infrastructure.DependencyInjection;
@@ -39,6 +40,18 @@ try
     // Đăng ký service theo từng layer
     builder.Services.AddApplicationServices(builder.Configuration);
     builder.Services.AddInfrastructureServices(builder.Configuration);
+
+    // US-24: PackingTemplateStorageOptions.BasePath phải là đường dẫn TUYỆT ĐỐI khi Infrastructure sử dụng —
+    // Infrastructure không reference ASP.NET Core Hosting nên không tự có IWebHostEnvironment, Api (nơi duy nhất
+    // biết ContentRootPath) resolve từ đường dẫn tương đối cấu hình (mặc định "App_Data/PackingTemplates") rồi
+    // bind vào Options pattern qua Configure(Action<T>) thay vì section binding thông thường.
+    builder.Services.Configure<PackingTemplateStorageOptions>(options =>
+    {
+        var relativePath = builder.Configuration["PackingTemplateStorage:RelativeFolderPath"] ?? "App_Data/PackingTemplates";
+        options.BasePath = Path.IsPathRooted(relativePath)
+            ? relativePath
+            : Path.Combine(builder.Environment.ContentRootPath, relativePath);
+    });
 
     builder.Services.AddControllers(options =>
     {
@@ -186,6 +199,11 @@ try
 
         // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
         AddPermissionPolicy(PermissionPolicies.ReportView, PermissionResource.Report, PermissionAction.View);
+
+        // US-24: cấu hình Quy cách đóng gói theo Model.
+        AddPermissionPolicy(PermissionPolicies.PackingModelConfigView, PermissionResource.PackingModelConfig, PermissionAction.View);
+        AddPermissionPolicy(PermissionPolicies.PackingModelConfigCreate, PermissionResource.PackingModelConfig, PermissionAction.Create);
+        AddPermissionPolicy(PermissionPolicies.PackingModelConfigUpdate, PermissionResource.PackingModelConfig, PermissionAction.Update);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

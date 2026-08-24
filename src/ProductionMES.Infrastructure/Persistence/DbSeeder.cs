@@ -100,6 +100,11 @@ public static class DbSeeder
 
             // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
             (PermissionResource.Report, PermissionAction.View),
+
+            // US-24: cấu hình Quy cách đóng gói theo Model — Admin (web-admin) + Supervisor (Station.Wpf), AC6.
+            (PermissionResource.PackingModelConfig, PermissionAction.View),
+            (PermissionResource.PackingModelConfig, PermissionAction.Create),
+            (PermissionResource.PackingModelConfig, PermissionAction.Update),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -130,7 +135,8 @@ public static class DbSeeder
             // báo cáo tổng hợp theo Line/công đoạn).
             var newSupervisorPermissions = newPermissions.Where(p =>
                 p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage
-                || p.Resource == PermissionResource.Scan || p.Resource == PermissionResource.Report);
+                || p.Resource == PermissionResource.Scan || p.Resource == PermissionResource.Report
+                || p.Resource == PermissionResource.PackingModelConfig);
             rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
             // Manager: Scan.View (US-10, tra cứu lịch sử scan) + Scan.ConfirmNg (US-18, thay đổi 18/08/2026, xác
@@ -155,6 +161,7 @@ public static class DbSeeder
         await EnsureScanConfirmNgPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureScanReworkUnlockPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureReportViewPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsurePackingModelConfigPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -338,6 +345,48 @@ public static class DbSeeder
         }
 
         dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = reportViewPermissionId.Value }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 20/08/2026 (US-24/FR-24, cấu hình Quy cách đóng gói theo Model): đảm bảo cả 3 permission
+    /// <c>(PackingModelConfig, View/Create/Update)</c> được cấp cho <c>Admin</c>/<c>Supervisor</c> (AC6 — quản lý
+    /// được từ cả web-admin lẫn Station.Wpf) — cùng lý do/idiom lưới an toàn với
+    /// <see cref="EnsureReportViewPermissionGrantsAsync"/>. Idempotent theo từng cặp (Role, PermissionId), chạy
+    /// MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsurePackingModelConfigPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var permissionIds = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.PackingModelConfig)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (permissionIds.Count == 0)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor };
+
+        var alreadyGranted = (await dbContext.RolePermissions
+                .Where(rp => permissionIds.Contains(rp.PermissionId) && roles.Contains(rp.Role))
+                .Select(rp => new { rp.Role, rp.PermissionId })
+                .ToListAsync(cancellationToken))
+            .Select(rp => (rp.Role, rp.PermissionId))
+            .ToHashSet();
+
+        var missing = roles
+            .SelectMany(role => permissionIds.Select(permissionId => (Role: role, PermissionId: permissionId)))
+            .Where(pair => !alreadyGranted.Contains(pair))
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missing.Select(pair => new RolePermission { Role = pair.Role, PermissionId = pair.PermissionId }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

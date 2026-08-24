@@ -13,8 +13,8 @@ namespace ProductionMES.Station.Wpf;
 
 /// <summary>
 /// Cửa sổ chứa các trang chế độ Tổ trưởng (ADR-006): Trang chủ ⇄ Cài đặt kế hoạch (US-05) ⇄ Chọn kế hoạch
-/// (US-05b) ⇄ Trình tự công đoạn của Line (US-03) ⇄ Mở khóa rework (US-19), điều hướng nội bộ qua
-/// <see cref="Frame"/>, không mở thêm Window riêng cho từng trang.
+/// (US-05b) ⇄ Trình tự công đoạn của Line (US-03) ⇄ Mở khóa rework (US-19) ⇄ Cấu hình đóng gói theo Model
+/// (US-24), điều hướng nội bộ qua <see cref="Frame"/>, không mở thêm Window riêng cho từng trang.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -114,6 +114,8 @@ public partial class MainWindow : Window
     public void NavigateToReworkUnlock() => MainFrame.Navigate(_serviceProvider.GetRequiredService<ReworkUnlockPage>());
 
     public void NavigateToStationConfig() => MainFrame.Navigate(_serviceProvider.GetRequiredService<StationConfigPage>());
+
+    public void NavigateToPackingModelConfig() => MainFrame.Navigate(_serviceProvider.GetRequiredService<PackingModelConfigPage>());
 
     /// <summary>Gỡ khóa Closing đúng 1 lần cho luồng "Thoát ứng dụng" chủ động — gọi từ <c>WindowCoordinator.ExitApplication</c>.</summary>
     public void AllowExit() => _exitAllowed = true;
