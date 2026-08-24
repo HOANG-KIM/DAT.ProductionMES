@@ -32,7 +32,11 @@
                 <TextBox Text="{Binding LineName, Mode=OneWay}" IsReadOnly="True" Margin="0,2,0,10"/>
 
                 <TextBlock Text="Công đoạn (suy ra tự động)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
-                <TextBox Text="{Binding StageName, Mode=OneWay}" IsReadOnly="True" Margin="0,2,0,16"/>
+                <TextBox Text="{Binding StageName, Mode=OneWay}" IsReadOnly="True" Margin="0,2,0,10"/>
+
+                <!-- US-25 (sửa lỗi 24/08/2026): suy ra tự động từ Stage.IsPackingStage của công đoạn vừa chọn ở trên — không cho tick tay, tránh lệch với cấu hình thật trên server. -->
+                <CheckBox Content="Là công đoạn Đóng thùng (suy ra tự động)" IsChecked="{Binding IsPackingStage, Mode=OneWay}"
+                          IsHitTestVisible="False" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,16"/>
 
                 <TextBlock Text="Thời gian chờ Arduino (giây)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding ArduinoTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>

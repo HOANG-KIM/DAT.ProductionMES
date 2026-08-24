@@ -10,4 +10,7 @@ public class StageDto
     public string? Description { get; set; }
 
     public bool IsActive { get; set; }
+
+    /// <summary>US-25: true nếu đây là công đoạn "Đóng thùng" đặc thù (đếm số lượng, tự động in tem thùng — xem Stage.IsPackingStage).</summary>
+    public bool IsPackingStage { get; set; }
 }

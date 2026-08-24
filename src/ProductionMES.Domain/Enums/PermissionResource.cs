@@ -48,4 +48,13 @@ public enum PermissionResource
     /// (AC6), khác các resource danh mục khác trước đây chỉ Admin.
     /// </summary>
     PackingModelConfig = 9,
+
+    /// <summary>
+    /// Thao tác trên thùng tại công đoạn "Đóng thùng" (US-25/FR-25) CẦN đăng nhập Supervisor (tái sử dụng cơ chế
+    /// re-auth mỗi lần của US-18): <c>Update</c> — sửa số thùng hiện tại (AC7); <c>ConfirmDuplicate</c> — xác
+    /// nhận đã biết tình huống tem trùng, chỉ audit, không cộng số lượng (AC8). Đọc trạng thái thùng hiện tại
+    /// (GetState) và nhập số thùng bắt đầu (AC5) KHÔNG đi qua permission này — dùng scheme <c>StationApiKey</c>
+    /// như luồng scan chuẩn (Operator không đăng nhập cá nhân, xem <see cref="Scan"/>).
+    /// </summary>
+    PackingBox = 10,
 }

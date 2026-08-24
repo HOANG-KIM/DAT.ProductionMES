@@ -12,6 +12,7 @@ using ProductionMES.Station.Wpf.Models;
 using ProductionMES.Station.Wpf.Services.AndonBoard;
 using ProductionMES.Station.Wpf.Services.Auth;
 using ProductionMES.Station.Wpf.Services.Http;
+using ProductionMES.Station.Wpf.Services.PackingBoxes;
 using ProductionMES.Station.Wpf.Services.Realtime;
 using ProductionMES.Station.Wpf.Services.Scans;
 
@@ -44,11 +45,28 @@ public partial class AndonBoardViewModel : ObservableObject
     /// </summary>
     internal const string ScanConfirmNgPermission = "Scan.ConfirmNg";
 
+    /// <summary>US-25 AC7: permission bắt buộc để sửa số thùng hiện tại — literal "PackingBox.Update" (Station.Wpf KHÔNG reference project backend), phải khớp đúng <c>PermissionPolicies.PackingBoxUpdate</c> phía server.</summary>
+    internal const string PackingBoxUpdatePermission = "PackingBox.Update";
+
+    /// <summary>US-25 AC8: permission bắt buộc để xác nhận đã biết tình huống tem trùng tại "Đóng thùng" — literal "PackingBox.ConfirmDuplicate", khớp <c>PermissionPolicies.PackingBoxConfirmDuplicate</c> phía server.</summary>
+    internal const string PackingBoxConfirmDuplicatePermission = "PackingBox.ConfirmDuplicate";
+
     private readonly IScanApiClient _scanApiClient;
     private readonly IScanHubClient _scanHubClient;
     private readonly IAndonBoardApiClient _andonBoardApiClient;
+    private readonly IPackingBoxApiClient _packingBoxApiClient;
+    private readonly IPackingLabelPrintService _packingLabelPrintService;
     private readonly IServiceProvider _serviceProvider;
     private readonly StationOptions _options;
+
+    /// <summary>US-25 AC7: mã tem đang chờ Supervisor xác nhận-đã-biết (AC8) — gán khi banner lỗi hiện tại là DuplicateTag tại công đoạn "Đóng thùng", null nếu không phải tình huống này.</summary>
+    private string? _pendingPackingDuplicateTagCode;
+
+    /// <summary>US-25 AC7: access token đăng nhập RIÊNG cho thao tác sửa số thùng hiện tại đang chờ xử lý — cùng idiom <see cref="_ngScanAccessToken"/>, xóa ngay sau khi dùng.</summary>
+    private string? _packingSupervisorAccessToken;
+
+    /// <summary>US-25 AC4/AC13: Id thùng hoàn tất gần nhất — dùng cho nút "In lại" (AC13), null nếu kế hoạch hiện tại chưa từng hoàn tất thùng nào.</summary>
+    private int? _lastCompletedPackingBoxId;
 
     /// <summary>
     /// US-18 (thay đổi 18/08/2026): access token đăng nhập RIÊNG cho lượt Scan NG hiện tại (AC2a), gán bởi
@@ -238,13 +256,81 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>US-18 AC4: danh sách gợi ý autocomplete cho công đoạn hiện tại, tải lại mỗi lần bắt đầu nhập lý do.</summary>
     public ObservableCollection<string> NgReasonSuggestions { get; } = new();
 
+    // --- US-25: công đoạn "Đóng thùng" (AC1-AC13) — chỉ có ý nghĩa khi IsPackingStage = true. ---
+
+    /// <summary>Cấu hình cục bộ trạm (xem remarks tại <see cref="StationOptions.IsPackingStage"/>) — <c>AndonBoardWindow.xaml</c> bind vào đây để hiện/ẩn toàn bộ UI đặc thù US-25.</summary>
+    public bool IsPackingStage => _options.IsPackingStage;
+
+    /// <summary>AC5: true khi kế hoạch hiện tại CHƯA từng có thùng nào tại công đoạn này — bắt buộc nhập số thùng bắt đầu trước khi cho quét tem.</summary>
+    [ObservableProperty]
+    private bool packingRequiresStartingBoxNo;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingProgressLabel))]
+    private int packingBoxNo;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingProgressLabel))]
+    private int packingScannedQuantity;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingProgressLabel))]
+    private int packingTargetQuantity;
+
+    /// <summary>AC9: "đã quét / mục tiêu" của thùng hiện tại.</summary>
+    public string PackingProgressLabel => $"{PackingScannedQuantity} / {PackingTargetQuantity}";
+
+    /// <summary>AC13: true khi kế hoạch hiện tại đã có ít nhất 1 thùng hoàn tất — điều khiển hiện/ẩn nút "In lại" (luôn sẵn sàng theo AC13, không phụ thuộc lượt scan gần nhất có hoàn tất thùng hay không).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ReprintPackingLabelCommand))]
+    private bool packingHasCompletedBox;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ReprintPackingLabelCommand))]
+    private bool isReprintingPackingLabel;
+
+    /// <summary>AC13: thông báo lỗi in gần nhất (tự động hoặc "In lại") — KHÔNG dùng chung banner scan (tránh xung đột trạng thái), hiển thị dưới dạng dòng chữ nhỏ cạnh bộ đếm thùng.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPackingPrintStatusMessage))]
+    private string packingPrintStatusMessage = string.Empty;
+
+    public bool HasPackingPrintStatusMessage => !string.IsNullOrEmpty(PackingPrintStatusMessage);
+
+    /// <summary>AC5/AC7: overlay dùng CHUNG cho 2 tình huống — nhập số thùng bắt đầu (bắt buộc, <see cref="IsEditingExistingBoxNo"/> = false, không có nút Hủy) và sửa số thùng hiện tại (<see cref="IsEditingExistingBoxNo"/> = true, có nút Hủy).</summary>
+    [ObservableProperty]
+    private bool isPackingBoxNoOverlayVisible;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAddingStartingBoxNo))]
+    private bool isEditingExistingBoxNo;
+
+    /// <summary>Nghịch đảo của <see cref="IsEditingExistingBoxNo"/> — dùng cho binding Visibility ở XAML (BooleanToVisibilityConverter không hỗ trợ đảo ngược qua ConverterParameter).</summary>
+    public bool IsAddingStartingBoxNo => !IsEditingExistingBoxNo;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SubmitPackingBoxNoCommand))]
+    private string packingBoxNoInputText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPackingBoxNoOverlayError))]
+    private string packingBoxNoOverlayError = string.Empty;
+
+    public bool HasPackingBoxNoOverlayError => !string.IsNullOrEmpty(PackingBoxNoOverlayError);
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SubmitPackingBoxNoCommand))]
+    private bool isPackingBoxNoOverlayBusy;
+
     public AndonBoardViewModel(
         IScanApiClient scanApiClient, IScanHubClient scanHubClient, IAndonBoardApiClient andonBoardApiClient,
+        IPackingBoxApiClient packingBoxApiClient, IPackingLabelPrintService packingLabelPrintService,
         IServiceProvider serviceProvider, StationOptions options)
     {
         _scanApiClient = scanApiClient;
         _scanHubClient = scanHubClient;
         _andonBoardApiClient = andonBoardApiClient;
+        _packingBoxApiClient = packingBoxApiClient;
+        _packingLabelPrintService = packingLabelPrintService;
         _serviceProvider = serviceProvider;
         _options = options;
         WorkStationName = options.WorkStationName;
@@ -260,7 +346,7 @@ public partial class AndonBoardViewModel : ObservableObject
         // US-09 AC4/AC6: chu kỳ làm mới toàn bộ bảng (PLAN "trôi" theo thời gian + phát hiện mốc giờ mới) — tối
         // thiểu 5s để phòng cấu hình sai (0 hoặc số âm) làm timer chạy dồn dập, không cần thiết cho nhu cầu thực tế.
         _boardRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(5, options.AndonBoardRefreshIntervalSeconds)) };
-        _boardRefreshTimer.Tick += async (_, _) => await RefreshBoardAsync();
+        _boardRefreshTimer.Tick += async (_, _) => await RefreshAsync();
         _boardRefreshTimer.Start();
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -282,8 +368,299 @@ public partial class AndonBoardViewModel : ObservableObject
         _scanHubClient.ScanRecorded += OnScanRecorded;
     }
 
-    /// <summary>Gọi 1 lần khi Window khởi tạo xong (US-09) — tải dữ liệu bảng lần đầu, không chờ tick đầu tiên của <see cref="_boardRefreshTimer"/>.</summary>
-    public Task InitializeAsync() => RefreshBoardAsync();
+    /// <summary>Gọi 1 lần khi Window khởi tạo xong (US-09) — tải dữ liệu bảng lần đầu, không chờ tick đầu tiên của <see cref="_boardRefreshTimer"/>. US-25: tải thêm trạng thái đóng thùng nếu trạm gắn với công đoạn "Đóng thùng".</summary>
+    public async Task InitializeAsync() => await RefreshAsync();
+
+    /// <summary>
+    /// US-25 (sửa lỗi 24/08/2026): tải lại bảng PLAN/ACTUAL/BALANCE (US-09) VÀ trạng thái đóng thùng (nếu
+    /// <see cref="IsPackingStage"/>) trong CÙNG 1 lượt. Trước đây <see cref="LoadPackingStateAsync"/> chỉ được gọi
+    /// đúng 1 lần lúc <see cref="InitializeAsync"/> (Window_Loaded, tức lúc mở app) — nên khi Tổ trưởng bấm "Chọn
+    /// kế hoạch" -> "Áp dụng" (US-05b) tại <c>MainWindow</c> rồi quay lại <c>AndonBoardWindow</c>, bộ đếm/overlay
+    /// nhập số thùng bắt đầu (AC5) không tự cập nhật theo kế hoạch mới cho tới khi khởi động lại ứng dụng. Gọi
+    /// method này từ <see cref="_boardRefreshTimer"/> (mỗi <c>AndonBoardRefreshIntervalSeconds</c>) VÀ từ
+    /// <c>AndonBoardWindow.Window_Activated</c> (đúng lúc quay lại từ <c>MainWindow</c>, phản hồi gần như ngay lập
+    /// tức thay vì chờ tick định kỳ). Có guard <c>!IsPackingBoxNoOverlayVisible</c>: khi overlay AC5/AC7 đang mở
+    /// (Operator/Tổ trưởng có thể đang gõ dở số thùng), KHÔNG gọi lại <see cref="LoadPackingStateAsync"/> để tránh
+    /// <see cref="ApplyPackingState"/> xóa mất <see cref="PackingBoxNoInputText"/> đang nhập dở.
+    /// </summary>
+    public async Task RefreshAsync()
+    {
+        await RefreshBoardAsync();
+        if (IsPackingStage && !IsPackingBoxNoOverlayVisible)
+        {
+            await LoadPackingStateAsync();
+        }
+    }
+
+    /// <summary>AC5/AC6/AC9: tải trạng thái đóng thùng hiện tại — lỗi mạng/server tạm thời KHÔNG chặn màn hình (cùng triết lý <see cref="RefreshBoardAsync"/>), Operator vẫn có thể scan (Server sẽ tự chặn lại nếu thật sự chưa đủ điều kiện, xem AC5/AC11 ở ScanService).</summary>
+    private async Task LoadPackingStateAsync()
+    {
+        PackingBoxStateDto state;
+        try
+        {
+            state = await _packingBoxApiClient.GetStateAsync();
+        }
+        catch
+        {
+            return;
+        }
+
+        ApplyPackingState(state);
+    }
+
+    private void ApplyPackingState(PackingBoxStateDto state)
+    {
+        PackingRequiresStartingBoxNo = state.RequiresStartingBoxNo;
+
+        if (state.CurrentBox is { } currentBox)
+        {
+            PackingBoxNo = currentBox.BoxNo;
+            PackingScannedQuantity = currentBox.ScannedQuantity;
+            PackingTargetQuantity = currentBox.TargetQuantity;
+        }
+
+        if (state.LastCompletedBox is { } lastCompletedBox)
+        {
+            _lastCompletedPackingBoxId = lastCompletedBox.Id;
+            PackingHasCompletedBox = true;
+        }
+
+        // AC5: bắt buộc nhập số thùng bắt đầu TRƯỚC khi cho quét tem đầu tiên — mở overlay ngay, không có nút Hủy.
+        // Gợi ý sẵn "1" (trường hợp thường gặp nhất) — Operator vẫn sửa được nếu cần nối số theo thùng đã đóng
+        // trước đó bằng cách khác (đúng tinh thần AC5, không ép cứng phải là 1).
+        if (PackingRequiresStartingBoxNo)
+        {
+            IsEditingExistingBoxNo = false;
+            PackingBoxNoInputText = "1";
+            PackingBoxNoOverlayError = string.Empty;
+            IsPackingBoxNoOverlayVisible = true;
+        }
+    }
+
+    /// <summary>AC2/AC4/AC9/AC12: cập nhật bộ đếm thùng theo kết quả trả về từ lượt scan Ok vừa lưu; kích hoạt in tự động (AC4) khi thùng vừa hoàn tất.</summary>
+    private void ApplyPackingScanResult(ScanResultDto result)
+    {
+        if (result.PackingBoxNo is { } boxNo)
+        {
+            PackingBoxNo = boxNo;
+        }
+        if (result.PackingScannedQuantity is { } scannedQuantity)
+        {
+            PackingScannedQuantity = scannedQuantity;
+        }
+        if (result.PackingTargetQuantity is { } targetQuantity)
+        {
+            PackingTargetQuantity = targetQuantity;
+        }
+
+        if (result.PackingBoxCompleted && result.PackingCompletedBoxId is { } completedBoxId)
+        {
+            _lastCompletedPackingBoxId = completedBoxId;
+            PackingHasCompletedBox = true;
+
+            // AC4/AC13: in NGAY nhưng KHÔNG chờ (không await) — lỗi in (nếu có) chỉ hiển thị 1 dòng trạng thái
+            // nhỏ, KHÔNG chặn Operator quét tem cho thùng kế tiếp (đã tự động mở sẵn ở server).
+            _ = AutoPrintPackingLabelAsync(completedBoxId);
+        }
+    }
+
+    /// <summary>AC4: tự động in tem thùng vừa hoàn tất — lỗi CHÍNH lệnh gọi in (AC13) chỉ cập nhật <see cref="PackingPrintStatusMessage"/>, không ném ra ngoài (fire-and-forget, xem <see cref="ApplyPackingScanResult"/>).</summary>
+    private async Task AutoPrintPackingLabelAsync(int boxId)
+    {
+        try
+        {
+            await _packingLabelPrintService.PrintAsync(boxId);
+            PackingPrintStatusMessage = string.Empty;
+        }
+        catch (PackingLabelPrintException ex)
+        {
+            PackingPrintStatusMessage = $"In tem thùng #{boxId} thất bại: {ex.Message} — dùng nút \"In lại\" để thử lại.";
+        }
+    }
+
+    private bool CanSubmitPackingBoxNo() => !IsPackingBoxNoOverlayBusy && !string.IsNullOrWhiteSpace(PackingBoxNoInputText);
+
+    /// <summary>AC5 (khi <see cref="IsEditingExistingBoxNo"/> = false, bắt buộc) / AC7 (khi = true, đã xác thực Supervisor ở <see cref="OpenEditBoxNoAsync"/>) — dùng CHUNG 1 overlay nhập số.</summary>
+    [RelayCommand(CanExecute = nameof(CanSubmitPackingBoxNo))]
+    private async Task SubmitPackingBoxNoAsync()
+    {
+        if (!int.TryParse(PackingBoxNoInputText.Trim(), out var boxNo) || boxNo <= 0)
+        {
+            PackingBoxNoOverlayError = "Vui lòng nhập số thùng hợp lệ (lớn hơn 0).";
+            return;
+        }
+
+        IsPackingBoxNoOverlayBusy = true;
+        PackingBoxNoOverlayError = string.Empty;
+        try
+        {
+            if (IsEditingExistingBoxNo)
+            {
+                if (string.IsNullOrEmpty(_packingSupervisorAccessToken))
+                {
+                    // Phòng vệ: không nên xảy ra (OpenEditBoxNoAsync đã bắt đăng nhập trước khi mở overlay này).
+                    PackingBoxNoOverlayError = "Thiếu thông tin đăng nhập Tổ trưởng — vui lòng bấm lại \"Sửa số thùng\".";
+                    return;
+                }
+
+                var updated = await _packingBoxApiClient.UpdateCurrentBoxNoAsync(_options.WorkStationId, boxNo, _packingSupervisorAccessToken);
+                PackingBoxNo = updated.BoxNo;
+            }
+            else
+            {
+                var created = await _packingBoxApiClient.SetStartingBoxNoAsync(boxNo);
+                PackingBoxNo = created.BoxNo;
+                PackingScannedQuantity = created.ScannedQuantity;
+                PackingTargetQuantity = created.TargetQuantity;
+                PackingRequiresStartingBoxNo = false;
+            }
+
+            IsPackingBoxNoOverlayVisible = false;
+            _packingSupervisorAccessToken = null;
+        }
+        catch (ApiException ex)
+        {
+            PackingBoxNoOverlayError = ex.Message;
+        }
+        catch (HttpRequestException ex)
+        {
+            PackingBoxNoOverlayError = NetworkErrorMessage.ForConnectionFailure(ex);
+        }
+        catch (TaskCanceledException)
+        {
+            PackingBoxNoOverlayError = NetworkErrorMessage.ForTimeout();
+        }
+        finally
+        {
+            IsPackingBoxNoOverlayBusy = false;
+        }
+    }
+
+    /// <summary>AC7: nút "Sửa số thùng" — yêu cầu đăng nhập Tổ trưởng (re-auth, permission <see cref="PackingBoxUpdatePermission"/>) TRƯỚC khi mở overlay nhập số mới.</summary>
+    [RelayCommand]
+    private Task OpenEditBoxNoAsync()
+    {
+        var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
+        dialog.ViewModel.RequiredPermission = PackingBoxUpdatePermission;
+        dialog.Owner = Application.Current?.MainWindow;
+
+        var loggedIn = dialog.ShowDialog() == true;
+        if (!loggedIn)
+        {
+            return Task.CompletedTask;
+        }
+
+        _packingSupervisorAccessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
+        if (string.IsNullOrEmpty(_packingSupervisorAccessToken))
+        {
+            return Task.CompletedTask;
+        }
+
+        IsEditingExistingBoxNo = true;
+        PackingBoxNoInputText = PackingBoxNo.ToString();
+        PackingBoxNoOverlayError = string.Empty;
+        IsPackingBoxNoOverlayVisible = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Chỉ áp dụng cho AC7 (sửa số thùng) — AC5 (nhập số thùng bắt đầu) bắt buộc, không cho hủy.</summary>
+    [RelayCommand]
+    private void CancelPackingBoxNoOverlay()
+    {
+        if (!IsEditingExistingBoxNo)
+        {
+            return;
+        }
+
+        IsPackingBoxNoOverlayVisible = false;
+        _packingSupervisorAccessToken = null;
+    }
+
+    private bool CanReprintPackingLabel() => PackingHasCompletedBox && !IsReprintingPackingLabel;
+
+    /// <summary>AC13: "In lại" thủ công — LUÔN sẵn sàng (không phụ thuộc lượt scan gần nhất có lỗi in hay không), in lại đúng thùng hoàn tất gần nhất của kế hoạch hiện tại.</summary>
+    [RelayCommand(CanExecute = nameof(CanReprintPackingLabel))]
+    private async Task ReprintPackingLabelAsync()
+    {
+        if (_lastCompletedPackingBoxId is not { } boxId)
+        {
+            return;
+        }
+
+        IsReprintingPackingLabel = true;
+        PackingPrintStatusMessage = string.Empty;
+        try
+        {
+            await _packingLabelPrintService.PrintAsync(boxId);
+        }
+        catch (PackingLabelPrintException ex)
+        {
+            PackingPrintStatusMessage = $"In lại thất bại: {ex.Message}";
+        }
+        finally
+        {
+            IsReprintingPackingLabel = false;
+        }
+    }
+
+    /// <summary>
+    /// AC8 (điều chỉnh 24/08/2026): hiển thị popup đăng nhập Tổ trưởng (re-auth, permission
+    /// <see cref="PackingBoxConfirmDuplicatePermission"/>) rồi gọi API xác nhận CHỈ audit — KHÔNG cộng số
+    /// lượng/KHÔNG tạo bản ghi Scan mới (bản ghi Scan Result=DuplicateTag đã được lưu lịch sử từ trước, ngay lúc
+    /// FR-08 từ chối, không phụ thuộc kết quả xác nhận này). Operator/Tổ trưởng bấm Hủy ở popup đăng nhập (thường
+    /// do đây chỉ là scan trùng NGẪU NHIÊN — máy quét đọc 2 lần liên tiếp cùng 1 tem — không cần Supervisor xử
+    /// lý) coi là <see cref="PackingDuplicateConfirmOutcome.Cancelled"/>, cho đóng banner NGAY không cần đăng
+    /// nhập, chỉ KHÔNG có bản ghi audit "ai đã xác nhận" gắn với lượt đó. Khác với lỗi mạng/API SAU KHI đã đăng
+    /// nhập thành công (<see cref="PackingDuplicateConfirmOutcome.Failed"/>) — trường hợp này vẫn giữ banner để
+    /// Operator/Tổ trưởng thử lại.
+    /// </summary>
+    private async Task<PackingDuplicateConfirmOutcome> ConfirmPackingDuplicateAsync(string tagCode)
+    {
+        var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
+        dialog.ViewModel.RequiredPermission = PackingBoxConfirmDuplicatePermission;
+        dialog.Owner = Application.Current?.MainWindow;
+
+        var loggedIn = dialog.ShowDialog() == true;
+        if (!loggedIn)
+        {
+            return PackingDuplicateConfirmOutcome.Cancelled;
+        }
+
+        var accessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            return PackingDuplicateConfirmOutcome.Cancelled;
+        }
+
+        try
+        {
+            await _packingBoxApiClient.ConfirmDuplicateAsync(_options.WorkStationId, tagCode, note: null, accessToken);
+            return PackingDuplicateConfirmOutcome.Confirmed;
+        }
+        catch (ApiException ex)
+        {
+            BannerMessage = ex.Message;
+            return PackingDuplicateConfirmOutcome.Failed;
+        }
+        catch (HttpRequestException ex)
+        {
+            BannerMessage = NetworkErrorMessage.ForConnectionFailure(ex);
+            return PackingDuplicateConfirmOutcome.Failed;
+        }
+        catch (TaskCanceledException)
+        {
+            BannerMessage = NetworkErrorMessage.ForTimeout();
+            return PackingDuplicateConfirmOutcome.Failed;
+        }
+    }
+
+    /// <summary>Kết quả <see cref="ConfirmPackingDuplicateAsync"/> — phân biệt Hủy chủ động (đóng banner ngay) với lỗi hệ thống (giữ banner để thử lại).</summary>
+    private enum PackingDuplicateConfirmOutcome
+    {
+        Confirmed,
+        Cancelled,
+        Failed,
+    }
 
     /// <summary>
     /// US-09 AC4/AC6: tải lại toàn bộ bảng từ server. Lỗi mạng/server tạm thời KHÔNG hiển thị cho công nhân (chỉ
@@ -358,6 +735,13 @@ public partial class AndonBoardViewModel : ObservableObject
 
         tagCode = tagCode.Trim();
 
+        // US-25 AC5: overlay nhập số thùng bắt đầu/sửa số thùng đang mở -> chặn MỌI lượt scan (kể cả mã "NG") cho
+        // tới khi hoàn tất, tránh Operator vô tình quét tem trong lúc chưa đủ điều kiện đóng thùng.
+        if (IsPackingBoxNoOverlayVisible)
+        {
+            return;
+        }
+
         // US-18 AC2: mã vạch "NG" cố định kích hoạt/gia hạn Chế độ Scan NG, KHÔNG đi qua API scan bình thường.
         if (tagCode.Equals(NgModeActivationBarcode, StringComparison.Ordinal))
         {
@@ -418,10 +802,23 @@ public partial class AndonBoardViewModel : ObservableObject
                 // ScanRecorded (OnScanRecorded), để nhất quán nếu sau này có nhiều nguồn ghi scan khác gọi cùng
                 // trạm (theo đúng ghi chú kỹ thuật đã chốt cho US-07).
                 ShowOkBanner(result.TagCode);
+
+                // US-25 AC2/AC4/AC9/AC12: cập nhật bộ đếm thùng + tự động in khi vừa hoàn tất 1 thùng.
+                if (result.IsPackingStage)
+                {
+                    ApplyPackingScanResult(result);
+                }
             }
             else
             {
                 ShowErrorBanner(result.TagCode, result.RejectionReason ?? "Scan bị từ chối.");
+
+                // US-25 AC8: tem trùng TẠI công đoạn "Đóng thùng" cần Supervisor xác nhận đã biết tình huống
+                // trước khi Operator được đóng banner/tiếp tục thao tác — AcknowledgeBannerCommand xử lý bước này.
+                if (result.IsPackingStage && result.Result == ScanResult.DuplicateTag)
+                {
+                    _pendingPackingDuplicateTagCode = result.TagCode;
+                }
             }
         }
         finally
@@ -605,9 +1002,30 @@ public partial class AndonBoardViewModel : ObservableObject
         _ngScanAccessToken = null;
     }
 
-    /// <summary>AC4: người vận hành bấm xác nhận đã đọc để đóng banner lỗi.</summary>
+    /// <summary>
+    /// AC4 (US-07): người vận hành bấm xác nhận đã đọc để đóng banner lỗi. US-25 AC8 (điều chỉnh 24/08/2026): nếu
+    /// banner đang mở là tem trùng tại "Đóng thùng" (<see cref="_pendingPackingDuplicateTagCode"/> khác null), mở
+    /// popup đăng nhập Supervisor xác nhận đã biết tình huống — nhưng nếu Hủy popup đó (thường do chỉ là double
+    /// scan ngẫu nhiên), vẫn cho đóng banner NGAY, chỉ KHÔNG lưu bản ghi audit "ai đã xác nhận" (bản ghi Scan
+    /// reject vẫn lưu lịch sử đầy đủ như mọi lượt scan khác, đúng AC10). CHỈ giữ nguyên banner khi việc xác nhận
+    /// thất bại do lỗi hệ thống thật sự (mạng/API) SAU KHI đã đăng nhập thành công, để thử lại.
+    /// </summary>
     [RelayCommand]
-    private void AcknowledgeBanner() => CloseBanner();
+    private async Task AcknowledgeBannerAsync()
+    {
+        if (_pendingPackingDuplicateTagCode is { } tagCode)
+        {
+            var outcome = await ConfirmPackingDuplicateAsync(tagCode);
+            if (outcome == PackingDuplicateConfirmOutcome.Failed)
+            {
+                return;
+            }
+
+            _pendingPackingDuplicateTagCode = null;
+        }
+
+        CloseBanner();
+    }
 
     /// <summary>
     /// Khu vực nhập tay (chỉ hiển thị khi <see cref="IsManualScanInputEnabled"/>) — gọi lại đúng

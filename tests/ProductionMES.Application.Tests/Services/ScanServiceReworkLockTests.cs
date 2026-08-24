@@ -4,6 +4,7 @@ using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DTOs.ProductionPlanStages;
 using ProductionMES.Application.DTOs.Scans;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.Scans;
 using ProductionMES.Domain.Entities;
@@ -23,6 +24,7 @@ public class ScanServiceReworkLockTests
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
+    private readonly Mock<IRepository<Stage>> _stageRepositoryMock = new();
     private readonly Mock<IRepository<ReworkUnlock>> _reworkUnlockRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IProductionPlanStageService> _productionPlanStageServiceMock = new();
@@ -38,9 +40,14 @@ public class ScanServiceReworkLockTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ReworkUnlock>()).Returns(_reworkUnlockRepositoryMock.Object);
 
-        _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object);
+        // US-25: mặc định Stage KHÔNG phải "Đóng thùng" — không kích hoạt bước kiểm tra/đếm đặc thù trong luồng test này.
+        _stageRepositoryMock.Setup(r => r.GetByIdAsync(StageId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Stage { Id = StageId, Name = "Công đoạn", IsActive = true });
+
+        _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object, Mock.Of<IPackingBoxService>());
 
         _workStationRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new WorkStation { Id = 1, LineId = 1, StageId = StageId, Name = "Trạm 1" });

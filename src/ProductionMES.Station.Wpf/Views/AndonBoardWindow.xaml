@@ -78,6 +78,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!--
@@ -195,6 +196,32 @@
                 <TextBlock Text="STARTING TIME:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0"/>
                 <TextBlock Text="{Binding StartingTimeLabel}" FontSize="22" FontWeight="Bold" Foreground="White"/>
             </StackPanel>
+
+            <!--
+              US-25 (AC2/AC4/AC9/AC13): bộ đếm thùng tại công đoạn "Đóng thùng" — CHỈ hiển thị khi
+              IsPackingStage = true (AC14: trạm khác không có bất kỳ phần tử nào ở đây).
+            -->
+            <Border Grid.Row="5" Background="#1A1E27" BorderBrush="#FFAB1F" BorderThickness="1.5" CornerRadius="8"
+                    Padding="18,12" Margin="0,16,0,0" HorizontalAlignment="Stretch"
+                    Visibility="{Binding IsPackingStage, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="THÙNG SỐ:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding PackingBoxNo}" FontSize="30" FontWeight="Bold" Foreground="White" Margin="0,0,32,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="ĐÃ ĐÓNG:" FontSize="22" FontWeight="Bold" Foreground="#FFAB1F" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding PackingProgressLabel}" FontSize="30" FontWeight="Bold" Foreground="#4CAF50" Margin="0,0,32,0" VerticalAlignment="Center"/>
+                        <Button Content="SỬA SỐ THÙNG" Padding="14,8" Margin="0,0,10,0"
+                                Background="#2A3040" Foreground="White" BorderBrush="#3A4155"
+                                Command="{Binding OpenEditBoxNoCommand}"/>
+                        <Button Content="IN LẠI" Padding="14,8"
+                                Background="#2A3040" Foreground="White" BorderBrush="#3A4155"
+                                Command="{Binding ReprintPackingLabelCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding PackingPrintStatusMessage}" FontSize="15" Foreground="#FFC107"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasPackingPrintStatusMessage, Converter={StaticResource BoolToVisibility}}"/>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <Grid Grid.Row="1">
@@ -368,6 +395,63 @@
                                         Background="#D32F2A" Foreground="White" BorderBrush="#D32F2A"
                                         Command="{Binding ConfirmNgReasonCommand}"/>
                             </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!--
+          US-25 AC5/AC7: overlay nhập số thùng bắt đầu (bắt buộc, IsEditingExistingBoxNo=false, KHÔNG có nút Hủy)
+          / sửa số thùng hiện tại (IsEditingExistingBoxNo=true, có nút Hủy) — cùng kiểu khung với overlay Chế độ
+          Scan NG (nền làm tối RowSpan=3 + khung căn giữa), tách màu khác (xanh dương #1677FF, không phải đỏ) để
+          không gây nhầm lẫn với tình huống lỗi NG.
+        -->
+        <Grid Grid.RowSpan="3" Background="#B3000000"
+              Visibility="{Binding IsPackingBoxNoOverlayVisible, Converter={StaticResource BoolToVisibility}}">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520"
+                    Background="#FFF8F1" BorderBrush="#1677FF" BorderThickness="3" CornerRadius="14"
+                    ClipToBounds="True">
+                <StackPanel>
+                    <Border Background="#1677FF" Padding="28,20">
+                        <TextBlock FontSize="26" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" TextAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="NHẬP SỐ THÙNG BẮT ĐẦU"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditingExistingBoxNo}" Value="True">
+                                            <Setter Property="Text" Value="SỬA SỐ THÙNG HIỆN TẠI"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+
+                    <StackPanel Margin="36,26,36,30">
+                        <TextBlock FontSize="16" Foreground="#3A3F47" HorizontalAlignment="Center"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,16"
+                                   Text="Kế hoạch này chưa từng đóng thùng nào tại công đoạn Đóng thùng — nhập số thùng bắt đầu để nối tiếp đúng số nếu đã đóng trước đó bằng cách khác."
+                                   Visibility="{Binding IsAddingStartingBoxNo, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <TextBlock Text="SỐ THÙNG" FontSize="13" Foreground="#8A8F98" Margin="0,0,0,4"/>
+                        <TextBox x:Name="PackingBoxNoInputBox" FontSize="26" Padding="10"
+                                 Text="{Binding PackingBoxNoInputText, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="PackingBoxNoInputBox_KeyDown"/>
+
+                        <TextBlock Text="{Binding PackingBoxNoOverlayError}" FontSize="15" Foreground="#D32F2A"
+                                   Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding HasPackingBoxNoOverlayError, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                            <Button Content="HỦY" Padding="18,10" Margin="0,0,12,0"
+                                    Background="Transparent" Foreground="#3A3F47" BorderBrush="#C7CBD1" BorderThickness="1.5"
+                                    Command="{Binding CancelPackingBoxNoOverlayCommand}"
+                                    Visibility="{Binding IsEditingExistingBoxNo, Converter={StaticResource BoolToVisibility}}"/>
+                            <Button Content="XÁC NHẬN" Padding="18,10" FontWeight="Bold"
+                                    Background="#1677FF" Foreground="White" BorderBrush="#1677FF"
+                                    Command="{Binding SubmitPackingBoxNoCommand}"/>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

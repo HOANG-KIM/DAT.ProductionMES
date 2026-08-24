@@ -13,6 +13,7 @@ using ProductionMES.Application.Services.ProductionPlans;
 using ProductionMES.Application.Services.Lines;
 using ProductionMES.Application.Services.LineStageSequences;
 using ProductionMES.Application.Services.Lots;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Application.Services.PackingModelConfigs;
 using ProductionMES.Application.Services.Reports;
 using ProductionMES.Application.Services.ReworkUnlocks;
@@ -51,6 +52,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ILotReportExportService, LotReportExportService>();
         services.AddScoped<ILotService, LotService>();
         services.AddScoped<IPackingModelConfigService, PackingModelConfigService>();
+        services.AddScoped<IPackingLabelGenerator, PackingLabelGenerator>();
+        services.AddScoped<IPackingBoxService, PackingBoxService>();
 
         // US-22: PasswordHasher<TUser> (Microsoft.Extensions.Identity.Core) — không cần cả hệ thống
         // ASP.NET Core Identity đầy đủ, chỉ dùng đúng phần băm/kiểm tra mật khẩu.

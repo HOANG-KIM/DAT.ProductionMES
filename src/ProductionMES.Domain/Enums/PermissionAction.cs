@@ -33,4 +33,7 @@ public enum PermissionAction
 
     /// <summary>US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG tại 1 công đoạn — chỉ Tổ trưởng/Admin.</summary>
     ReworkUnlock = 10,
+
+    /// <summary>US-25 AC8: xác nhận đã biết tình huống tem trùng tại "Đóng thùng" — chỉ có ở <see cref="PermissionResource.PackingBox"/>.</summary>
+    ConfirmDuplicate = 11,
 }

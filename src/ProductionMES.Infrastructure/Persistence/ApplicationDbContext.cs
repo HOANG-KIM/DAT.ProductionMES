@@ -36,6 +36,10 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<PackingModelConfig> PackingModelConfigs => Set<PackingModelConfig>();
 
+    public DbSet<PackingBox> PackingBoxes => Set<PackingBox>();
+
+    public DbSet<PackingDuplicateScanConfirmation> PackingDuplicateScanConfirmations => Set<PackingDuplicateScanConfirmation>();
+
     public DbSet<Scan> Scans => Set<Scan>();
 
     public DbSet<ReworkUnlock> ReworkUnlocks => Set<ReworkUnlock>();

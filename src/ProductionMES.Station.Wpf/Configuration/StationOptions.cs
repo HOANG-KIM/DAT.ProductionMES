@@ -41,6 +41,16 @@ public class StationOptions
     public int WorkStationId { get; set; }
 
     /// <summary>
+    /// US-25: cờ cấu hình cục bộ theo trạm (cùng nguyên tắc LineId/StageId/StageName ở trên — Station.Wpf chưa có
+    /// endpoint tra cứu WorkStation/Stage theo API key để tự suy ra <c>Stage.IsPackingStage</c> thật từ server) —
+    /// đánh dấu trạm này đang gắn với công đoạn "Đóng thùng" (US-24/US-25), bật hiển thị bộ đếm số lượng/số thùng
+    /// + tự động in tem tại <c>AndonBoardWindow</c>. PHẢI khớp đúng <c>Stage.IsPackingStage</c> thật đã cấu hình ở
+    /// server cho công đoạn của trạm này (rủi ro lệch cấu hình chấp nhận được, cùng mức rủi ro đã có với LineId/
+    /// StageId) — server vẫn là nguồn xác thực cuối cùng cho hành vi đếm/chống trùng đặc thù (ScanResultDto.IsPackingStage).
+    /// </summary>
+    public bool IsPackingStage { get; set; }
+
+    /// <summary>
     /// Giá trị thô của API Key theo trạm (ADR-005/US-04a) — gửi ở header <c>X-Station-Api-Key</c> cho scheme
     /// <c>StationApiKey</c>. Giá trị thô chỉ được server trả về 1 lần lúc Admin issue/reissue qua web-admin
     /// (<c>StationApiKeysController</c>), sau đó không phục hồi lại được từ DB (chỉ lưu KeyHash) — phải copy thủ

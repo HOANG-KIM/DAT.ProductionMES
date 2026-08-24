@@ -35,4 +35,19 @@ public class ScanResultDto
 
     /// <summary>Lý do bị từ chối (vd "Chưa qua công đoạn: Lắp ráp") — <c>null</c> khi <see cref="Result"/> = Ok.</summary>
     public string? RejectionReason { get; set; }
+
+    /// <summary>US-25: true khi StageId là công đoạn "Đóng thùng" — các field Packing* bên dưới chỉ có giá trị khi cờ này true và Result = Ok.</summary>
+    public bool IsPackingStage { get; set; }
+
+    public int? PackingBoxNo { get; set; }
+
+    public int? PackingScannedQuantity { get; set; }
+
+    public int? PackingTargetQuantity { get; set; }
+
+    /// <summary>AC4: true nếu ĐÚNG lượt scan này vừa làm đủ số lượng, hoàn tất 1 thùng.</summary>
+    public bool PackingBoxCompleted { get; set; }
+
+    /// <summary>Id thùng VỪA hoàn tất — dùng để tải tem in tự động (AC4/AC13).</summary>
+    public int? PackingCompletedBoxId { get; set; }
 }

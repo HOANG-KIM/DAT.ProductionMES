@@ -46,7 +46,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-22](./backlog/US-22-quan-ly-nguoi-dung-phan-quyen/README.md) | Quản lý người dùng & phân quyền | ✅ Xong | — | 2026-08-14 |
 | [US-23](./backlog/US-23-xuat-bao-cao-excel/README.md) | Xuất báo cáo Excel | 🟡 Một phần | — | 2026-08-19 |
 | [US-24](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md) | Cấu hình Quy cách đóng gói theo Model (Đóng thùng) | ✅ Xong | — | 2026-08-24 |
-| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | ⬜ Chưa làm | — | 2026-08-20 |
+| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | — | 2026-08-24 |
 | [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | ⬜ Chưa làm | — | 2026-08-20 |
 | [BUG-01](./backlog/BUG-01-lech-gio-utc-vn/README.md) | Lệch giờ 7 tiếng (UTC/VN) khi hiển thị trên web-admin | ✅ Xong | — | 2026-08-19 |
 
@@ -108,7 +108,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 *(Bổ sung 20/08/2026 — do agent `ba` viết theo yêu cầu tích hợp lại nghiệp vụ từ app WinForms cũ `PrintLabel` (DB `line_andon_history1`) vào kiến trúc MES hiện tại. Xem SRS mục 1.2/8.1 (đảo ngược quyết định trước đó), FR-24/FR-25/FR-26, mục 6 quy tắc 16, mục 7 AC-29→AC-32, mục 8.2 (5 điểm mở mới). Phạm vi 3 story được chia tách vì đây là 3 mối quan tâm độc lập (danh mục cấu hình / luồng scan vận hành / báo cáo giám sát), có thể triển khai và kiểm thử riêng lẻ.)*
 
 - **US-24** — Cấu hình Quy cách đóng gói theo Model (Đóng thùng) (✅ Xong) → [chi tiết](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md)
-- **US-25** — Quét tem đóng thùng — đếm số lượng, tự động in tem thùng (⬜ Chưa làm) → [chi tiết](./backlog/US-25-quet-tem-dong-thung/README.md)
+- **US-25** — Quét tem đóng thùng — đếm số lượng, tự động in tem thùng (🟡 Một phần) → [chi tiết](./backlog/US-25-quet-tem-dong-thung/README.md)
 - **US-26** — Theo dõi tiến độ đóng thùng ở mức quản lý (⬜ Chưa làm) → [chi tiết](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md)
 
 ---

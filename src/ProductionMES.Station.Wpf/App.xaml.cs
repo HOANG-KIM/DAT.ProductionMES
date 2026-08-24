@@ -9,6 +9,7 @@ using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.LineStageSequences;
 using ProductionMES.Station.Wpf.Services.Lines;
 using ProductionMES.Station.Wpf.Services.Navigation;
+using ProductionMES.Station.Wpf.Services.PackingBoxes;
 using ProductionMES.Station.Wpf.Services.PackingModelConfigs;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
@@ -175,6 +176,15 @@ public partial class App : Application
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<StationApiKeyHandler>();
+
+        // US-25: GetState/SetStartingBoxNo/DownloadLabel dùng StationApiKey (không cần đăng nhập Supervisor,
+        // cùng IScanApiClient/IAndonBoardApiClient); UpdateCurrentBoxNo/ConfirmDuplicate (AC7/AC8) tự gắn Bearer
+        // tường minh vào từng request (xem PackingBoxApiClient), KHÔNG dùng SupervisorAuthHandler.
+        services.AddHttpClient<IPackingBoxApiClient, PackingBoxApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<StationApiKeyHandler>();
+        services.AddSingleton<IPackingLabelPrintService, PackingLabelPrintService>();
 
         services.AddSingleton<AndonBoardWindow>();
         services.AddSingleton<AndonBoardViewModel>();

@@ -25,6 +25,7 @@ public class StageService : IStageService
             Name = request.Name,
             Description = request.Description,
             IsActive = true, // AC1: trạng thái hoạt động mặc định khi tạo mới
+            IsPackingStage = request.IsPackingStage, // US-25
         };
 
         var repository = _unitOfWork.Repository<Stage>();
@@ -42,6 +43,7 @@ public class StageService : IStageService
 
         stage.Name = request.Name;
         stage.Description = request.Description;
+        stage.IsPackingStage = request.IsPackingStage; // US-25
 
         repository.Update(stage);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -80,5 +82,6 @@ public class StageService : IStageService
         Name = stage.Name,
         Description = stage.Description,
         IsActive = stage.IsActive,
+        IsPackingStage = stage.IsPackingStage,
     };
 }

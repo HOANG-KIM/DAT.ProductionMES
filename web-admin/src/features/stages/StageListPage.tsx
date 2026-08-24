@@ -59,6 +59,12 @@ export function StageListPage() {
       ),
     },
     {
+      title: 'Đóng thùng',
+      dataIndex: 'isPackingStage',
+      key: 'isPackingStage',
+      render: (isPackingStage: boolean) => (isPackingStage ? <Tag color="blue">Có</Tag> : null),
+    },
+    {
       title: 'Thao tác',
       key: 'actions',
       render: (_: unknown, stage: Stage) => (

@@ -168,6 +168,114 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.ToTable("LotHistory", (string)null);
                 });
 
+            modelBuilder.Entity("ProductionMES.Domain.Entities.PackingBox", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BoxNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal?>("GrossWeightSnapshot")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<int>("LineId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ManufacturerSnapshot")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ModelSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("OpenedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("PackingModelConfigId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PartNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("ProductionPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ScannedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StageId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("TargetQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkStationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductionPlanId", "StageId", "Status");
+
+                    b.ToTable("PackingBox", (string)null);
+                });
+
+            modelBuilder.Entity("ProductionMES.Domain.Entities.PackingDuplicateScanConfirmation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ConfirmedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ConfirmedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConfirmedByUserName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int>("ScanId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StageId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TagCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TagCode", "StageId");
+
+                    b.ToTable("PackingDuplicateScanConfirmation", (string)null);
+                });
+
             modelBuilder.Entity("ProductionMES.Domain.Entities.PackingModelConfig", b =>
                 {
                     b.Property<int>("Id")
@@ -541,6 +649,11 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsPackingStage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Name")
                         .IsRequired()

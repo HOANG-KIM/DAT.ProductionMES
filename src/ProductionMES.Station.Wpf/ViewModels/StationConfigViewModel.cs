@@ -70,6 +70,16 @@ public partial class StationConfigViewModel : ObservableObject
     [ObservableProperty]
     private string stageName = string.Empty;
 
+    /// <summary>
+    /// US-25 (sửa lỗi 24/08/2026): suy ra từ <see cref="Models.StageDto.IsPackingStage"/> của Công đoạn ứng với
+    /// <see cref="SelectedWorkStation"/> — CHỈ hiển thị readonly, không cho tick tay. Trước đây field này (thêm
+    /// vào <see cref="StationOptions"/> lúc làm US-25) không có trên trang này, bắt buộc sửa tay JSON — dễ quên
+    /// bật/tắt đúng, gây bộ đếm/overlay AC5 không hiện dù đã chọn đúng trạm. Cùng nguyên tắc "tự suy ra, không gõ
+    /// tay" đã áp dụng cho LineId/StageId ở trên.
+    /// </summary>
+    [ObservableProperty]
+    private bool isPackingStage;
+
     [ObservableProperty]
     private int arduinoTimeoutSeconds;
 
@@ -116,6 +126,7 @@ public partial class StationConfigViewModel : ObservableObject
         LineName = options.LineName;
         stageId = options.StageId;
         StageName = options.StageName;
+        IsPackingStage = options.IsPackingStage;
         WorkStationName = options.WorkStationName;
         ArduinoTimeoutSeconds = options.ArduinoTimeoutSeconds;
         NgModeTimeoutSeconds = options.NgModeTimeoutSeconds;
@@ -177,7 +188,9 @@ public partial class StationConfigViewModel : ObservableObject
         lineId = value.LineId;
         LineName = AllLines.FirstOrDefault(l => l.Id == value.LineId)?.Name ?? $"#{value.LineId}";
         stageId = value.StageId;
-        StageName = AllStages.FirstOrDefault(s => s.Id == value.StageId)?.Name ?? $"#{value.StageId}";
+        var stage = AllStages.FirstOrDefault(s => s.Id == value.StageId);
+        StageName = stage?.Name ?? $"#{value.StageId}";
+        IsPackingStage = stage?.IsPackingStage ?? false;
     }
 
     /// <summary>
@@ -235,6 +248,7 @@ public partial class StationConfigViewModel : ObservableObject
             node["LineName"] = LineName;
             node["StageId"] = stageId;
             node["StageName"] = StageName;
+            node["IsPackingStage"] = IsPackingStage;
             node["ArduinoTimeoutSeconds"] = ArduinoTimeoutSeconds;
             node["NgModeTimeoutSeconds"] = NgModeTimeoutSeconds;
             node["AndonBoardRefreshIntervalSeconds"] = AndonBoardRefreshIntervalSeconds;

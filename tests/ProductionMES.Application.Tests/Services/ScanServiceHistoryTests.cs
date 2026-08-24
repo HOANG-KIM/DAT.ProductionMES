@@ -3,6 +3,7 @@ using Moq;
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DTOs.Scans;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.Scans;
 using ProductionMES.Domain.Entities;
@@ -42,7 +43,8 @@ public class ScanServiceHistoryTests
         _sut = new ScanService(
             _unitOfWorkMock.Object,
             Mock.Of<IProductionPlanStageService>(),
-            Mock.Of<IScanNotifier>());
+            Mock.Of<IScanNotifier>(),
+            Mock.Of<IPackingBoxService>());
     }
 
     /// <summary>Mô phỏng repository thật — FindAsync áp đúng predicate của ScanService lên danh sách "DB" cục bộ này (đúng cách ScanServiceTests đang làm).</summary>

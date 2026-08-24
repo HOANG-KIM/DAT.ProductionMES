@@ -69,4 +69,8 @@ public static class PermissionPolicies
     public const string PackingModelConfigView = "PackingModelConfig.View";
     public const string PackingModelConfigCreate = "PackingModelConfig.Create";
     public const string PackingModelConfigUpdate = "PackingModelConfig.Update";
+
+    // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng" — Admin + Supervisor (KHÔNG Manager, cùng phạm vi ScanReworkUnlock).
+    public const string PackingBoxUpdate = "PackingBox.Update";
+    public const string PackingBoxConfirmDuplicate = "PackingBox.ConfirmDuplicate";
 }

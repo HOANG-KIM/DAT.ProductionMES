@@ -4,6 +4,7 @@ using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DTOs.ProductionPlanStages;
 using ProductionMES.Application.DTOs.Scans;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.Scans;
 using ProductionMES.Domain.Entities;
@@ -43,7 +44,7 @@ public class ScanServiceNgTests
         _unitOfWorkMock.Setup(u => u.Repository<Stage>()).Returns(_stageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ReworkUnlock>()).Returns(_reworkUnlockRepositoryMock.Object);
 
-        _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object);
+        _sut = new ScanService(_unitOfWorkMock.Object, _productionPlanStageServiceMock.Object, _scanNotifierMock.Object, Mock.Of<IPackingBoxService>());
 
         SetupExistingScans(new List<Scan>());
 

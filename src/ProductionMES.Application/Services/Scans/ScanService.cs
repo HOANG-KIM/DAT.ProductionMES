@@ -2,6 +2,7 @@ using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Realtime;
 using ProductionMES.Application.DTOs.Common;
 using ProductionMES.Application.DTOs.Scans;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Application.Services.ProductionPlanStages;
 using ProductionMES.Application.Services.ReworkUnlocks;
 using ProductionMES.Domain.Entities;
@@ -66,15 +67,18 @@ public class ScanService : IScanService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IProductionPlanStageService _productionPlanStageService;
     private readonly IScanNotifier _scanNotifier;
+    private readonly IPackingBoxService _packingBoxService;
 
     public ScanService(
         IUnitOfWork unitOfWork,
         IProductionPlanStageService productionPlanStageService,
-        IScanNotifier scanNotifier)
+        IScanNotifier scanNotifier,
+        IPackingBoxService packingBoxService)
     {
         _unitOfWork = unitOfWork;
         _productionPlanStageService = productionPlanStageService;
         _scanNotifier = scanNotifier;
+        _packingBoxService = packingBoxService;
     }
 
     public async Task<ScanResultDto> CreateAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default)
@@ -111,6 +115,20 @@ public class ScanService : IScanService
                 $"Công đoạn của trạm Id = {workStationId} chưa được cấu hình trong kế hoạch sản xuất Id = {activeProductionPlan.Id}.");
         }
 
+        // US-25 AC1/AC11/AC5/AC14: xác định đây có phải công đoạn "Đóng thùng" hay không (Stage.IsPackingStage,
+        // KHÔNG suy luận từ tên) — CHỈ Stage này mới chạy thêm bước kiểm tra/đếm đặc thù bên dưới; mọi Stage khác
+        // giữ nguyên 100% luồng FR-08 tiêu chuẩn (AC14), không đổi hành vi.
+        var stage = await _unitOfWork.Repository<Stage>().GetByIdAsync(workStation.StageId, cancellationToken);
+        var isPackingStage = stage?.IsPackingStage ?? false;
+        PackingBox? currentPackingBox = null;
+        if (isPackingStage)
+        {
+            // AC11 (Model chưa cấu hình Quy cách đóng gói) / AC5 (chưa nhập số thùng bắt đầu) -> chặn NGAY bằng
+            // BusinessRuleException, TRƯỚC 2 bước kiểm tra FR-08 bên dưới — KHÔNG lưu bản ghi Scan nào cho 2
+            // trường hợp lỗi cấu hình/vận hành này (cùng nguyên tắc "không có kế hoạch Running" ở trên).
+            currentPackingBox = await _packingBoxService.EnsureReadyForScanAsync(workStation, activeProductionPlan, cancellationToken);
+        }
+
         var scanRepository = _unitOfWork.Repository<Scan>();
         // Đổi ý 19/08/2026: KHÔNG dùng UtcNow — lưu đúng giờ local hệ thống lúc scan, không quy đổi (xem
         // API-Conventions.md mục 10).
@@ -132,7 +150,9 @@ public class ScanService : IScanService
         {
             var lockedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.WaitingReworkUnlock,
                 "Sản phẩm đang chờ mở khóa rework.", now);
-            return await SaveAndReturnAsync(lockedScan, cancellationToken);
+            var lockedResult = await SaveAndReturnAsync(lockedScan, cancellationToken);
+            lockedResult.IsPackingStage = isPackingStage;
+            return lockedResult;
         }
 
         // US-08 AC1 — Bước 2: chống trùng tem theo (TagCode, StageId) TOÀN HỆ THỐNG, không phân biệt Line.
@@ -142,7 +162,12 @@ public class ScanService : IScanService
         {
             var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.DuplicateTag,
                 "Trùng tem tại công đoạn này.", now);
-            return await SaveAndReturnAsync(rejectedScan, cancellationToken);
+            // US-25 AC8: gán IsPackingStage NGAY CẢ khi bị từ chối do trùng — Station.Wpf dựa vào đúng cờ này
+            // (kết hợp Result = DuplicateTag) để biết cần mở luồng Supervisor xác nhận-đã-biết thay vì luồng
+            // từ chối cứng mặc định (AC14, mọi Stage khác).
+            var duplicateResult = await SaveAndReturnAsync(rejectedScan, cancellationToken);
+            duplicateResult.IsPackingStage = isPackingStage;
+            return duplicateResult;
         }
 
         // US-08 AC3 — Bước 2: đã qua công đoạn liền trước hay chưa, cũng tra cứu TOÀN HỆ THỐNG.
@@ -161,13 +186,28 @@ public class ScanService : IScanService
 
                 var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.PreviousStageNotPassed,
                     $"Chưa qua công đoạn: {previousStageName}", now);
-                return await SaveAndReturnAsync(rejectedScan, cancellationToken);
+                var previousStageResult = await SaveAndReturnAsync(rejectedScan, cancellationToken);
+                previousStageResult.IsPackingStage = isPackingStage;
+                return previousStageResult;
             }
         }
 
         // US-08 AC4: qua đủ 2 bước kiểm tra -> ghi nhận OK.
         var okScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.Ok, rejectionReason: null, now);
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
+        result.IsPackingStage = isPackingStage;
+
+        // US-25 AC2/AC4/AC12: tại "Đóng thùng", tăng đếm thùng hiện tại ngay sau khi lưu Ok — tự động hoàn tất +
+        // mở thùng kế tiếp khi đạt đủ số lượng (AC4), snapshot Quy cách đóng gói mới nhất cho thùng kế tiếp (AC12).
+        if (isPackingStage && currentPackingBox is not null)
+        {
+            var packingOutcome = await _packingBoxService.RegisterOkScanAsync(currentPackingBox, cancellationToken);
+            result.PackingBoxNo = packingOutcome.BoxNo;
+            result.PackingScannedQuantity = packingOutcome.ScannedQuantity;
+            result.PackingTargetQuantity = packingOutcome.TargetQuantity;
+            result.PackingBoxCompleted = packingOutcome.BoxCompleted;
+            result.PackingCompletedBoxId = packingOutcome.CompletedBoxId;
+        }
 
         // US-05a AC5: tự động Completed khi số lượt scan OK (tính động, gồm cả lượt vừa lưu) đạt đủ số lượng kế hoạch.
         var runCount = (await scanRepository.FindAsync(

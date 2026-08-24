@@ -66,6 +66,20 @@ public partial class AndonBoardWindow : Window
                     // input máy quét tiếp theo (nút "NG" vừa lấy focus lúc được bấm).
                     FocusScanInput();
                     break;
+
+                // US-25 AC5/AC7: overlay nhập/sửa số thùng vừa mở/đóng — cùng idiom IsNgReasonPanelVisible ở trên.
+                case nameof(AndonBoardViewModel.IsPackingBoxNoOverlayVisible) when _viewModel.IsPackingBoxNoOverlayVisible:
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        PackingBoxNoInputBox.SelectAll();
+                        PackingBoxNoInputBox.Focus();
+                        Keyboard.Focus(PackingBoxNoInputBox);
+                    }, DispatcherPriority.Background);
+                    break;
+
+                case nameof(AndonBoardViewModel.IsPackingBoxNoOverlayVisible):
+                    FocusScanInput();
+                    break;
             }
         };
     }
@@ -87,12 +101,31 @@ public partial class AndonBoardWindow : Window
         {
             FocusScanInput();
         }
+
+        // US-25 (sửa lỗi 24/08/2026): Activated cũng là lúc quay lại từ MainWindow (US-05b "Chọn kế hoạch" ->
+        // "Áp dụng" -> WindowCoordinator.ShowAndonBoard()) — tải lại ngay bảng PLAN/ACTUAL/BALANCE + trạng thái
+        // đóng thùng thay vì chờ tick định kỳ tiếp theo (xem AndonBoardViewModel.RefreshAsync). Lỗi mạng/server
+        // tạm thời đã được nuốt bên trong (không làm gián đoạn luồng scan).
+        _ = _viewModel.RefreshAsync();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
         {
+            return;
+        }
+
+        // US-25 AC5/AC7: overlay nhập số thùng bắt đầu (bắt buộc — Esc KHÔNG được phép bỏ qua, chỉ chặn phím) /
+        // sửa số thùng hiện tại (tùy chọn — Esc = Hủy, cùng idiom Chế độ Scan NG bên dưới).
+        if (_viewModel.IsPackingBoxNoOverlayVisible)
+        {
+            if (_viewModel.IsEditingExistingBoxNo)
+            {
+                _viewModel.CancelPackingBoxNoOverlayCommand.Execute(null);
+            }
+
+            e.Handled = true;
             return;
         }
 
@@ -184,6 +217,21 @@ public partial class AndonBoardWindow : Window
     }
 
     private void AcknowledgeButton_Click(object sender, RoutedEventArgs e) => FocusScanInput();
+
+    /// <summary>US-25 AC5/AC7: Enter trong ô nhập số thùng cũng xác nhận luôn, không bắt buộc bấm nút "XÁC NHẬN".</summary>
+    private void PackingBoxNoInputBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_viewModel.SubmitPackingBoxNoCommand.CanExecute(null))
+        {
+            _viewModel.SubmitPackingBoxNoCommand.Execute(null);
+        }
+    }
 
     /// <summary>
     /// US-07, chế độ nhập tay/test: Enter trong ô nhập tay cũng kết thúc 1 lượt gửi, tương tự

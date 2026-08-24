@@ -105,6 +105,11 @@ public static class DbSeeder
             (PermissionResource.PackingModelConfig, PermissionAction.View),
             (PermissionResource.PackingModelConfig, PermissionAction.Create),
             (PermissionResource.PackingModelConfig, PermissionAction.Update),
+
+            // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng" — sửa số thùng hiện tại + xác nhận đã biết tình
+            // huống tem trùng (tái sử dụng cơ chế re-auth mỗi lần của US-18, chỉ Tổ trưởng/Admin, KHÔNG Manager).
+            (PermissionResource.PackingBox, PermissionAction.Update),
+            (PermissionResource.PackingBox, PermissionAction.ConfirmDuplicate),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -136,7 +141,7 @@ public static class DbSeeder
             var newSupervisorPermissions = newPermissions.Where(p =>
                 p.Resource == PermissionResource.ProductionPlan || p.Resource == PermissionResource.ProductionPlanStage
                 || p.Resource == PermissionResource.Scan || p.Resource == PermissionResource.Report
-                || p.Resource == PermissionResource.PackingModelConfig);
+                || p.Resource == PermissionResource.PackingModelConfig || p.Resource == PermissionResource.PackingBox);
             rolePermissions.AddRange(newSupervisorPermissions.Select(p => new RolePermission { Role = UserRole.Supervisor, PermissionId = p.Id }));
 
             // Manager: Scan.View (US-10, tra cứu lịch sử scan) + Scan.ConfirmNg (US-18, thay đổi 18/08/2026, xác
@@ -162,6 +167,7 @@ public static class DbSeeder
         await EnsureScanReworkUnlockPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureReportViewPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsurePackingModelConfigPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsurePackingBoxPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -359,6 +365,48 @@ public static class DbSeeder
     {
         var permissionIds = await dbContext.Permissions
             .Where(p => p.Resource == PermissionResource.PackingModelConfig)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (permissionIds.Count == 0)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor };
+
+        var alreadyGranted = (await dbContext.RolePermissions
+                .Where(rp => permissionIds.Contains(rp.PermissionId) && roles.Contains(rp.Role))
+                .Select(rp => new { rp.Role, rp.PermissionId })
+                .ToListAsync(cancellationToken))
+            .Select(rp => (rp.Role, rp.PermissionId))
+            .ToHashSet();
+
+        var missing = roles
+            .SelectMany(role => permissionIds.Select(permissionId => (Role: role, PermissionId: permissionId)))
+            .Where(pair => !alreadyGranted.Contains(pair))
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missing.Select(pair => new RolePermission { Role = pair.Role, PermissionId = pair.PermissionId }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 24/08/2026 (US-25 AC7/AC8, thao tác Supervisor tại "Đóng thùng"): đảm bảo cả 2 permission
+    /// <c>(PackingBox, Update/ConfirmDuplicate)</c> được cấp cho <c>Admin</c>/<c>Supervisor</c> — KHÔNG cấp
+    /// <c>Manager</c> (cùng phạm vi <c>Scan.ReworkUnlock</c>, không mở rộng như <c>Scan.ConfirmNg</c>) — cùng lý
+    /// do/idiom lưới an toàn với <see cref="EnsurePackingModelConfigPermissionGrantsAsync"/>. Idempotent theo từng
+    /// cặp (Role, PermissionId), chạy MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsurePackingBoxPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var permissionIds = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.PackingBox)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
 

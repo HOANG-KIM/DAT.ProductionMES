@@ -23,5 +23,11 @@ public class StageConfiguration : IEntityTypeConfiguration<Stage>
         builder.Property(c => c.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
+
+        // US-25 (bổ sung 24/08/2026): mặc định false — mọi Stage hiện có (kể cả đã tạo trước US-25) giữ nguyên
+        // luồng scan tiêu chuẩn (AC14) cho tới khi Admin chủ động đánh dấu đúng 1 Stage làm "Đóng thùng".
+        builder.Property(c => c.IsPackingStage)
+            .IsRequired()
+            .HasDefaultValue(false);
     }
 }

@@ -8,16 +8,20 @@ export interface Stage {
   name: string;
   description: string | null;
   isActive: boolean;
+  /** US-25: true nếu đây là công đoạn "Đóng thùng" đặc thù (đếm số lượng, tự động in tem thùng). */
+  isPackingStage: boolean;
 }
 
 /** Khớp `CreateStageRequest`. */
 export interface CreateStageRequest {
   name: string;
   description?: string | null;
+  isPackingStage: boolean;
 }
 
 /** Khớp `UpdateStageRequest`. */
 export interface UpdateStageRequest {
   name: string;
   description?: string | null;
+  isPackingStage: boolean;
 }

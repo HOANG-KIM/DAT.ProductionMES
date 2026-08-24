@@ -204,6 +204,10 @@ try
         AddPermissionPolicy(PermissionPolicies.PackingModelConfigView, PermissionResource.PackingModelConfig, PermissionAction.View);
         AddPermissionPolicy(PermissionPolicies.PackingModelConfigCreate, PermissionResource.PackingModelConfig, PermissionAction.Create);
         AddPermissionPolicy(PermissionPolicies.PackingModelConfigUpdate, PermissionResource.PackingModelConfig, PermissionAction.Update);
+
+        // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng".
+        AddPermissionPolicy(PermissionPolicies.PackingBoxUpdate, PermissionResource.PackingBox, PermissionAction.Update);
+        AddPermissionPolicy(PermissionPolicies.PackingBoxConfirmDuplicate, PermissionResource.PackingBox, PermissionAction.ConfirmDuplicate);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Form, Input, Modal } from 'antd';
+import { Alert, Checkbox, Form, Input, Modal } from 'antd';
 import type { AxiosError } from 'axios';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -11,6 +11,7 @@ import type { Stage } from '../../types/stage';
 const stageSchema = z.object({
   name: z.string().min(1, 'Tên công đoạn không được để trống').max(200, 'Tên công đoạn tối đa 200 ký tự'),
   description: z.string().max(1000, 'Mô tả tối đa 1000 ký tự').optional(),
+  isPackingStage: z.boolean(),
 });
 
 type StageFormValues = z.infer<typeof stageSchema>;
@@ -36,12 +37,16 @@ export function StageFormModal({ open, editingStage, onClose }: StageFormModalPr
     formState: { errors },
   } = useForm<StageFormValues>({
     resolver: zodResolver(stageSchema),
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '', description: '', isPackingStage: false },
   });
 
   useEffect(() => {
     if (open) {
-      reset({ name: editingStage?.name ?? '', description: editingStage?.description ?? '' });
+      reset({
+        name: editingStage?.name ?? '',
+        description: editingStage?.description ?? '',
+        isPackingStage: editingStage?.isPackingStage ?? false,
+      });
       setErrorMessage(null);
     }
   }, [open, editingStage, reset]);
@@ -80,6 +85,17 @@ export function StageFormModal({ open, editingStage, onClose }: StageFormModalPr
             name="description"
             control={control}
             render={({ field }) => <Input.TextArea {...field} rows={3} />}
+          />
+        </Form.Item>
+        <Form.Item help="US-25: đánh dấu công đoạn này để bật đếm số lượng theo Quy cách đóng gói, tự động in tem thùng tại trạm — chỉ ĐÚNG 1 công đoạn nên được đánh dấu.">
+          <Controller
+            name="isPackingStage"
+            control={control}
+            render={({ field }) => (
+              <Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)}>
+                Là công đoạn "Đóng thùng"
+              </Checkbox>
+            )}
           />
         </Form.Item>
       </Form>
