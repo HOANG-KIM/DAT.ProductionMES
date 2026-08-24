@@ -19,11 +19,13 @@ Trước khi implement bất kỳ tính năng nào liên quan đến business ru
 
 ## Theo dõi tiến độ backlog
 
-`Documents/BACKLOG-user-story.md` có bảng "TRẠNG THÁI TRIỂN KHAI" ngay đầu file — đây là nguồn duy nhất để biết user story nào đã xong/đang làm/chưa làm, dùng để báo cáo tiến độ cho người giao việc mà không cần đọc lại toàn bộ backlog.
+Từ 24/08/2026, mỗi user story sống trong 1 file riêng: `Documents/backlog/US-XX-ten-tinh-nang-slug/README.md` (vd `Documents/backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md`) — tên thư mục = US-ID + slug tiếng Việt không dấu mô tả ngắn gọn tính năng (cùng quy ước với `Documents/ADR-*.md`), không chỉ dùng US-ID trần vì khó nhận diện nội dung khi nhìn từ ngoài. File này chứa toàn bộ nội dung chi tiết: mô tả, Acceptance Criteria, phụ thuộc, và mục "Lịch sử triển khai" ghi lại từng đợt code (ai, ngày nào, làm gì, build/test kết quả ra sao).
 
-- Agent `ba`: sau khi thêm/sửa 1 user story (spec, AC, phụ thuộc), cập nhật dòng US-ID tương ứng trong bảng nếu trạng thái thay đổi (vd story mới → ⬜ Chưa làm) và ghi ngắn gọn lý do vào cột Ghi chú.
-- Agent `dev`: sau khi implement xong (dù chỉ 1 phần — vd backend xong nhưng UI chưa, hoặc chỉ xong `web-admin` mà `Station.Wpf` chưa có), PHẢI cập nhật dòng US-ID đó **trước khi báo cáo hoàn thành task**: đổi cột Trạng thái (⬜/🔵/🟡/✅), ghi commit hash liên quan + phần còn thiếu (nếu có) vào Ghi chú, cập nhật ngày ở cột Cập nhật.
-- Không cập nhật bảng này thay cho việc sửa nội dung story/AC ở phần chi tiết bên dưới — 2 việc độc lập nhau.
+`Documents/BACKLOG-user-story.md` chỉ còn là **mục lục**: bảng "TRẠNG THÁI TRIỂN KHAI" (trạng thái tổng quan + link sang từng file), danh sách theo nhóm chức năng (link sang từng file), thứ tự triển khai đề xuất, và ghi chú chung về điểm còn mở. Đây vẫn là nguồn duy nhất để biết user story nào đã xong/đang làm/chưa làm mà không cần mở từng file, dùng để báo cáo tiến độ cho người giao việc.
+
+- Story mới: agent `ba` tạo thư mục + `README.md` mới theo đúng quy ước tên ở trên, rồi thêm 1 dòng vào bảng "TRẠNG THÁI TRIỂN KHAI" (mặc định ⬜ Chưa làm) kèm link, và thêm vào đúng nhóm chức năng (mục `## 3.x`) trong `BACKLOG-user-story.md`.
+- Sửa spec/AC của story đã có: agent `ba` sửa trực tiếp trong file `README.md` của story đó — KHÔNG sửa ở `BACKLOG-user-story.md` (file này không còn nội dung chi tiết để sửa).
+- Agent `dev`: sau khi implement xong (dù chỉ 1 phần — vd backend xong nhưng UI chưa, hoặc chỉ xong `web-admin` mà `Station.Wpf` chưa có), PHẢI cập nhật **cả 2 nơi** trước khi báo cáo hoàn thành task: (1) thêm 1 mục vào "Lịch sử triển khai" trong `README.md` của story (commit hash liên quan, phần còn thiếu nếu có), (2) đổi cột Trạng thái (⬜/🔵/🟡/✅) + ngày ở cột Cập nhật trong bảng tại `BACKLOG-user-story.md`.
 - Không tự ý đổi trạng thái sang ✅ Xong nếu chưa build/test pass (xem lệnh ở mục Commands) — dùng 🟡 Một phần nếu còn thiếu bất kỳ phần nào (backend/UI/test).
 
 ## Commands
