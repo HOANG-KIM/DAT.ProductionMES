@@ -194,6 +194,9 @@ public class ScanService : IScanService
 
         // US-08 AC4: qua đủ 2 bước kiểm tra -> ghi nhận OK.
         var okScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.Ok, rejectionReason: null, now);
+        // US-26 AC7/AC8: gắn liên kết thùng NGAY tại đây (currentPackingBox đã xác định trước khi lưu Scan, ở
+        // trên) — null khi không phải công đoạn Đóng thùng, đúng bất biến đã ghi ở remarks entity Scan.
+        okScan.PackingBoxId = currentPackingBox?.Id;
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
         result.IsPackingStage = isPackingStage;
 

@@ -176,4 +176,36 @@ public class ScanServicePackingTests
         Assert.True(result.IsPackingStage);
         _packingBoxServiceMock.Verify(s => s.RegisterOkScanAsync(It.IsAny<PackingBox>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    // US-26 AC7/AC8 — Scan Ok tại công đoạn Đóng thùng phải gắn đúng Scan.PackingBoxId = Id của currentPackingBox
+    // (đã xác định TRƯỚC khi lưu Scan, qua EnsureReadyForScanAsync) — phục vụ xem chi tiết lượt scan theo thùng (AC7).
+    [Fact]
+    public async Task CreateAsync_TaiCongDoanDongThung_ScanOk_GanDungPackingBoxId()
+    {
+        SetupPackingStage(true);
+        var box = new PackingBox { Id = 5, ProductionPlanId = ProductionPlanId, StageId = PackingStageId, BoxNo = 2, TargetQuantity = 10, ScannedQuantity = 3, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" };
+        _packingBoxServiceMock.Setup(s => s.EnsureReadyForScanAsync(It.IsAny<WorkStation>(), It.IsAny<ProductionPlan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(box);
+        _packingBoxServiceMock.Setup(s => s.RegisterOkScanAsync(box, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PackingScanOutcome { BoxId = 5, BoxNo = 2, ScannedQuantity = 4, TargetQuantity = 10, BoxCompleted = false });
+
+        await _sut.CreateAsync(WorkStationId, "TAG006");
+
+        var savedScan = Assert.Single(_existingScans);
+        Assert.Equal(ScanResult.Ok, savedScan.Result);
+        Assert.Equal(5, savedScan.PackingBoxId);
+    }
+
+    // AC8 — Stage KHÔNG phải "Đóng thùng" -> PackingBoxId luôn null (currentPackingBox không được xác định).
+    [Fact]
+    public async Task CreateAsync_TaiCongDoanKhacDongThung_ScanOk_PackingBoxIdLuonNull()
+    {
+        SetupPackingStage(false);
+
+        await _sut.CreateAsync(WorkStationId, "TAG007");
+
+        var savedScan = Assert.Single(_existingScans);
+        Assert.Equal(ScanResult.Ok, savedScan.Result);
+        Assert.Null(savedScan.PackingBoxId);
+    }
 }

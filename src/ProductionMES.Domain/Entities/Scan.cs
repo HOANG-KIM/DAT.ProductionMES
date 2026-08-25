@@ -107,4 +107,15 @@ public class Scan
 
     /// <summary>Tên đăng nhập hiển thị của <see cref="ConfirmedByUserId"/> tại thời điểm scan (snapshot, không tra cứu động) — cùng điều kiện null như trên.</summary>
     public string? ConfirmedByUserName { get; set; }
+
+    /// <summary>
+    /// US-26 AC7/AC8 (bổ sung 25/08/2026): Id thùng (<see cref="PackingBox"/>) mà lượt scan OK này được cộng vào,
+    /// dùng để xem lại chi tiết từng lượt scan OK đã cộng vào 1 thùng cụ thể. CHỈ được set khi
+    /// <see cref="Result"/> = <see cref="ScanResult.Ok"/> VÀ lượt scan tại công đoạn "Đóng thùng"
+    /// (<see cref="Stage.IsPackingStage"/> = <c>true</c>) — <c>null</c> cho mọi trường hợp khác (Ng/DuplicateTag/
+    /// PreviousStageNotPassed/WaitingReworkUnlock, hoặc Ok tại công đoạn không phải Đóng thùng). KHÔNG backfill dữ
+    /// liệu cũ ghi trước khi field này tồn tại (AC8) — các thùng mở/hoàn tất trước thời điểm triển khai AC7 hiển
+    /// thị "Không có dữ liệu chi tiết lượt scan" dù <see cref="PackingBox.ScannedQuantity"/> > 0.
+    /// </summary>
+    public int? PackingBoxId { get; set; }
 }

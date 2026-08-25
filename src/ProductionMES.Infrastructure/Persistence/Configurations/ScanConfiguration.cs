@@ -77,5 +77,9 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
 
         // Tăng tốc truy vấn "đã Ok ở công đoạn này trong kế hoạch đang active chưa" (ScanService).
         builder.HasIndex(s => new { s.ProductionPlanId, s.StageId });
+
+        // US-26 AC7: tăng tốc truy vấn "các lượt scan OK đã cộng vào 1 thùng cụ thể" (PackingBoxId nullable —
+        // không dùng khoá ngoại, cùng nguyên tắc StageId/LineId/... ở trên).
+        builder.HasIndex(s => s.PackingBoxId);
     }
 }

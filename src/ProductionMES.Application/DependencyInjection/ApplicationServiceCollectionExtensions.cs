@@ -50,6 +50,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IProductionReportService, ProductionReportService>();
         services.AddScoped<ILotReportService, LotReportService>();
         services.AddScoped<ILotReportExportService, LotReportExportService>();
+        services.AddScoped<IPackingProgressReportService, PackingProgressReportService>();
+        services.AddScoped<IPackingProgressReportExportService, PackingProgressReportExportService>();
         services.AddScoped<ILotService, LotService>();
         services.AddScoped<IPackingModelConfigService, PackingModelConfigService>();
         services.AddScoped<IPackingLabelGenerator, PackingLabelGenerator>();
