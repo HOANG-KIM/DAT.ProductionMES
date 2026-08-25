@@ -80,10 +80,15 @@
 
 ## Trạng thái triển khai
 
-- **Trạng thái:** 🟡 Một phần
+- **Trạng thái:** ✅ Xong
 - **Cập nhật:** 2026-08-25
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-08-25 (người giao việc, xác nhận hoàn tất)
+- Đã test trực quan trên trình duyệt thật với dữ liệu thật — AC1-AC14 hoạt động đúng (tra cứu Lot, lọc Line, dòng Tổng cộng, cột Trạng thái kế hoạch, export Excel).
+- Migration `AddScanPackingBoxId` đã chạy `dotnet ef database update` lên MySQL thật.
+- Toàn bộ mục "Còn thiếu" của các đợt trước (xác nhận UI, áp dụng migration) đã được giải quyết — chuyển Trạng thái sang ✅ Xong.
 
 #### 2026-08-25 (dev, mở rộng AC1/AC2/AC4 lần 3 sang PlanStatus Paused/Completed/Cancelled + AC14 cột Trạng thái kế hoạch)
 

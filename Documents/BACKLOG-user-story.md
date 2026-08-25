@@ -47,7 +47,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-23](./backlog/US-23-xuat-bao-cao-excel/README.md) | Xuất báo cáo Excel | 🟡 Một phần | — | 2026-08-19 |
 | [US-24](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md) | Cấu hình Quy cách đóng gói theo Model (Đóng thùng) | ✅ Xong | — | 2026-08-24 |
 | [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | — | 2026-08-24 |
-| [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | 🟡 Một phần | — | 2026-08-25 |
+| [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | ✅ Xong | — | 2026-08-25 |
 | [BUG-01](./backlog/BUG-01-lech-gio-utc-vn/README.md) | Lệch giờ 7 tiếng (UTC/VN) khi hiển thị trên web-admin | ✅ Xong | — | 2026-08-19 |
 
 *(Chi tiết đầy đủ từng story — mô tả, Acceptance Criteria, ghi chú lịch sử triển khai — đã tách sang file riêng trong `Documents/backlog/US-XX-ten-tinh-nang/README.md`, xem quy ước tại `CLAUDE.md` mục "Theo dõi tiến độ backlog". Bảng trên chỉ giữ trạng thái tổng quan.)*
