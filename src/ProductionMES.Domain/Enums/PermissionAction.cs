@@ -34,6 +34,21 @@ public enum PermissionAction
     /// <summary>US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG tại 1 công đoạn — chỉ Tổ trưởng/Admin.</summary>
     ReworkUnlock = 10,
 
-    /// <summary>US-25 AC8: xác nhận đã biết tình huống tem trùng tại "Đóng thùng" — chỉ có ở <see cref="PermissionResource.PackingBox"/>.</summary>
+    /// <summary>
+    /// US-25 AC8: xác nhận đã biết tình huống tem trùng tại "Đóng thùng" — chỉ có ở <see cref="PermissionResource.PackingBox"/>.
+    /// <b>SUPERSEDED bởi US-27 (25/08/2026)</b>: cơ chế audit riêng này bị thay thế hoàn toàn bởi
+    /// <see cref="ConfirmReject"/> (áp dụng đồng nhất mọi <c>ScanResult</c> từ chối tự động, kể cả tem trùng tại
+    /// Đóng thùng — xem US-27 AC12). Giữ nguyên định danh này (KHÔNG xóa/đổi số) chỉ để tương thích dữ liệu
+    /// <c>Permission</c> đã seed từ trước 25/08/2026 — không còn Controller/Policy nào tham chiếu giá trị này nữa.
+    /// </summary>
     ConfirmDuplicate = 11,
+
+    /// <summary>
+    /// US-27 AC5/AC6 (25/08/2026): xác nhận lưu 1 lượt scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/
+    /// PreviousStageNotPassed/WaitingReworkUnlock/...) — chỉ có ở <see cref="PermissionResource.Scan"/>. Thay thế
+    /// hoàn toàn <see cref="ConfirmDuplicate"/> cho công đoạn "Đóng thùng" (US-27 AC12) và áp dụng đồng nhất cho
+    /// MỌI công đoạn khác (US-27 AC10) — trước đây các lượt này tự động lưu (FR-10 cũ), nay chỉ lưu sau khi Tổ
+    /// trưởng/Admin/Manager đăng nhập xác nhận qua endpoint <c>POST api/v1/scans/reject-confirmations</c>.
+    /// </summary>
+    ConfirmReject = 12,
 }

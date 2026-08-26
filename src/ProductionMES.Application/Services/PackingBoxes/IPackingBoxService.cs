@@ -20,9 +20,9 @@ public interface IPackingBoxService
     Task<PackingBoxDto> UpdateCurrentBoxNoAsync(
         int workStationId, int newBoxNo, int updatedByUserId, string updatedByUserName, CancellationToken cancellationToken = default);
 
-    /// <summary>AC8: xác nhận đã biết tình huống tem trùng — CHỈ audit, không cộng số lượng/không tạo bản ghi Scan mới.</summary>
-    Task<PackingDuplicateConfirmationDto> ConfirmDuplicateAsync(
-        int workStationId, string tagCode, int confirmedByUserId, string confirmedByUserName, string? note, CancellationToken cancellationToken = default);
+    // US-27 (25/08/2026): ConfirmDuplicateAsync (US-25 AC8) đã bị XÓA — SUPERSEDED bởi cơ chế Lưu/Thoát đồng nhất
+    // của US-27 (Scan.ConfirmReject, xem ScanService.ConfirmRejectedScanAsync), áp dụng cho MỌI ScanResult từ chối
+    // tự động kể cả tem trùng tại Đóng thùng (US-27 AC12).
 
     /// <summary>Tải file tem thùng đã merge dữ liệu từ mẫu tem (template) của Model — dùng cho in tự động (AC4) lẫn In lại thủ công (AC13).</summary>
     Task<(byte[] Content, string FileName)> GenerateLabelAsync(int boxId, CancellationToken cancellationToken = default);

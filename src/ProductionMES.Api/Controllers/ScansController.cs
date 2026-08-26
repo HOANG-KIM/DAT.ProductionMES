@@ -31,8 +31,11 @@ public class ScansController : ControllerBase
     }
 
     /// <summary>
-    /// Ghi nhận 1 lượt scan. Luôn trả 201 kèm kết quả (kể cả khi bị từ chối — DuplicateTag/PreviousStageNotPassed
-    /// là kết quả nghiệp vụ hợp lệ theo FR-08, không phải lỗi HTTP) vì bản ghi Scan luôn được tạo mới (FR-10).
+    /// Ghi nhận 1 lượt scan. Luôn trả 201 kèm kết quả (kể cả khi bị từ chối — DuplicateTag/PreviousStageNotPassed/
+    /// WaitingReworkUnlock là kết quả nghiệp vụ hợp lệ theo FR-08, không phải lỗi HTTP). US-27 (25/08/2026): CHỈ
+    /// bản ghi Scan Result=Ok mới thực sự được lưu ở đây — các kết quả bị từ chối tự động KHÔNG còn được lưu ngay
+    /// (đảo ngược FR-10 cũ), client hiển thị banner Lưu/Thoát rồi gọi <c>POST api/v1/scans/reject-confirmations</c>
+    /// (<see cref="ScanRejectConfirmationsController"/>) nếu Tổ trưởng xác nhận cần lưu (AC3/AC5/AC6).
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<ScanResultDto>> Create([FromBody] CreateScanRequest request, CancellationToken cancellationToken)

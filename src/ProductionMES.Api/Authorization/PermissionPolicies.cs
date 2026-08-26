@@ -6,8 +6,9 @@ namespace ProductionMES.Api.Authorization;
 /// <c>[Authorize(Policy = ...)]</c> dùng ở Controller. Khớp chính xác catalog seed ở <c>DbSeeder.SeedPermissionsAsync</c>
 /// (tổng 34 permission: Line/Stage/WorkStation 4 action x 3 resource = 12, ProductionPlan 3, ProductionPlanStage 7
 /// (US-05a bổ sung Apply/Pause/Close, thay cho Activate/Deactivate cấp cả kế hoạch trước đây), BreakWindow 4,
-/// StationApiKey 4, Scan 3 (View — US-10, tra cứu lịch sử scan; ConfirmNg — US-18, thay đổi 18/08/2026, xác nhận Scan NG;
-/// ReworkUnlock — US-19, mở khóa rework), Report 1 (View — US-21, báo cáo tổng hợp theo Line/công đoạn)).
+/// StationApiKey 4, Scan 4 (View — US-10, tra cứu lịch sử scan; ConfirmNg — US-18, thay đổi 18/08/2026, xác nhận Scan NG;
+/// ReworkUnlock — US-19, mở khóa rework; ConfirmReject — US-27, 25/08/2026, xác nhận lưu scan bị từ chối tự động),
+/// Report 1 (View — US-21, báo cáo tổng hợp theo Line/công đoạn) — chưa tính PackingModelConfig/PackingBox (US-24/25)).
 /// </summary>
 public static class PermissionPolicies
 {
@@ -62,6 +63,10 @@ public static class PermissionPolicies
     // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG — chỉ Supervisor/Admin (KHÔNG cấp Manager, khác ScanConfirmNg).
     public const string ScanReworkUnlock = "Scan.ReworkUnlock";
 
+    // US-27 AC5/AC6 (25/08/2026): xác nhận lưu 1 lượt scan bị hệ thống TỰ ĐỘNG từ chối — Supervisor/Admin/Manager
+    // (cùng phạm vi ScanConfirmNg), thay thế hoàn toàn PackingBoxConfirmDuplicate cũ (US-25 AC8, xem AC12).
+    public const string ScanConfirmReject = "Scan.ConfirmReject";
+
     // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn — Supervisor/Admin/Manager, cùng đối tượng với ScanView.
     public const string ReportView = "Report.View";
 
@@ -70,7 +75,7 @@ public static class PermissionPolicies
     public const string PackingModelConfigCreate = "PackingModelConfig.Create";
     public const string PackingModelConfigUpdate = "PackingModelConfig.Update";
 
-    // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng" — Admin + Supervisor (KHÔNG Manager, cùng phạm vi ScanReworkUnlock).
+    // US-25 AC7: thao tác Supervisor tại "Đóng thùng" — Admin + Supervisor (KHÔNG Manager, cùng phạm vi ScanReworkUnlock).
+    // PackingBoxConfirmDuplicate (AC8) đã bị XÓA — SUPERSEDED bởi ScanConfirmReject (US-27 AC12, 25/08/2026).
     public const string PackingBoxUpdate = "PackingBox.Update";
-    public const string PackingBoxConfirmDuplicate = "PackingBox.ConfirmDuplicate";
 }

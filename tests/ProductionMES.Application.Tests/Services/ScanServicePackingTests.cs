@@ -175,6 +175,9 @@ public class ScanServicePackingTests
         Assert.Equal(ScanResult.DuplicateTag, result.Result);
         Assert.True(result.IsPackingStage);
         _packingBoxServiceMock.Verify(s => s.RegisterOkScanAsync(It.IsAny<PackingBox>(), It.IsAny<CancellationToken>()), Times.Never);
+        // US-27 AC12: tem trùng tại "Đóng thùng" áp dụng đồng nhất cơ chế Lưu/Thoát — KHÔNG lưu bản ghi Scan nào
+        // ngay lúc từ chối (thay thế hoàn toàn cơ chế audit riêng PackingDuplicateScanConfirmation cũ của US-25 AC8).
+        _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // US-26 AC7/AC8 — Scan Ok tại công đoạn Đóng thùng phải gắn đúng Scan.PackingBoxId = Id của currentPackingBox

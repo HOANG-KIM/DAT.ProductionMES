@@ -138,6 +138,16 @@ public partial class AndonBoardWindow : Window
             return;
         }
 
+        // US-27 AC4: banner Lưu/Thoát (scan bị hệ thống tự động từ chối) — Esc = "Thoát" (không lưu gì), đúng thứ
+        // tự Esc 1 chiều (ADR-006). Kiểm tra TRƯỚC RequiresAcknowledgement (US-18, banner "NG đã ghi nhận") vì 2
+        // cờ này loại trừ nhau (không bao giờ cùng true).
+        if (_viewModel.IsBannerVisible && _viewModel.RequiresRejectDecision)
+        {
+            _viewModel.ExitRejectedScanCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         // Ưu tiên đóng banner scan (nếu đang mở) trước khi chuyển Main Screen, đúng thứ tự Esc 1 chiều (ADR-006).
         if (_viewModel.IsBannerVisible && _viewModel.RequiresAcknowledgement)
         {

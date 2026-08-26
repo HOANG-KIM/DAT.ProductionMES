@@ -103,9 +103,8 @@ public class ScanServiceReworkLockTests
 
         Assert.Equal(ScanResult.WaitingReworkUnlock, result.Result);
         Assert.Equal("Sản phẩm đang chờ mở khóa rework.", result.RejectionReason);
-        // FR-10: lượt scan bị từ chối vẫn được lưu lại đầy đủ lịch sử.
-        _scanRepositoryMock.Verify(r => r.AddAsync(
-            It.Is<Scan>(s => s.Result == ScanResult.WaitingReworkUnlock && s.TagCode == "TAG1"), It.IsAny<CancellationToken>()), Times.Once);
+        // US-27 AC3: từ 25/08/2026, lượt scan bị hệ thống tự động từ chối KHÔNG còn được lưu ngay (đảo ngược FR-10 cũ).
+        _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
         _scanNotifierMock.Verify(n => n.NotifyScanRecordedAsync(It.IsAny<int>(), It.IsAny<ScanResultDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -152,8 +151,8 @@ public class ScanServiceReworkLockTests
         var result = await _sut.CreateAsync(1, "TAG1");
 
         Assert.Equal(ScanResult.WaitingReworkUnlock, result.Result);
-        // FR-10: vẫn giữ đủ lịch sử — 2 lượt Ng cũ + 1 lượt WaitingReworkUnlock mới = 3 bản ghi.
-        Assert.Equal(3, _existingScans.Count);
+        // US-27 AC3: lượt WaitingReworkUnlock KHÔNG được lưu ngay nữa — chỉ còn đúng 2 bản ghi Ng cũ trong "DB".
+        Assert.Equal(2, _existingScans.Count);
     }
 
     // Tem chưa từng bị Ng tại công đoạn này -> không bị chặn bởi US-19 (hành vi US-08 giữ nguyên).

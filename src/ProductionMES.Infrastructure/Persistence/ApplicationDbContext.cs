@@ -38,7 +38,9 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<PackingBox> PackingBoxes => Set<PackingBox>();
 
-    public DbSet<PackingDuplicateScanConfirmation> PackingDuplicateScanConfirmations => Set<PackingDuplicateScanConfirmation>();
+    // US-27 (25/08/2026): DbSet<PackingDuplicateScanConfirmation> đã bị XÓA (bảng superseded bởi
+    // Scan.ConfirmedByUserId/ConfirmedByUserName, xem US-27 AC12) — migration DropPackingDuplicateScanConfirmation
+    // xóa bảng tương ứng khỏi schema.
 
     public DbSet<Scan> Scans => Set<Scan>();
 

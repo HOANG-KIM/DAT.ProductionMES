@@ -28,8 +28,6 @@ public class PackingBoxServiceTests
     private readonly Mock<IRepository<ProductionPlan>> _productionPlanRepositoryMock = new();
     private readonly Mock<IRepository<ProductionPlanStage>> _productionPlanStageRepositoryMock = new();
     private readonly Mock<IRepository<PackingBox>> _packingBoxRepositoryMock = new();
-    private readonly Mock<IRepository<Scan>> _scanRepositoryMock = new();
-    private readonly Mock<IRepository<PackingDuplicateScanConfirmation>> _confirmationRepositoryMock = new();
     private readonly Mock<IRepository<Line>> _lineRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<IPackingModelConfigService> _packingModelConfigServiceMock = new();
@@ -45,8 +43,6 @@ public class PackingBoxServiceTests
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlan>()).Returns(_productionPlanRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<ProductionPlanStage>()).Returns(_productionPlanStageRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<PackingBox>()).Returns(_packingBoxRepositoryMock.Object);
-        _unitOfWorkMock.Setup(u => u.Repository<Scan>()).Returns(_scanRepositoryMock.Object);
-        _unitOfWorkMock.Setup(u => u.Repository<PackingDuplicateScanConfirmation>()).Returns(_confirmationRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<Line>()).Returns(_lineRepositoryMock.Object);
 
         _sut = new PackingBoxService(_unitOfWorkMock.Object, _packingModelConfigServiceMock.Object, _templateStorageMock.Object, _labelGeneratorMock.Object);
@@ -63,10 +59,6 @@ public class PackingBoxServiceTests
             .ReturnsAsync(new ProductionPlan { Id = ProductionPlanId, LineId = LineId, Model = "ABC-123", PlannedQuantity = 1000 });
 
         SetupExistingBoxes(new List<PackingBox>());
-
-        _scanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Scan>());
     }
 
     private void SetupExistingBoxes(List<PackingBox> boxes)
@@ -281,33 +273,8 @@ public class PackingBoxServiceTests
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateCurrentBoxNoAsync(WorkStationId, 5, 0, string.Empty));
     }
 
-    // AC8 — Tem có bản ghi Scan DuplicateTag gần nhất -> xác nhận thành công, CHỈ audit (không đổi PackingBox nào).
-    [Fact]
-    public async Task ConfirmDuplicateAsync_TemDangBiTuChoiDoTrung_XacNhanThanhCongChiAudit()
-    {
-        var duplicateScan = new Scan { Id = 55, TagCode = "TAG001", StageId = StageId, Result = ScanResult.DuplicateTag, ScannedAtUtc = DateTime.Now };
-        _scanRepositoryMock
-            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Scan, bool>>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<Scan> { duplicateScan });
-
-        var result = await _sut.ConfirmDuplicateAsync(WorkStationId, "TAG001", confirmedByUserId: 3, confirmedByUserName: "supervisor01", note: "đã kiểm tra");
-
-        Assert.Equal("TAG001", result.TagCode);
-        Assert.Equal(55, result.ScanId);
-        Assert.Equal(3, result.ConfirmedByUserId);
-        Assert.Equal("supervisor01", result.ConfirmedByUserName);
-        Assert.Equal("đã kiểm tra", result.Note);
-        _confirmationRepositoryMock.Verify(r => r.AddAsync(It.IsAny<PackingDuplicateScanConfirmation>(), It.IsAny<CancellationToken>()), Times.Once);
-        _packingBoxRepositoryMock.Verify(r => r.Update(It.IsAny<PackingBox>()), Times.Never);
-        _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    // AC8 — Tem KHÔNG có bản ghi DuplicateTag nào -> từ chối xác nhận (không có gì để xác nhận).
-    [Fact]
-    public async Task ConfirmDuplicateAsync_TemKhongOTrangThaiTrung_NemBusinessRuleException()
-    {
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.ConfirmDuplicateAsync(WorkStationId, "TAG999", 3, "supervisor01", null));
-    }
+    // US-27 (25/08/2026): ConfirmDuplicateAsync (US-25 AC8) đã bị xóa khỏi PackingBoxService — cơ chế audit riêng
+    // này SUPERSEDED bởi Scan.ConfirmReject đồng nhất (US-27 AC12), test tương ứng chuyển sang ScanService.
 
     // AC13 — Model chưa có mẫu tem -> chặn tạo tem (lỗi CHÍNH lệnh gọi in, không phải lỗi vật lý).
     [Fact]

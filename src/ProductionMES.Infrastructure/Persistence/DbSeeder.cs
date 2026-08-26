@@ -97,6 +97,8 @@ public static class DbSeeder
             (PermissionResource.Scan, PermissionAction.ConfirmNg),
             // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG — chỉ Tổ trưởng/Admin.
             (PermissionResource.Scan, PermissionAction.ReworkUnlock),
+            // US-27 AC5/AC6 (25/08/2026): xác nhận lưu 1 lượt scan bị hệ thống tự động từ chối — Supervisor/Admin/Manager.
+            (PermissionResource.Scan, PermissionAction.ConfirmReject),
 
             // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
             (PermissionResource.Report, PermissionAction.View),
@@ -106,10 +108,10 @@ public static class DbSeeder
             (PermissionResource.PackingModelConfig, PermissionAction.Create),
             (PermissionResource.PackingModelConfig, PermissionAction.Update),
 
-            // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng" — sửa số thùng hiện tại + xác nhận đã biết tình
-            // huống tem trùng (tái sử dụng cơ chế re-auth mỗi lần của US-18, chỉ Tổ trưởng/Admin, KHÔNG Manager).
+            // US-25 AC7: thao tác Supervisor tại "Đóng thùng" — sửa số thùng hiện tại (tái sử dụng cơ chế re-auth
+            // mỗi lần của US-18, chỉ Tổ trưởng/Admin, KHÔNG Manager). AC8 (ConfirmDuplicate) đã bị xóa — superseded
+            // bởi (Scan, ConfirmReject) ở trên (US-27 AC12, 25/08/2026).
             (PermissionResource.PackingBox, PermissionAction.Update),
-            (PermissionResource.PackingBox, PermissionAction.ConfirmDuplicate),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -146,10 +148,11 @@ public static class DbSeeder
 
             // Manager: Scan.View (US-10, tra cứu lịch sử scan) + Scan.ConfirmNg (US-18, thay đổi 18/08/2026, xác
             // nhận Scan NG tại trạm — quyết định nghiệp vụ chốt 18/08/2026: mở rộng quyền xác nhận NG cho cả
-            // Manager, không chỉ Supervisor) + Report.View (US-21, báo cáo tổng hợp — đúng vai trò "Ban quản lý/
-            // Văn phòng" của US-21) — Manager KHÔNG có permission nào khác ngoài 2 nhóm Scan/Report. Scan.ReworkUnlock
-            // (US-19) KHÔNG cấp cho Manager (khác 2 permission Scan trên) — AC6 chốt "chỉ Tổ trưởng" (+ Admin) mới
-            // được "Mở khóa rework", không mở rộng cho Manager như đã làm với ConfirmNg.
+            // Manager, không chỉ Supervisor) + Scan.ConfirmReject (US-27, 25/08/2026, cùng phạm vi ConfirmNg) +
+            // Report.View (US-21, báo cáo tổng hợp — đúng vai trò "Ban quản lý/Văn phòng" của US-21) — Manager
+            // KHÔNG có permission nào khác ngoài 2 nhóm Scan/Report. Scan.ReworkUnlock (US-19) KHÔNG cấp cho
+            // Manager (khác các permission Scan còn lại) — AC6 chốt "chỉ Tổ trưởng" (+ Admin) mới được "Mở khóa
+            // rework", không mở rộng cho Manager như đã làm với ConfirmNg/ConfirmReject.
             var newManagerPermissions = newPermissions.Where(p =>
                 (p.Resource == PermissionResource.Scan && p.Action != PermissionAction.ReworkUnlock)
                 || p.Resource == PermissionResource.Report);
@@ -165,6 +168,7 @@ public static class DbSeeder
         await EnsureScanViewPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureScanConfirmNgPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureScanReworkUnlockPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsureScanConfirmRejectPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsureReportViewPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsurePackingModelConfigPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsurePackingBoxPermissionGrantsAsync(dbContext, cancellationToken);
@@ -320,6 +324,41 @@ public static class DbSeeder
     }
 
     /// <summary>
+    /// Bổ sung 25/08/2026 (US-27 AC5/AC6, xác nhận lưu 1 lượt scan bị hệ thống tự động từ chối): đảm bảo
+    /// <c>(Scan, ConfirmReject)</c> được cấp cho <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> (cùng phạm vi
+    /// <c>Scan.ConfirmNg</c>) — cùng lý do/idiom lưới an toàn với <see cref="EnsureScanConfirmNgPermissionGrantsAsync"/>.
+    /// Idempotent theo từng cặp (Role, PermissionId), chạy MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsureScanConfirmRejectPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var scanConfirmRejectPermissionId = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.Scan && p.Action == PermissionAction.ConfirmReject)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (scanConfirmRejectPermissionId is null)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor, UserRole.Manager };
+
+        var alreadyGrantedRoles = await dbContext.RolePermissions
+            .Where(rp => rp.PermissionId == scanConfirmRejectPermissionId.Value && roles.Contains(rp.Role))
+            .Select(rp => rp.Role)
+            .ToListAsync(cancellationToken);
+
+        var missingRoles = roles.Except(alreadyGrantedRoles).ToList();
+        if (missingRoles.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missingRoles.Select(role => new RolePermission { Role = role, PermissionId = scanConfirmRejectPermissionId.Value }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Bổ sung 18/08/2026 (US-21, báo cáo tổng hợp theo Line/công đoạn): đảm bảo <c>(Report, View)</c> được cấp
     /// cho <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> — cùng lý do/idiom lưới an toàn với
     /// <see cref="EnsureScanViewPermissionGrantsAsync"/>. Idempotent theo từng cặp (Role, PermissionId), chạy MỖI
@@ -397,11 +436,12 @@ public static class DbSeeder
     }
 
     /// <summary>
-    /// Bổ sung 24/08/2026 (US-25 AC7/AC8, thao tác Supervisor tại "Đóng thùng"): đảm bảo cả 2 permission
-    /// <c>(PackingBox, Update/ConfirmDuplicate)</c> được cấp cho <c>Admin</c>/<c>Supervisor</c> — KHÔNG cấp
-    /// <c>Manager</c> (cùng phạm vi <c>Scan.ReworkUnlock</c>, không mở rộng như <c>Scan.ConfirmNg</c>) — cùng lý
-    /// do/idiom lưới an toàn với <see cref="EnsurePackingModelConfigPermissionGrantsAsync"/>. Idempotent theo từng
-    /// cặp (Role, PermissionId), chạy MỖI lần khởi động.
+    /// Bổ sung 24/08/2026 (US-25 AC7, thao tác Supervisor tại "Đóng thùng"): đảm bảo permission
+    /// <c>(PackingBox, Update)</c> được cấp cho <c>Admin</c>/<c>Supervisor</c> — KHÔNG cấp <c>Manager</c> (cùng
+    /// phạm vi <c>Scan.ReworkUnlock</c>, không mở rộng như <c>Scan.ConfirmNg</c>) — cùng lý do/idiom lưới an toàn
+    /// với <see cref="EnsurePackingModelConfigPermissionGrantsAsync"/>. Tự động chạy đúng theo bất kỳ action nào
+    /// hiện có trong catalog cho resource này (từ 25/08/2026 chỉ còn <c>Update</c> — <c>ConfirmDuplicate</c> đã bị
+    /// xóa khỏi catalog, xem US-27 AC12). Idempotent theo từng cặp (Role, PermissionId), chạy MỖI lần khởi động.
     /// </summary>
     private static async Task EnsurePackingBoxPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
     {

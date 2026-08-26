@@ -21,4 +21,13 @@ public interface IScanApiClient
 
     /// <summary>US-18 AC4: gợi ý autocomplete các lý do lỗi đã từng nhập cho đúng công đoạn <paramref name="stageId"/>.</summary>
     Task<IReadOnlyList<string>> GetNgReasonSuggestionsAsync(int stageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-27 AC5/AC6: xác nhận LƯU 1 lượt scan bị hệ thống tự động từ chối (banner Lưu/Thoát, AC3) — gửi lại
+    /// NGUYÊN VẸN <paramref name="rejectedScan"/> (đã nhận ở <see cref="CreateAsync"/>, chưa lưu) tới
+    /// <c>POST api/v1/scans/reject-confirmations</c>. KHÁC <see cref="CreateAsync"/>: endpoint này yêu cầu Bearer
+    /// token Tổ trưởng/Admin/Manager (permission <c>Scan.ConfirmReject</c>) — <paramref name="supervisorAccessToken"/>
+    /// là access token đã đăng nhập RIÊNG cho lượt xác nhận này (AC5, cùng cách <see cref="CreateNgAsync"/>).
+    /// </summary>
+    Task<ScanResultDto> ConfirmRejectedScanAsync(ScanResultDto rejectedScan, string supervisorAccessToken, CancellationToken cancellationToken = default);
 }

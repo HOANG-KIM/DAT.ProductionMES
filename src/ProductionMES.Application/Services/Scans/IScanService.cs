@@ -6,8 +6,11 @@ namespace ProductionMES.Application.Services.Scans;
 public interface IScanService
 {
     /// <summary>
-    /// Ghi nhận 1 lượt scan tem tại trạm (US-07/US-08, FR-07/FR-08). Luôn lưu lại bản ghi Scan bất kể kết quả
-    /// (FR-10) — kể cả khi bị từ chối do trùng tem/chưa qua công đoạn liền trước.
+    /// Ghi nhận 1 lượt scan tem tại trạm (US-07/US-08, FR-07/FR-08). CHỈ lưu ngay bản ghi Scan khi kết quả là
+    /// <see cref="Domain.Enums.ScanResult.Ok"/> (AC1) — từ US-27 (25/08/2026, đảo ngược 1 phần FR-10 cũ), các kết
+    /// quả bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/PreviousStageNotPassed/WaitingReworkUnlock/...) KHÔNG còn
+    /// được lưu tại đây nữa — chỉ trả về <see cref="ScanResultDto"/> để client hiển thị banner Lưu/Thoát (AC3),
+    /// lưu thật sự chỉ xảy ra qua <see cref="ConfirmRejectedScanAsync"/> sau khi Tổ trưởng xác nhận (AC5/AC6).
     /// </summary>
     /// <param name="workStationId">
     /// Id trạm THẬT lấy từ danh tính đã xác thực (claim), không phải từ request body — nguồn thật duy nhất
@@ -15,6 +18,22 @@ public interface IScanService
     /// </param>
     /// <param name="tagCode">Mã tem được scan.</param>
     Task<ScanResultDto> CreateAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-27 AC5/AC6: xác nhận LƯU 1 lượt scan bị hệ thống tự động từ chối (đã trả về ở <see cref="CreateAsync"/>
+    /// nhưng CHƯA lưu) — client gửi lại nguyên vẹn snapshot đã nhận ở Bước 1. KHÔNG chạy lại 3 bước kiểm tra
+    /// FR-08/US-19 (AC6 "bản ghi phải phản ánh đúng thời điểm scan gốc") — chỉ validate
+    /// <c>request.Result != Ok/Ng</c> (đã làm ở <c>ConfirmRejectedScanRequestValidator</c>, kiểm tra lại đây phòng
+    /// Service bị gọi trực tiếp không qua Controller) rồi lưu kèm người xác nhận.
+    /// </summary>
+    /// <param name="confirmedByUserId">
+    /// Id tài khoản Supervisor/Admin/Manager đã đăng nhập lại (re-auth, AC5) — LẤY TỪ CLAIM token Bearer đã xác
+    /// thực ở Controller, KHÔNG nhận trực tiếp từ DTO client gửi lên, để tránh giả mạo (cùng nguyên tắc
+    /// <see cref="CreateNgAsync"/>).
+    /// </param>
+    /// <param name="confirmedByUserName">Tên đăng nhập của <paramref name="confirmedByUserId"/> — cũng lấy từ claim, cùng lý do trên.</param>
+    Task<ScanResultDto> ConfirmRejectedScanAsync(
+        ConfirmRejectedScanRequest request, int confirmedByUserId, string confirmedByUserName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Ghi nhận 1 lượt Scan NG (US-18 AC3/AC5, cập nhật 18/08/2026 — thay đổi yêu cầu bổ sung đăng nhập Tổ

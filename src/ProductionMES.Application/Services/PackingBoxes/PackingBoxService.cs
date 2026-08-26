@@ -142,63 +142,7 @@ public class PackingBoxService : IPackingBoxService
         return ToDto(currentBox);
     }
 
-    public async Task<PackingDuplicateConfirmationDto> ConfirmDuplicateAsync(
-        int workStationId, string tagCode, int confirmedByUserId, string confirmedByUserName, string? note, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(tagCode))
-        {
-            throw new BusinessRuleException("Mã tem không được để trống.");
-        }
-
-        if (confirmedByUserId <= 0 || string.IsNullOrWhiteSpace(confirmedByUserName))
-        {
-            throw new BusinessRuleException("Thiếu thông tin người xác nhận (yêu cầu đăng nhập Tổ trưởng hợp lệ).");
-        }
-
-        var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
-        tagCode = tagCode.Trim();
-        var stageId = workStation.StageId;
-
-        // AC8: tìm bản ghi Scan (Result = DuplicateTag) GẦN NHẤT tại (TagCode, StageId) — chính bản ghi đã được
-        // FR-08 tạo ra và từ chối khi Operator quét lại tem đã Ok, KHÔNG tạo bản ghi Scan mới nào ở đây.
-        var latestDuplicateScan = (await _unitOfWork.Repository<Scan>().FindAsync(
-                s => s.TagCode == tagCode && s.StageId == stageId && s.Result == ScanResult.DuplicateTag, cancellationToken))
-            .OrderByDescending(s => s.ScannedAtUtc)
-            .ThenByDescending(s => s.Id)
-            .FirstOrDefault();
-
-        if (latestDuplicateScan is null)
-        {
-            throw new BusinessRuleException(
-                $"Tem \"{tagCode}\" hiện không ở trạng thái bị từ chối do trùng tại công đoạn Đóng thùng — không có gì cần xác nhận.");
-        }
-
-        var confirmation = new PackingDuplicateScanConfirmation
-        {
-            TagCode = tagCode,
-            StageId = stageId,
-            ScanId = latestDuplicateScan.Id,
-            ConfirmedByUserId = confirmedByUserId,
-            ConfirmedByUserName = confirmedByUserName,
-            ConfirmedAtUtc = DateTime.Now,
-            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
-        };
-
-        await _unitOfWork.Repository<PackingDuplicateScanConfirmation>().AddAsync(confirmation, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return new PackingDuplicateConfirmationDto
-        {
-            Id = confirmation.Id,
-            TagCode = confirmation.TagCode,
-            StageId = confirmation.StageId,
-            ScanId = confirmation.ScanId,
-            ConfirmedByUserId = confirmation.ConfirmedByUserId,
-            ConfirmedByUserName = confirmation.ConfirmedByUserName,
-            ConfirmedAtUtc = confirmation.ConfirmedAtUtc,
-            Note = confirmation.Note,
-        };
-    }
+    // US-27 (25/08/2026): ConfirmDuplicateAsync (US-25 AC8) đã bị XÓA — xem ghi chú tại IPackingBoxService.
 
     public async Task<(byte[] Content, string FileName)> GenerateLabelAsync(int boxId, CancellationToken cancellationToken = default)
     {

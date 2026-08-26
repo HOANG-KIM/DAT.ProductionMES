@@ -61,25 +61,7 @@ public class PackingBoxApiClient : ApiClientBase, IPackingBoxApiClient
         }
     }
 
-    public async Task<PackingDuplicateConfirmationDto> ConfirmDuplicateAsync(
-        int workStationId, string tagCode, string? note, string supervisorAccessToken, CancellationToken cancellationToken = default)
-    {
-        var body = new ConfirmPackingDuplicateRequest { WorkStationId = workStationId, TagCode = tagCode, Note = note };
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BasePath}/duplicate-confirmations")
-        {
-            Content = JsonContent.Create(body, options: JsonDefaults.Options),
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supervisorAccessToken);
-
-        try
-        {
-            return await SendAsync<PackingDuplicateConfirmationDto>(request, cancellationToken);
-        }
-        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            throw new ApiException(ex.StatusCode, "Phiên đăng nhập Tổ trưởng dùng để xác nhận tem trùng đã hết hạn — vui lòng thử lại.");
-        }
-    }
+    // US-27 (25/08/2026): ConfirmDuplicateAsync (US-25 AC8) đã bị XÓA — xem ghi chú tại IPackingBoxApiClient.
 
     public async Task DownloadLabelAsync(int boxId, string destinationFilePath, CancellationToken cancellationToken = default)
     {

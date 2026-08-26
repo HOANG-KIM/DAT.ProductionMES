@@ -29,7 +29,10 @@ public enum PermissionResource
     /// xem ADR-005). <c>ConfirmNg</c> (US-18, thay đổi 18/08/2026): xác nhận Scan NG tại trạm, cũng dùng scheme
     /// Bearer mặc định (KHÔNG dùng <c>StationApiKey</c>) — yêu cầu đăng nhập lại (re-auth) mỗi lần. <c>ReworkUnlock</c>
     /// (US-19): "Mở khóa rework" cho tem bị NG — Bearer mặc định, chỉ Tổ trưởng/Admin (KHÔNG cấp Manager, khác
-    /// <c>ConfirmNg</c>/<c>View</c> — xem AC6 US-19).
+    /// <c>ConfirmNg</c>/<c>View</c> — xem AC6 US-19). <c>ConfirmReject</c> (US-27, 25/08/2026): xác nhận lưu 1 lượt
+    /// scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/PreviousStageNotPassed/WaitingReworkUnlock/...) — Bearer mặc
+    /// định, cấp cho Supervisor/Admin/Manager (cùng phạm vi <c>ConfirmNg</c>), thay thế hoàn toàn
+    /// <see cref="PermissionAction.ConfirmDuplicate"/> của <see cref="PackingBox"/> cũ (US-25 AC8).
     /// </summary>
     Scan = 7,
 
@@ -51,10 +54,13 @@ public enum PermissionResource
 
     /// <summary>
     /// Thao tác trên thùng tại công đoạn "Đóng thùng" (US-25/FR-25) CẦN đăng nhập Supervisor (tái sử dụng cơ chế
-    /// re-auth mỗi lần của US-18): <c>Update</c> — sửa số thùng hiện tại (AC7); <c>ConfirmDuplicate</c> — xác
-    /// nhận đã biết tình huống tem trùng, chỉ audit, không cộng số lượng (AC8). Đọc trạng thái thùng hiện tại
+    /// re-auth mỗi lần của US-18): <c>Update</c> — sửa số thùng hiện tại (AC7). Đọc trạng thái thùng hiện tại
     /// (GetState) và nhập số thùng bắt đầu (AC5) KHÔNG đi qua permission này — dùng scheme <c>StationApiKey</c>
     /// như luồng scan chuẩn (Operator không đăng nhập cá nhân, xem <see cref="Scan"/>).
+    /// <c>ConfirmDuplicate</c> (US-25 AC8, xác nhận đã biết tình huống tem trùng) đã bị SUPERSEDED bởi
+    /// <c>Scan.ConfirmReject</c> (US-27 AC12, 25/08/2026) — không còn Controller/Policy nào cấp/dùng action này
+    /// cho resource này nữa (giữ nguyên <see cref="PermissionAction.ConfirmDuplicate"/> trong enum chỉ để tương
+    /// thích dữ liệu Permission cũ).
     /// </summary>
     PackingBox = 10,
 }

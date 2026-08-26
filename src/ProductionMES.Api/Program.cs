@@ -196,6 +196,8 @@ try
         AddPermissionPolicy(PermissionPolicies.ScanConfirmNg, PermissionResource.Scan, PermissionAction.ConfirmNg);
         // US-19 AC2/AC6: "Mở khóa rework" cho tem bị NG.
         AddPermissionPolicy(PermissionPolicies.ScanReworkUnlock, PermissionResource.Scan, PermissionAction.ReworkUnlock);
+        // US-27 AC5/AC6: xác nhận lưu 1 lượt scan bị hệ thống tự động từ chối.
+        AddPermissionPolicy(PermissionPolicies.ScanConfirmReject, PermissionResource.Scan, PermissionAction.ConfirmReject);
 
         // US-21: báo cáo tổng hợp ACTUAL/PLAN/BALANCE theo Line/công đoạn.
         AddPermissionPolicy(PermissionPolicies.ReportView, PermissionResource.Report, PermissionAction.View);
@@ -205,9 +207,8 @@ try
         AddPermissionPolicy(PermissionPolicies.PackingModelConfigCreate, PermissionResource.PackingModelConfig, PermissionAction.Create);
         AddPermissionPolicy(PermissionPolicies.PackingModelConfigUpdate, PermissionResource.PackingModelConfig, PermissionAction.Update);
 
-        // US-25 AC7/AC8: thao tác Supervisor tại "Đóng thùng".
+        // US-25 AC7: thao tác Supervisor tại "Đóng thùng" (AC8/PackingBoxConfirmDuplicate đã bị xóa — superseded bởi ScanConfirmReject, US-27 AC12).
         AddPermissionPolicy(PermissionPolicies.PackingBoxUpdate, PermissionResource.PackingBox, PermissionAction.Update);
-        AddPermissionPolicy(PermissionPolicies.PackingBoxConfirmDuplicate, PermissionResource.PackingBox, PermissionAction.ConfirmDuplicate);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

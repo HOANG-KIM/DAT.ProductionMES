@@ -172,9 +172,8 @@ public class ScanServiceTests
 
         Assert.Equal(ScanResult.DuplicateTag, result.Result);
         Assert.Equal("Trùng tem tại công đoạn này.", result.RejectionReason);
-        // FR-10: lượt scan bị từ chối vẫn được lưu.
-        _scanRepositoryMock.Verify(r => r.AddAsync(It.Is<Scan>(s => s.Result == ScanResult.DuplicateTag && s.TagCode == "A"), It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // US-27 AC3: từ 25/08/2026, lượt scan bị hệ thống tự động từ chối KHÔNG còn được lưu ngay (đảo ngược FR-10 cũ).
+        _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
         // Không bắn sự kiện real-time cho lượt scan bị từ chối.
         _scanNotifierMock.Verify(n => n.NotifyScanRecordedAsync(It.IsAny<int>(), It.IsAny<ScanResultDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -207,7 +206,8 @@ public class ScanServiceTests
 
         Assert.Equal(ScanResult.PreviousStageNotPassed, result.Result);
         Assert.Equal("Chưa qua công đoạn: Lắp ráp", result.RejectionReason);
-        _scanRepositoryMock.Verify(r => r.AddAsync(It.Is<Scan>(s => s.Result == ScanResult.PreviousStageNotPassed), It.IsAny<CancellationToken>()), Times.Once);
+        // US-27 AC3: không còn lưu ngay lượt scan bị từ chối tự động.
+        _scanRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Scan>(), It.IsAny<CancellationToken>()), Times.Never);
         _scanNotifierMock.Verify(n => n.NotifyScanRecordedAsync(It.IsAny<int>(), It.IsAny<ScanResultDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

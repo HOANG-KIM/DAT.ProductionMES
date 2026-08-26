@@ -178,8 +178,8 @@ public partial class App : Application
         }).AddHttpMessageHandler<StationApiKeyHandler>();
 
         // US-25: GetState/SetStartingBoxNo/DownloadLabel dùng StationApiKey (không cần đăng nhập Supervisor,
-        // cùng IScanApiClient/IAndonBoardApiClient); UpdateCurrentBoxNo/ConfirmDuplicate (AC7/AC8) tự gắn Bearer
-        // tường minh vào từng request (xem PackingBoxApiClient), KHÔNG dùng SupervisorAuthHandler.
+        // cùng IScanApiClient/IAndonBoardApiClient); UpdateCurrentBoxNo (AC7) tự gắn Bearer tường minh vào từng
+        // request (xem PackingBoxApiClient), KHÔNG dùng SupervisorAuthHandler.
         services.AddHttpClient<IPackingBoxApiClient, PackingBoxApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);

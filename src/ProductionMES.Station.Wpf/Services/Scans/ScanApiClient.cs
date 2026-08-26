@@ -67,4 +67,28 @@ public class ScanApiClient : ApiClientBase, IScanApiClient
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"api/v1/scans/ng-reasons?stageId={stageId}");
         return await SendAsync<IReadOnlyList<string>>(httpRequest, cancellationToken);
     }
+
+    /// <summary>
+    /// US-27 AC5/AC6: <paramref name="rejectedScan"/> gửi NGUYÊN VẸN (JSON của backend bỏ qua các field thừa như
+    /// <c>IsPackingStage</c>/<c>Packing*</c> không có trong <c>ConfirmRejectedScanRequest</c>) — cùng idiom
+    /// <see cref="CreateNgAsync"/>: <paramref name="supervisorAccessToken"/> gắn tường minh vào header
+    /// <c>Authorization: Bearer</c> của đúng request này, KHÔNG dùng <c>SupervisorAuthHandler</c>.
+    /// </summary>
+    public async Task<ScanResultDto> ConfirmRejectedScanAsync(ScanResultDto rejectedScan, string supervisorAccessToken, CancellationToken cancellationToken = default)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/v1/scans/reject-confirmations")
+        {
+            Content = JsonContent.Create(rejectedScan, options: JsonDefaults.Options),
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supervisorAccessToken);
+
+        try
+        {
+            return await SendAsync<ScanResultDto>(httpRequest, cancellationToken);
+        }
+        catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw new ApiException(ex.StatusCode, "Phiên đăng nhập Tổ trưởng dùng để xác nhận lưu lượt scan bị từ chối đã hết hạn — vui lòng bấm lại \"Lưu\".");
+        }
+    }
 }

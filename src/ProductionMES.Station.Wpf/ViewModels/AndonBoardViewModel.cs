@@ -48,8 +48,13 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>US-25 AC7: permission bắt buộc để sửa số thùng hiện tại — literal "PackingBox.Update" (Station.Wpf KHÔNG reference project backend), phải khớp đúng <c>PermissionPolicies.PackingBoxUpdate</c> phía server.</summary>
     internal const string PackingBoxUpdatePermission = "PackingBox.Update";
 
-    /// <summary>US-25 AC8: permission bắt buộc để xác nhận đã biết tình huống tem trùng tại "Đóng thùng" — literal "PackingBox.ConfirmDuplicate", khớp <c>PermissionPolicies.PackingBoxConfirmDuplicate</c> phía server.</summary>
-    internal const string PackingBoxConfirmDuplicatePermission = "PackingBox.ConfirmDuplicate";
+    /// <summary>
+    /// US-27 AC5/AC6: permission bắt buộc để xác nhận LƯU 1 lượt scan bị hệ thống tự động từ chối — literal
+    /// "Scan.ConfirmReject" (Station.Wpf KHÔNG reference project backend), phải khớp đúng
+    /// <c>PermissionPolicies.ScanConfirmReject</c> phía server. Thay thế hoàn toàn permission
+    /// "PackingBox.ConfirmDuplicate" cũ của US-25 AC8 (đã xóa, xem AC12).
+    /// </summary>
+    internal const string ScanConfirmRejectPermission = "Scan.ConfirmReject";
 
     private readonly IScanApiClient _scanApiClient;
     private readonly IScanHubClient _scanHubClient;
@@ -59,8 +64,13 @@ public partial class AndonBoardViewModel : ObservableObject
     private readonly IServiceProvider _serviceProvider;
     private readonly StationOptions _options;
 
-    /// <summary>US-25 AC7: mã tem đang chờ Supervisor xác nhận-đã-biết (AC8) — gán khi banner lỗi hiện tại là DuplicateTag tại công đoạn "Đóng thùng", null nếu không phải tình huống này.</summary>
-    private string? _pendingPackingDuplicateTagCode;
+    /// <summary>
+    /// US-27 AC3/AC5: kết quả (chưa lưu) của lượt scan bị hệ thống tự động từ chối đang hiển thị banner Lưu/Thoát
+    /// — gán bởi <see cref="HandleScanAsync"/> khi <c>Result != Ok</c>, gửi lại NGUYÊN VẸN cho
+    /// <see cref="SaveRejectedScanAsync"/> nếu người vận hành bấm "Lưu". Null khi không có banner Lưu/Thoát nào
+    /// đang chờ xử lý (đã Lưu/Thoát xong, hoặc đang ở banner khác — OK/WAITING/NG đã ghi nhận).
+    /// </summary>
+    private ScanResultDto? _pendingRejectedScanResult;
 
     /// <summary>US-25 AC7: access token đăng nhập RIÊNG cho thao tác sửa số thùng hiện tại đang chờ xử lý — cùng idiom <see cref="_ngScanAccessToken"/>, xóa ngay sau khi dùng.</summary>
     private string? _packingSupervisorAccessToken;
@@ -132,9 +142,21 @@ public partial class AndonBoardViewModel : ObservableObject
     [ObservableProperty]
     private string bannerMessage = string.Empty;
 
-    /// <summary>AC4: true khi banner lỗi — hiện nút "Đã đọc, đóng", ẩn khi banner OK (tự đóng, không cần nút).</summary>
+    /// <summary>
+    /// US-18 AC5/AC6: true khi banner "NG đã ghi nhận" (<see cref="ShowNgRecordedBanner"/>) — hiện nút "Đã đọc,
+    /// đóng" (giữ nguyên 100% hành vi AC2, KHÔNG áp dụng cho banner Lưu/Thoát của US-27, xem
+    /// <see cref="RequiresRejectDecision"/>).
+    /// </summary>
     [ObservableProperty]
     private bool requiresAcknowledgement;
+
+    /// <summary>
+    /// US-27 AC3: true khi banner lỗi hiện tại là 1 lượt scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/
+    /// PreviousStageNotPassed/WaitingReworkUnlock/...) — hiện 2 nút "Lưu"/"Thoát" (AC3-AC10), KHÁC
+    /// <see cref="RequiresAcknowledgement"/> (banner "NG đã ghi nhận" của US-18, 1 nút, không đổi).
+    /// </summary>
+    [ObservableProperty]
+    private bool requiresRejectDecision;
 
     [ObservableProperty]
     private Brush bannerBackground = Brushes.Transparent;
@@ -604,62 +626,65 @@ public partial class AndonBoardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// AC8 (điều chỉnh 24/08/2026): hiển thị popup đăng nhập Tổ trưởng (re-auth, permission
-    /// <see cref="PackingBoxConfirmDuplicatePermission"/>) rồi gọi API xác nhận CHỈ audit — KHÔNG cộng số
-    /// lượng/KHÔNG tạo bản ghi Scan mới (bản ghi Scan Result=DuplicateTag đã được lưu lịch sử từ trước, ngay lúc
-    /// FR-08 từ chối, không phụ thuộc kết quả xác nhận này). Operator/Tổ trưởng bấm Hủy ở popup đăng nhập (thường
-    /// do đây chỉ là scan trùng NGẪU NHIÊN — máy quét đọc 2 lần liên tiếp cùng 1 tem — không cần Supervisor xử
-    /// lý) coi là <see cref="PackingDuplicateConfirmOutcome.Cancelled"/>, cho đóng banner NGAY không cần đăng
-    /// nhập, chỉ KHÔNG có bản ghi audit "ai đã xác nhận" gắn với lượt đó. Khác với lỗi mạng/API SAU KHI đã đăng
-    /// nhập thành công (<see cref="PackingDuplicateConfirmOutcome.Failed"/>) — trường hợp này vẫn giữ banner để
-    /// Operator/Tổ trưởng thử lại.
+    /// US-27 AC5/AC6/AC7/AC8/AC9: bấm "Lưu" ở banner Lưu/Thoát (<see cref="RequiresRejectDecision"/>) — hiển thị
+    /// popup đăng nhập Tổ trưởng/Admin/Manager (re-auth, permission <see cref="ScanConfirmRejectPermission"/>) rồi
+    /// gửi lại NGUYÊN VẸN <see cref="_pendingRejectedScanResult"/> cho server lưu. AC8 (Hủy popup đăng nhập): giữ
+    /// nguyên banner gốc, KHÔNG đóng — người vận hành có thể bấm "Lưu" lại hoặc "Thoát". AC9 (lỗi mạng/API SAU KHI
+    /// đăng nhập thành công): giữ nguyên banner, chỉ đổi <see cref="BannerMessage"/> để hiển thị lỗi, cho thử lại.
     /// </summary>
-    private async Task<PackingDuplicateConfirmOutcome> ConfirmPackingDuplicateAsync(string tagCode)
+    [RelayCommand]
+    private async Task SaveRejectedScanAsync()
     {
+        var pending = _pendingRejectedScanResult;
+        if (pending is null)
+        {
+            return;
+        }
+
         var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
-        dialog.ViewModel.RequiredPermission = PackingBoxConfirmDuplicatePermission;
+        dialog.ViewModel.RequiredPermission = ScanConfirmRejectPermission;
         dialog.Owner = Application.Current?.MainWindow;
 
         var loggedIn = dialog.ShowDialog() == true;
         if (!loggedIn)
         {
-            return PackingDuplicateConfirmOutcome.Cancelled;
+            // AC8: Hủy popup đăng nhập -> giữ nguyên banner Lưu/Thoát gốc, chưa lưu gì.
+            return;
         }
 
         var accessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
         if (string.IsNullOrEmpty(accessToken))
         {
-            return PackingDuplicateConfirmOutcome.Cancelled;
+            return;
         }
 
         try
         {
-            await _packingBoxApiClient.ConfirmDuplicateAsync(_options.WorkStationId, tagCode, note: null, accessToken);
-            return PackingDuplicateConfirmOutcome.Confirmed;
+            await _scanApiClient.ConfirmRejectedScanAsync(pending, accessToken);
+            _pendingRejectedScanResult = null;
+            ShowSavedBanner(pending.TagCode);
         }
         catch (ApiException ex)
         {
+            // AC9: giữ nguyên banner Lưu/Thoát gốc, chỉ đổi thông báo để người vận hành thấy lỗi và thử lại.
             BannerMessage = ex.Message;
-            return PackingDuplicateConfirmOutcome.Failed;
         }
         catch (HttpRequestException ex)
         {
             BannerMessage = NetworkErrorMessage.ForConnectionFailure(ex);
-            return PackingDuplicateConfirmOutcome.Failed;
         }
         catch (TaskCanceledException)
         {
             BannerMessage = NetworkErrorMessage.ForTimeout();
-            return PackingDuplicateConfirmOutcome.Failed;
         }
     }
 
-    /// <summary>Kết quả <see cref="ConfirmPackingDuplicateAsync"/> — phân biệt Hủy chủ động (đóng banner ngay) với lỗi hệ thống (giữ banner để thử lại).</summary>
-    private enum PackingDuplicateConfirmOutcome
+    /// <summary>AC4: bấm "Thoát" (hoặc Esc, xem AndonBoardWindow) ở banner Lưu/Thoát — đóng banner ngay, KHÔNG lưu bất kỳ bản ghi nào.</summary>
+    [RelayCommand]
+    private void ExitRejectedScan()
     {
-        Confirmed,
-        Cancelled,
-        Failed,
+        _pendingRejectedScanResult = null;
+        CloseBanner();
     }
 
     /// <summary>
@@ -742,6 +767,14 @@ public partial class AndonBoardViewModel : ObservableObject
             return;
         }
 
+        // Banner đang chờ xử lý bắt buộc (RequiresAcknowledgement: "NG đã ghi nhận" US-18 AC4/AC5; hoặc
+        // RequiresRejectDecision: Lưu/Thoát US-27 AC3-AC10) -> chặn MỌI lượt scan tiếp theo (kể cả mã "NG") cho
+        // tới khi người vận hành xử lý xong banner hiện tại, tránh tem quét chồng lên bị bỏ qua/mất kết quả.
+        if (RequiresAcknowledgement || RequiresRejectDecision)
+        {
+            return;
+        }
+
         // US-18 AC2: mã vạch "NG" cố định kích hoạt/gia hạn Chế độ Scan NG, KHÔNG đi qua API scan bình thường.
         if (tagCode.Equals(NgModeActivationBarcode, StringComparison.Ordinal))
         {
@@ -811,14 +844,12 @@ public partial class AndonBoardViewModel : ObservableObject
             }
             else
             {
-                ShowErrorBanner(result.TagCode, result.RejectionReason ?? "Scan bị từ chối.");
-
-                // US-25 AC8: tem trùng TẠI công đoạn "Đóng thùng" cần Supervisor xác nhận đã biết tình huống
-                // trước khi Operator được đóng banner/tiếp tục thao tác — AcknowledgeBannerCommand xử lý bước này.
-                if (result.IsPackingStage && result.Result == ScanResult.DuplicateTag)
-                {
-                    _pendingPackingDuplicateTagCode = result.TagCode;
-                }
+                // US-27 AC3/AC10: MỌI ScanResult từ chối tự động (DuplicateTag/PreviousStageNotPassed/
+                // WaitingReworkUnlock/... kể cả trùng tem tại "Đóng thùng" — AC12 thay thế hoàn toàn cơ chế audit
+                // riêng của US-25 AC8) — server CHƯA lưu gì (xem ScanService.CreateAsync), chỉ hiển thị banner
+                // Lưu/Thoát, giữ lại nguyên vẹn kết quả để gửi lại nếu người vận hành bấm "Lưu".
+                _pendingRejectedScanResult = result;
+                ShowRejectBanner(result.TagCode, result.RejectionReason ?? "Scan bị từ chối.");
             }
         }
         finally
@@ -1003,29 +1034,14 @@ public partial class AndonBoardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// AC4 (US-07): người vận hành bấm xác nhận đã đọc để đóng banner lỗi. US-25 AC8 (điều chỉnh 24/08/2026): nếu
-    /// banner đang mở là tem trùng tại "Đóng thùng" (<see cref="_pendingPackingDuplicateTagCode"/> khác null), mở
-    /// popup đăng nhập Supervisor xác nhận đã biết tình huống — nhưng nếu Hủy popup đó (thường do chỉ là double
-    /// scan ngẫu nhiên), vẫn cho đóng banner NGAY, chỉ KHÔNG lưu bản ghi audit "ai đã xác nhận" (bản ghi Scan
-    /// reject vẫn lưu lịch sử đầy đủ như mọi lượt scan khác, đúng AC10). CHỈ giữ nguyên banner khi việc xác nhận
-    /// thất bại do lỗi hệ thống thật sự (mạng/API) SAU KHI đã đăng nhập thành công, để thử lại.
+    /// AC4 (US-07)/US-18 AC5/AC6: người vận hành bấm "Đã đọc, đóng" — chỉ dùng cho banner "NG đã ghi nhận"
+    /// (<see cref="ShowNgRecordedBanner"/>, <see cref="RequiresAcknowledgement"/>). KHÔNG áp dụng cho banner
+    /// Lưu/Thoát của US-27 (<see cref="RequiresRejectDecision"/>, xem <see cref="SaveRejectedScanAsync"/>/
+    /// <see cref="ExitRejectedScan"/>) — US-25 AC8 (audit tem trùng đặc thù ở đây) đã bị xóa hoàn toàn, thay bằng
+    /// cơ chế Lưu/Thoát đồng nhất (US-27 AC12).
     /// </summary>
     [RelayCommand]
-    private async Task AcknowledgeBannerAsync()
-    {
-        if (_pendingPackingDuplicateTagCode is { } tagCode)
-        {
-            var outcome = await ConfirmPackingDuplicateAsync(tagCode);
-            if (outcome == PackingDuplicateConfirmOutcome.Failed)
-            {
-                return;
-            }
-
-            _pendingPackingDuplicateTagCode = null;
-        }
-
-        CloseBanner();
-    }
+    private void AcknowledgeBanner() => CloseBanner();
 
     /// <summary>
     /// Khu vực nhập tay (chỉ hiển thị khi <see cref="IsManualScanInputEnabled"/>) — gọi lại đúng
@@ -1080,6 +1096,7 @@ public partial class AndonBoardViewModel : ObservableObject
         BannerTagCode = tagCode;
         BannerMessage = "Đang gửi kết quả scan lên server...";
         RequiresAcknowledgement = false;
+        RequiresRejectDecision = false;
         ApplyBannerColors(ScanBannerKind.Waiting);
         IsBannerVisible = true;
     }
@@ -1091,6 +1108,7 @@ public partial class AndonBoardViewModel : ObservableObject
         BannerTagCode = tagCode;
         BannerMessage = "Scan hợp lệ.";
         RequiresAcknowledgement = false;
+        RequiresRejectDecision = false;
         ApplyBannerColors(ScanBannerKind.Ok);
         IsBannerVisible = true;
         SystemSounds.Beep.Play();
@@ -1100,6 +1118,11 @@ public partial class AndonBoardViewModel : ObservableObject
         _autoCloseTimer.Start();
     }
 
+    /// <summary>
+    /// US-27, dùng khi lỗi mạng/API xảy ra ngay lúc GỬI lượt scan (chưa có kết quả nghiệp vụ nào để Lưu/Thoát) —
+    /// giữ nguyên hành vi 1 nút "Đã đọc, đóng" như trước US-27. KHÁC <see cref="ShowRejectBanner"/> (kết quả
+    /// nghiệp vụ hợp lệ bị từ chối tự động, AC3-AC10).
+    /// </summary>
     private void ShowErrorBanner(string tagCode, string message)
     {
         BannerKind = ScanBannerKind.Error;
@@ -1107,12 +1130,52 @@ public partial class AndonBoardViewModel : ObservableObject
         BannerTagCode = tagCode;
         BannerMessage = message;
         RequiresAcknowledgement = true;
+        RequiresRejectDecision = false;
         ApplyBannerColors(ScanBannerKind.Error);
         IsBannerVisible = true;
         SystemSounds.Hand.Play();
 
         // AC4: KHÔNG tự đóng — chờ AcknowledgeBannerCommand.
         _autoCloseTimer.Stop();
+    }
+
+    /// <summary>
+    /// US-27 AC3: banner cho 1 lượt scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/PreviousStageNotPassed/
+    /// WaitingReworkUnlock/...) — CHƯA lưu gì (xem <see cref="HandleScanAsync"/>), hiện 2 nút "Lưu"/"Thoát"
+    /// (<see cref="RequiresRejectDecision"/>) thay cho 1 nút "Đã đọc, đóng" của <see cref="ShowErrorBanner"/>.
+    /// </summary>
+    private void ShowRejectBanner(string tagCode, string message)
+    {
+        BannerKind = ScanBannerKind.Error;
+        BannerTitle = "NG INPUT";
+        BannerTagCode = tagCode;
+        BannerMessage = message;
+        RequiresAcknowledgement = false;
+        RequiresRejectDecision = true;
+        ApplyBannerColors(ScanBannerKind.Error);
+        IsBannerVisible = true;
+        SystemSounds.Hand.Play();
+
+        // AC3/AC4: KHÔNG tự đóng — chờ SaveRejectedScanCommand/ExitRejectedScanCommand (hoặc Esc, xem AndonBoardWindow).
+        _autoCloseTimer.Stop();
+    }
+
+    /// <summary>AC6: xác nhận LƯU thành công 1 lượt scan bị từ chối — tự đóng sau 1.5s, đồng bộ banner OK.</summary>
+    private void ShowSavedBanner(string tagCode)
+    {
+        BannerKind = ScanBannerKind.Saved;
+        BannerTitle = "ĐÃ LƯU";
+        BannerTagCode = tagCode;
+        BannerMessage = "Đã lưu lịch sử scan.";
+        RequiresAcknowledgement = false;
+        RequiresRejectDecision = false;
+        ApplyBannerColors(ScanBannerKind.Saved);
+        IsBannerVisible = true;
+        SystemSounds.Beep.Play();
+
+        // AC6: tự đóng sau 1.5s, đồng bộ đúng thời gian banner OK hiện có.
+        _autoCloseTimer.Stop();
+        _autoCloseTimer.Start();
     }
 
     /// <summary>US-18 AC5/AC6: xác nhận đã ghi nhận Scan NG thành công — dùng màu đỏ giống <see cref="ShowErrorBanner"/> (đây cũng là kết quả NG), khác tiêu đề để phân biệt với lượt scan bị hệ thống tự động từ chối.</summary>
@@ -1123,6 +1186,7 @@ public partial class AndonBoardViewModel : ObservableObject
         BannerTagCode = tagCode;
         BannerMessage = $"Lý do: {reason}";
         RequiresAcknowledgement = true;
+        RequiresRejectDecision = false;
         ApplyBannerColors(ScanBannerKind.Error);
         IsBannerVisible = true;
         SystemSounds.Hand.Play();
@@ -1135,6 +1199,7 @@ public partial class AndonBoardViewModel : ObservableObject
     {
         IsBannerVisible = false;
         RequiresAcknowledgement = false;
+        RequiresRejectDecision = false;
         BannerKind = ScanBannerKind.None;
     }
 
@@ -1143,6 +1208,7 @@ public partial class AndonBoardViewModel : ObservableObject
         (BannerBackground, BannerBorderBrush) = kind switch
         {
             ScanBannerKind.Ok => (FreezeBrush("#1F5D34"), FreezeBrush("#4CAF50")),
+            ScanBannerKind.Saved => (FreezeBrush("#1F5D34"), FreezeBrush("#4CAF50")),
             ScanBannerKind.Error => (FreezeBrush("#6B1B1B"), FreezeBrush("#E53935")),
             ScanBannerKind.Waiting => (FreezeBrush("#6B4E00"), FreezeBrush("#FFC107")),
             _ => (Brushes.Transparent, Brushes.Transparent),

@@ -32,8 +32,15 @@ namespace ProductionMES.Application.Services.Scans;
 ///
 /// "Không có kế hoạch nào đang Running cho (Line, Công đoạn) của trạm" là lỗi cấu hình/vận hành (không phải 1
 /// trong 3 giá trị <see cref="ScanResult"/> đã chốt cho FR-08) — xử lý bằng <see cref="BusinessRuleException"/>
-/// (HTTP 409), KHÔNG lưu bản ghi Scan cho trường hợp này (khác với DuplicateTag/PreviousStageNotPassed — 2 kết
-/// quả nghiệp vụ hợp lệ theo FR-08, luôn được lưu theo FR-10).
+/// (HTTP 409), KHÔNG lưu bản ghi Scan cho trường hợp này.
+///
+/// US-27 (25/08/2026, đảo ngược 1 phần FR-10 cũ "mọi lượt scan kể cả bị từ chối đều lưu"): DuplicateTag/
+/// PreviousStageNotPassed/WaitingReworkUnlock nay CHỈ trả về <see cref="ScanResultDto"/> cho client, KHÔNG còn
+/// được <see cref="CreateAsync"/> tự động lưu nữa — client (Station.Wpf) hiển thị banner Lưu/Thoát, lưu thật sự
+/// chỉ xảy ra qua <see cref="ConfirmRejectedScanAsync"/> sau khi Tổ trưởng/Admin/Manager đăng nhập xác nhận (AC5/
+/// AC6). Đã rà soát: cả 3 kết quả này chỉ xét bản ghi <c>Result = Ok</c> (hoặc <c>Ng</c> mới nhất cho khóa rework)
+/// khi phát hiện, không phụ thuộc lịch sử các lần bị từ chối trước đó, nên việc không lưu ngay không phá vỡ logic
+/// phát hiện hiện có.
 ///
 /// US-05a AC5: sau khi lưu 1 lượt scan OK, tự động chuyển <see cref="ProductionPlanStage.PlanStatus"/> của đúng
 /// cặp (Kế hoạch, Công đoạn) đó sang <see cref="PlanStatus.Completed"/> ngay khi số lượt scan OK (tính động,
@@ -150,7 +157,9 @@ public class ScanService : IScanService
         {
             var lockedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.WaitingReworkUnlock,
                 "Sản phẩm đang chờ mở khóa rework.", now);
-            var lockedResult = await SaveAndReturnAsync(lockedScan, cancellationToken);
+            // US-27 AC3/AC10: kết quả bị từ chối TỰ ĐỘNG -> KHÔNG lưu ngay (đảo ngược FR-10 cũ) — chỉ trả DTO để
+            // client hiển thị banner Lưu/Thoát, lưu thật sự chỉ xảy ra qua ConfirmRejectedScanAsync (AC5/AC6).
+            var lockedResult = ToDto(lockedScan);
             lockedResult.IsPackingStage = isPackingStage;
             return lockedResult;
         }
@@ -162,10 +171,10 @@ public class ScanService : IScanService
         {
             var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.DuplicateTag,
                 "Trùng tem tại công đoạn này.", now);
-            // US-25 AC8: gán IsPackingStage NGAY CẢ khi bị từ chối do trùng — Station.Wpf dựa vào đúng cờ này
-            // (kết hợp Result = DuplicateTag) để biết cần mở luồng Supervisor xác nhận-đã-biết thay vì luồng
-            // từ chối cứng mặc định (AC14, mọi Stage khác).
-            var duplicateResult = await SaveAndReturnAsync(rejectedScan, cancellationToken);
+            // US-27 AC3/AC10/AC12: KHÔNG lưu ngay (áp dụng đồng nhất kể cả tại "Đóng thùng" — AC12 thay thế hoàn
+            // toàn cơ chế PackingDuplicateScanConfirmation cũ của US-25 AC8) — chỉ trả DTO để client hiển thị
+            // banner Lưu/Thoát. IsPackingStage vẫn gán để Station.Wpf biết ngữ cảnh hiển thị (không đổi hành vi này).
+            var duplicateResult = ToDto(rejectedScan);
             duplicateResult.IsPackingStage = isPackingStage;
             return duplicateResult;
         }
@@ -186,7 +195,8 @@ public class ScanService : IScanService
 
                 var rejectedScan = BuildScan(tagCode, workStation, activeProductionPlan, ScanResult.PreviousStageNotPassed,
                     $"Chưa qua công đoạn: {previousStageName}", now);
-                var previousStageResult = await SaveAndReturnAsync(rejectedScan, cancellationToken);
+                // US-27 AC3/AC10: KHÔNG lưu ngay — xem ghi chú ở 2 nhánh từ chối phía trên.
+                var previousStageResult = ToDto(rejectedScan);
                 previousStageResult.IsPackingStage = isPackingStage;
                 return previousStageResult;
             }
@@ -276,6 +286,52 @@ public class ScanService : IScanService
             tagCode, workStation, activeProductionPlan, ScanResult.Ng, rejectionReason.Trim(), DateTime.Now,
             confirmedByUserId, confirmedByUserName);
         return await SaveAndReturnAsync(ngScan, cancellationToken);
+    }
+
+    /// <summary>
+    /// US-27 AC5/AC6: xác nhận LƯU 1 lượt scan bị hệ thống tự động từ chối (<see cref="CreateAsync"/> đã trả DTO
+    /// nhưng KHÔNG lưu) — dựng lại đúng bản ghi <see cref="Scan"/> từ snapshot client gửi lại (KHÔNG tra cứu lại
+    /// WorkStation/ProductionPlan, KHÔNG chạy lại 3 bước kiểm tra FR-08/US-19 — xem remarks <see cref="IScanService.ConfirmRejectedScanAsync"/>).
+    /// </summary>
+    public async Task<ScanResultDto> ConfirmRejectedScanAsync(
+        ConfirmRejectedScanRequest request, int confirmedByUserId, string confirmedByUserName, CancellationToken cancellationToken = default)
+    {
+        // FluentValidationActionFilter đã validate Result != Ok/Ng ở tầng request — kiểm tra lại đây phòng Service
+        // được gọi trực tiếp không qua Controller (cùng idiom CreateNgAsync).
+        if (request.Result == ScanResult.Ok || request.Result == ScanResult.Ng)
+        {
+            throw new BusinessRuleException(
+                "Chỉ xác nhận lưu được các lượt scan bị hệ thống tự động từ chối (khác Ok/Ng).");
+        }
+
+        if (confirmedByUserId <= 0 || string.IsNullOrWhiteSpace(confirmedByUserName))
+        {
+            throw new BusinessRuleException("Thiếu thông tin người xác nhận (yêu cầu đăng nhập Tổ trưởng/Admin/Manager hợp lệ).");
+        }
+
+        var scan = new Scan
+        {
+            TagCode = request.TagCode,
+            StageId = request.StageId,
+            LineId = request.LineId,
+            WorkStationId = request.WorkStationId,
+            ProductionPlanId = request.ProductionPlanId,
+            Customer = request.Customer,
+            Model = request.Model,
+            Lot = request.Lot,
+            Revision = request.Revision,
+            PlannedQuantity = request.PlannedQuantity,
+            TaktTimeSeconds = request.TaktTimeSeconds,
+            OperatorNames = request.OperatorNames,
+            // AC6: giữ ĐÚNG thời điểm scan GỐC — KHÔNG dùng DateTime.Now (lúc Tổ trưởng xác nhận xong).
+            ScannedAtUtc = request.ScannedAtUtc,
+            Result = request.Result,
+            RejectionReason = request.RejectionReason,
+            ConfirmedByUserId = confirmedByUserId,
+            ConfirmedByUserName = confirmedByUserName,
+        };
+
+        return await SaveAndReturnAsync(scan, cancellationToken);
     }
 
     public async Task<IReadOnlyList<string>> GetNgReasonSuggestionsAsync(int stageId, CancellationToken cancellationToken = default)
