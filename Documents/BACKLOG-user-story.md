@@ -28,7 +28,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-05a](./backlog/US-05a-vong-doi-trang-thai-ke-hoach/README.md) | Vòng đời trạng thái kế hoạch theo công đoạn | ✅ Xong | — | 2026-08-17 |
 | [US-05b](./backlog/US-05b-chon-ap-dung-ke-hoach/README.md) | Chọn & áp dụng kế hoạch tại trạm | ✅ Xong | — | 2026-08-17 |
 | [US-06](./backlog/US-06-san-luong-chuan-theo-gio/README.md) | Tính sản lượng chuẩn theo giờ | ✅ Xong | — | 2026-08-14 |
-| [US-07](./backlog/US-07-scan-tem-tai-tram/README.md) | Scan tem tại trạm (luồng cơ bản) | ✅ Xong | — | 2026-08-17 |
+| [US-07](./backlog/US-07-scan-tem-tai-tram/README.md) | Scan tem tại trạm (luồng cơ bản) | ✅ Xong | — | 2026-08-26 |
 | [US-08](./backlog/US-08-kiem-tra-hop-le-khi-scan/README.md) | Kiểm tra hợp lệ khi scan | ✅ Xong | — | 2026-08-14 |
 | [US-09](./backlog/US-09-hien-thi-so-luong-chi-so-am-duong/README.md) | Hiển thị số lượng & chỉ số +/- tại trạm | 🟡 Một phần | — | 2026-08-17 |
 | [US-10](./backlog/US-10-luu-tra-cuu-lich-su-scan/README.md) | Lưu & tra cứu lịch sử scan | ✅ Xong | — | 2026-08-19 |

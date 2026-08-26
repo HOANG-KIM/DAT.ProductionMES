@@ -296,55 +296,12 @@
                        TextWrapping="Wrap" MaxWidth="480" TextAlignment="Center"
                        Visibility="{Binding NoActivePlan, Converter={StaticResource BoolToVisibility}}"/>
 
-            <!-- Banner kết quả scan (US-07 AC3/AC4/AC5): góc trên-phải, không đè lên Row 0 (tên trạm/công đoạn/số lượng). -->
-            <Border x:Name="ScanBanner"
-                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="24"
-                    Background="{Binding BannerBackground}" BorderBrush="{Binding BannerBorderBrush}" BorderThickness="2"
-                    CornerRadius="10" Padding="24" MinWidth="360" MaxWidth="480"
-                    Visibility="{Binding IsBannerVisible, Converter={StaticResource BoolToVisibility}}">
-                <StackPanel>
-                    <TextBlock Text="{Binding BannerTitle}" FontSize="28" FontWeight="Bold" Foreground="{Binding BannerForeground}"/>
-
-                    <StackPanel Margin="0,14,0,0">
-                        <TextBlock Text="NAMESHEET" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
-                        <TextBlock Text="{Binding BannerTagCode}" FontSize="22" FontWeight="SemiBold" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,12,0,0">
-                        <TextBlock Text="MESSAGE" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
-                        <TextBlock Text="{Binding BannerMessage}" FontSize="18" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
-                    </StackPanel>
-
-                    <!-- Style tường minh (không dùng MaterialDesign implicit style — Application.Resources áp global cho mọi Window, nhưng AC4 cần nút luôn đọc rõ trên nền banner màu động, không phụ thuộc Light theme). -->
-                    <Button Content="ĐÃ ĐỌC, ĐÓNG" Margin="0,18,0,0" Padding="16,10" HorizontalAlignment="Right"
-                            Background="White" Foreground="#1B1B1B" BorderBrush="White" FontWeight="Bold"
-                            Command="{Binding AcknowledgeBannerCommand}" Click="AcknowledgeButton_Click"
-                            Visibility="{Binding RequiresAcknowledgement, Converter={StaticResource BoolToVisibility}}"/>
-
-                    <!--
-                      US-27 AC3-AC10: banner scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/PreviousStageNotPassed/
-                      WaitingReworkUnlock/... — kể cả tem trùng tại "Đóng thùng", AC12) — 2 nút "Lưu"/"Thoát" thay
-                      cho 1 nút "Đã đọc, đóng" ở trên. "Lưu" mở popup đăng nhập Tổ trưởng (SaveRejectedScanCommand);
-                      "Thoát" đóng banner ngay, không lưu gì (ExitRejectedScanCommand, cùng Esc — xem code-behind).
-                    -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"
-                                Visibility="{Binding RequiresRejectDecision, Converter={StaticResource BoolToVisibility}}">
-                        <Button Content="THOÁT" Margin="0,0,12,0" Padding="16,10"
-                                Background="Transparent" Foreground="White" BorderBrush="White" BorderThickness="1.5" FontWeight="Bold"
-                                Command="{Binding ExitRejectedScanCommand}" Click="AcknowledgeButton_Click"/>
-                        <Button Content="LƯU" Padding="16,10"
-                                Background="White" Foreground="#1B1B1B" BorderBrush="White" FontWeight="Bold"
-                                Command="{Binding SaveRejectedScanCommand}" Click="AcknowledgeButton_Click"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
             <!--
               US-07, khu vực nhập tay/test (quyết định 17/08/2026 — SRS mục 5.1/8.2): chỉ hiển thị khi
               EnableManualScanInput = true, đặt góc dưới-trái, không che nội dung trung tâm hay ScanBanner
-              (góc trên-phải). Enter hoặc bấm "Gửi" đều gọi SubmitManualScanCommand → HandleScanAsync, dùng
-              chung luồng banner OK/NG/Waiting đã có, không xử lý kết quả riêng. Độc lập với ScanInputBox ẩn
-              (máy quét thật) — không thay đổi hành vi của ô đó.
+              (nay đặt ở overlay riêng, xem bên dưới). Enter hoặc bấm "Gửi" đều gọi SubmitManualScanCommand →
+              HandleScanAsync, dùng chung luồng banner OK/NG/Waiting đã có, không xử lý kết quả riêng. Độc lập
+              với ScanInputBox ẩn (máy quét thật) — không thay đổi hành vi của ô đó.
             -->
             <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="24"
                     Background="#1A1E27" BorderBrush="#FFC107" BorderThickness="1.5" CornerRadius="8" Padding="16"
@@ -362,6 +319,59 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!--
+          Banner kết quả scan (US-07 AC3/AC4/AC5, đổi sang overlay RowSpan=3 theo yêu cầu 26/08/2026): đặt ở
+          layer riêng phủ TOÀN BỘ cửa sổ (giống overlay Chế độ Scan NG/nhập số thùng bên dưới) — trước đây banner
+          nằm trong Grid Row 1 nên VerticalAlignment Top chỉ neo theo mép trên của Row 1, khi Row 0 (tên
+          trạm/model/plan...) cao thì Row 1 bắt đầu thấp, khiến banner trông như nằm ở dưới cùng màn hình.
+          VerticalAlignment=Center (yêu cầu 26/08/2026, đổi từ Top) để canh giữa màn hình, cùng kiểu với overlay
+          Chế độ Scan NG/nhập số thùng. Width cố định 720 (yêu cầu 26/08/2026) — trước đó chỉ set MinWidth/MaxWidth
+          nên Border tự co theo nội dung (StackPanel bên trong không Stretch), nội dung ngắn (vd "OK INPUT") không
+          bao giờ chạm tới MaxWidth nên tăng MaxWidth không thấy khác biệt; Width cố định buộc banner luôn rộng
+          đúng kích thước này bất kể nội dung dài/ngắn.
+        -->
+        <Border x:Name="ScanBanner" Grid.RowSpan="3"
+                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                Background="{Binding BannerBackground}" BorderBrush="{Binding BannerBorderBrush}" BorderThickness="2"
+                CornerRadius="10" Padding="24" Width="720"
+                Visibility="{Binding IsBannerVisible, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+                <TextBlock Text="{Binding BannerTitle}" FontSize="28" FontWeight="Bold" Foreground="{Binding BannerForeground}"/>
+
+                <StackPanel Margin="0,14,0,0">
+                    <TextBlock Text="NAMESHEET" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                    <TextBlock Text="{Binding BannerTagCode}" FontSize="22" FontWeight="SemiBold" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,12,0,0">
+                    <TextBlock Text="MESSAGE" FontSize="15" Foreground="{Binding BannerForeground}" Opacity="0.7"/>
+                    <TextBlock Text="{Binding BannerMessage}" FontSize="18" Foreground="{Binding BannerForeground}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Style tường minh (không dùng MaterialDesign implicit style — Application.Resources áp global cho mọi Window, nhưng AC4 cần nút luôn đọc rõ trên nền banner màu động, không phụ thuộc Light theme). -->
+                <Button Content="ĐÃ ĐỌC, ĐÓNG" Margin="0,18,0,0" Padding="16,10" HorizontalAlignment="Right"
+                        Background="White" Foreground="#1B1B1B" BorderBrush="White" FontWeight="Bold"
+                        Command="{Binding AcknowledgeBannerCommand}" Click="AcknowledgeButton_Click"
+                        Visibility="{Binding RequiresAcknowledgement, Converter={StaticResource BoolToVisibility}}"/>
+
+                <!--
+                  US-27 AC3-AC10: banner scan bị hệ thống TỰ ĐỘNG từ chối (DuplicateTag/PreviousStageNotPassed/
+                  WaitingReworkUnlock/... — kể cả tem trùng tại "Đóng thùng", AC12) — 2 nút "Lưu"/"Thoát" thay
+                  cho 1 nút "Đã đọc, đóng" ở trên. "Lưu" mở popup đăng nhập Tổ trưởng (SaveRejectedScanCommand);
+                  "Thoát" đóng banner ngay, không lưu gì (ExitRejectedScanCommand, cùng Esc — xem code-behind).
+                -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0"
+                            Visibility="{Binding RequiresRejectDecision, Converter={StaticResource BoolToVisibility}}">
+                    <Button Content="THOÁT" Margin="0,0,12,0" Padding="16,10"
+                            Background="Transparent" Foreground="White" BorderBrush="White" BorderThickness="1.5" FontWeight="Bold"
+                            Command="{Binding ExitRejectedScanCommand}" Click="AcknowledgeButton_Click"/>
+                    <Button Content="LƯU" Padding="16,10"
+                            Background="White" Foreground="#1B1B1B" BorderBrush="White" FontWeight="Bold"
+                            Command="{Binding SaveRejectedScanCommand}" Click="AcknowledgeButton_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <!--
           US-18 AC1/AC2/AC3 (đổi sang khung modal 18/08/2026, thay cho full-screen đỏ tuyệt đối trước đây —
