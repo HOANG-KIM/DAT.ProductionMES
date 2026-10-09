@@ -29,6 +29,14 @@ public partial class PackingModelConfigViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<string> availableModels = new();
 
+    /// <summary>AC10 — 9 token hợp lệ dùng trong file mẫu tem, hiển thị tham chiếu để Admin/Tổ trưởng không phải tự đoán/tra code khi thiết kế file.</summary>
+    [ObservableProperty]
+    private ObservableCollection<PackingLabelTokenDto> templateTokens = new();
+
+    /// <summary>AC10 — cảnh báo token không hợp lệ của lần tải lên mẫu tem gần nhất (rỗng nếu không có cảnh báo hoặc chưa từng tải lên).</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> templateWarnings = new();
+
     [ObservableProperty]
     private string formTitle = "Thêm cấu hình đóng gói mới";
 
@@ -77,6 +85,7 @@ public partial class PackingModelConfigViewModel : ObservableObject
         if (value is not null)
         {
             LoadIntoForm(value);
+            TemplateWarnings = new ObservableCollection<string>();
         }
     }
 
@@ -90,6 +99,13 @@ public partial class PackingModelConfigViewModel : ObservableObject
             var items = await _apiClient.GetAllAsync();
             Configs = new ObservableCollection<PackingModelConfigDto>(items.OrderBy(x => x.Model));
             AvailableModels = new ObservableCollection<string>(items.Select(x => x.Model).Distinct().OrderBy(x => x));
+
+            // AC10: danh sách token tĩnh, chỉ cần tải 1 lần cho mỗi phiên vào trang — tránh gọi lại API không cần thiết mỗi lần bấm "Tải lại".
+            if (TemplateTokens.Count == 0)
+            {
+                var tokens = await _apiClient.GetTemplateTokensAsync();
+                TemplateTokens = new ObservableCollection<PackingLabelTokenDto>(tokens);
+            }
         }
         catch (ApiException ex)
         {
@@ -115,6 +131,7 @@ public partial class PackingModelConfigViewModel : ObservableObject
     {
         SelectedConfig = null;
         LoadIntoForm(null);
+        TemplateWarnings = new ObservableCollection<string>();
     }
 
     [RelayCommand]
@@ -205,9 +222,11 @@ public partial class PackingModelConfigViewModel : ObservableObject
 
         IsBusy = true;
         StatusMessage = string.Empty;
+        TemplateWarnings = new ObservableCollection<string>();
         try
         {
-            var updated = await _apiClient.UploadTemplateAsync(id, filePath);
+            var result = await _apiClient.UploadTemplateAsync(id, filePath);
+            var updated = result.Config;
             LoadIntoForm(updated);
             var index = Configs.ToList().FindIndex(c => c.Id == id);
             if (index >= 0)
@@ -215,7 +234,18 @@ public partial class PackingModelConfigViewModel : ObservableObject
                 Configs[index] = updated;
             }
 
-            StatusMessage = "✓ Đã tải lên mẫu tem mới.";
+            // AC10: KHÔNG chặn lưu — luôn báo đã tải lên thành công, kèm cảnh báo token (nếu có) để Admin/Tổ
+            // trưởng biết ngay lúc upload thay vì phát hiện sau khi tem đã in sai ngoài xưởng.
+            if (result.Warnings.Count > 0)
+            {
+                TemplateWarnings = new ObservableCollection<string>(
+                    result.Warnings.Select(w => w.CellReference is null ? w.Message : $"[{w.CellReference}] {w.Message}"));
+                StatusMessage = $"⚠ Đã tải lên mẫu tem mới, nhưng phát hiện {result.Warnings.Count} cảnh báo token — xem chi tiết bên dưới.";
+            }
+            else
+            {
+                StatusMessage = "✓ Đã tải lên mẫu tem mới.";
+            }
         }
         catch (ApiException ex)
         {

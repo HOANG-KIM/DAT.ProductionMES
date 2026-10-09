@@ -21,9 +21,15 @@ public interface IPackingModelConfigApiClient
     /// <summary>Sửa cấu hình đã có (AC2).</summary>
     Task<PackingModelConfigDto> UpdateAsync(int id, UpdatePackingModelConfigRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Tải lên (thay thế) file mẫu tem in từ đường dẫn file cục bộ (AC4).</summary>
-    Task<PackingModelConfigDto> UploadTemplateAsync(int id, string filePath, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Tải lên (thay thế) file mẫu tem in từ đường dẫn file cục bộ (AC4). AC10: KHÔNG chặn lưu — kết quả trả về
+    /// luôn kèm <see cref="UploadPackingTemplateResultDto.Warnings"/> (có thể rỗng) khi phát hiện token không hợp lệ.
+    /// </summary>
+    Task<UploadPackingTemplateResultDto> UploadTemplateAsync(int id, string filePath, CancellationToken cancellationToken = default);
 
     /// <summary>Tải xuống file mẫu tem đang cấu hình, ghi ra đường dẫn file cục bộ <paramref name="destinationFilePath"/> (AC5).</summary>
     Task DownloadTemplateAsync(int id, string destinationFilePath, CancellationToken cancellationToken = default);
+
+    /// <summary>AC10 — danh sách 9 token hợp lệ dùng trong file mẫu tem, để UI hiển thị tham chiếu khi thiết kế file.</summary>
+    Task<IReadOnlyList<PackingLabelTokenDto>> GetTemplateTokensAsync(CancellationToken cancellationToken = default);
 }

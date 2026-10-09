@@ -1,6 +1,9 @@
+using System.Text.RegularExpressions;
+using ClosedXML.Excel;
 using ProductionMES.Application.Abstractions.Persistence;
 using ProductionMES.Application.Abstractions.Storage;
 using ProductionMES.Application.DTOs.PackingModelConfigs;
+using ProductionMES.Application.Services.PackingBoxes;
 using ProductionMES.Domain.Entities;
 using ProductionMES.Domain.Exceptions;
 
@@ -116,7 +119,7 @@ public class PackingModelConfigService : IPackingModelConfigService
         return ToDto(config);
     }
 
-    public async Task<PackingModelConfigDto> UploadTemplateAsync(
+    public async Task<UploadPackingTemplateResultDto> UploadTemplateAsync(
         int id, Stream content, string fileName, string? updatedByUserName, CancellationToken cancellationToken = default)
     {
         var repository = _unitOfWork.Repository<PackingModelConfig>();
@@ -133,9 +136,21 @@ public class PackingModelConfigService : IPackingModelConfigService
             throw new BusinessRuleException("File mẫu tem đang tải lên rỗng, vui lòng chọn lại file.");
         }
 
+        // Đọc toàn bộ nội dung ra byte[] MỘT LẦN — vừa để lưu file (AC4) vừa để quét token cảnh báo (AC10) mà
+        // không phụ thuộc content stream gốc (vd IFormFile.OpenReadStream()) có hỗ trợ Seek lại được hay không.
+        byte[] fileBytes;
+        using (var buffer = new MemoryStream())
+        {
+            await content.CopyToAsync(buffer, cancellationToken);
+            fileBytes = buffer.ToArray();
+        }
+
         // AC4: lưu file, TỰ ĐỘNG thay thế file mẫu cũ (nếu có) — PackingTemplateFileStorage ghi đè theo đúng tên
         // file cố định (đặt tên theo Id, không dùng chuỗi Model), không cần bước xoá riêng.
-        await _templateStorage.SaveAsync(id, content, cancellationToken);
+        using (var saveStream = new MemoryStream(fileBytes))
+        {
+            await _templateStorage.SaveAsync(id, saveStream, cancellationToken);
+        }
 
         config.HasTemplate = true;
         config.TemplateUpdatedAtUtc = DateTime.UtcNow;
@@ -146,7 +161,14 @@ public class PackingModelConfigService : IPackingModelConfigService
         repository.Update(config);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ToDto(config);
+        // AC10: KHÔNG chặn việc lưu — quét token CHỈ SAU KHI đã lưu thành công, trả kèm cảnh báo (nếu có).
+        var warnings = ScanTemplateWarnings(fileBytes);
+
+        return new UploadPackingTemplateResultDto
+        {
+            Config = ToDto(config),
+            Warnings = warnings,
+        };
     }
 
     public async Task<(Stream Content, string FileName)> DownloadTemplateAsync(int id, CancellationToken cancellationToken = default)
@@ -164,6 +186,78 @@ public class PackingModelConfigService : IPackingModelConfigService
 
         return (stream, $"mau-tem-{SanitizeFileName(config.Model)}{XlsxExtension}");
     }
+
+    public IReadOnlyList<PackingLabelTokenDto> GetTemplateTokens() =>
+        PackingLabelTokens.All.Select(t => new PackingLabelTokenDto { Token = t.Token, Description = t.Description }).ToList();
+
+    /// <summary>
+    /// AC10 — quét toàn bộ ô chữ trong file mẫu tem vừa tải lên, cảnh báo nếu (a) không tìm thấy token hợp lệ
+    /// nào trong toàn bộ file, hoặc (b) phát hiện chuỗi dạng <c>{{...}}</c> không khớp đúng bất kỳ token nào
+    /// trong 9 token quy ước (<see cref="PackingLabelTokens"/>) — KHÔNG throw nếu file không mở được bằng
+    /// ClosedXML (khác với lúc IN THẬT ở <see cref="PackingBoxes.PackingLabelGenerator"/>/US-25 AC13 — ở đây chỉ
+    /// là bước cảnh báo phụ trợ lúc upload, không được phép chặn việc lưu file theo đúng AC10).
+    /// </summary>
+    private static IReadOnlyList<PackingTemplateWarningDto> ScanTemplateWarnings(byte[] fileBytes)
+    {
+        XLWorkbook workbook;
+        try
+        {
+            using var stream = new MemoryStream(fileBytes);
+            workbook = new XLWorkbook(stream);
+        }
+        catch
+        {
+            return Array.Empty<PackingTemplateWarningDto>();
+        }
+
+        using (workbook)
+        {
+            var warnings = new List<PackingTemplateWarningDto>();
+            var hasValidToken = false;
+
+            foreach (var sheet in workbook.Worksheets)
+            {
+                foreach (var cell in sheet.CellsUsed(c => c.DataType == XLDataType.Text))
+                {
+                    var text = cell.GetString();
+                    if (text.Length == 0 || !text.Contains("{{", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    foreach (Match match in TokenLikePattern.Matches(text))
+                    {
+                        if (PackingLabelTokens.ValidTokens.Contains(match.Value))
+                        {
+                            hasValidToken = true;
+                        }
+                        else
+                        {
+                            warnings.Add(new PackingTemplateWarningDto
+                            {
+                                Message = $"Ô \"{cell.Address}\" (sheet \"{sheet.Name}\") chứa \"{match.Value}\" không khớp bất kỳ token hợp lệ nào trong 9 token đã quy ước.",
+                                CellReference = $"{sheet.Name}!{cell.Address}",
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (!hasValidToken)
+            {
+                warnings.Insert(0, new PackingTemplateWarningDto
+                {
+                    Message = "Không tìm thấy token hợp lệ nào trong toàn bộ file mẫu tem — tem in ra sẽ không hiển thị dữ liệu động (Model, số lượng, khối lượng...).",
+                    CellReference = null,
+                });
+            }
+
+            return warnings;
+        }
+    }
+
+    /// <summary>Chuỗi dạng <c>{{...}}</c> (2 ngoặc nhọn mở/đóng, không lồng ngoặc) — dùng để phát hiện token lạ ở AC10.</summary>
+    private static readonly Regex TokenLikePattern = new(@"\{\{[^{}]*\}\}", RegexOptions.Compiled);
 
     /// <summary>Thay mọi ký tự không hợp lệ cho tên file (Model là free-text, có thể chứa ký tự đặc biệt) bằng "_" — chỉ dùng để đặt tên file tải xuống, KHÔNG ảnh hưởng <see cref="PackingModelConfig.Model"/> lưu trong DB.</summary>
     private static string SanitizeFileName(string value)

@@ -77,10 +77,33 @@
 
                 <TextBlock Text="Mẫu tem in (template .xlsx)" FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
                 <TextBlock Text="{Binding TemplateStatusText}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                <StackPanel Orientation="Horizontal" Visibility="{Binding CanManageTemplate, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal" Visibility="{Binding CanManageTemplate, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8">
                     <Button Content="Tải lên mẫu tem…" Click="UploadTemplateButton_Click" Margin="0,0,8,0" Padding="10,4"/>
                     <Button Content="Tải xuống mẫu tem…" Click="DownloadTemplateButton_Click" Padding="10,4"/>
                 </StackPanel>
+
+                <!-- AC10: cảnh báo token của lần tải lên gần nhất — KHÔNG chặn lưu, chỉ để tham khảo. Rỗng thì ItemsControl không hiển thị gì, không cần converter riêng. -->
+                <ItemsControl ItemsSource="{Binding TemplateWarnings}" Margin="0,0,0,12">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Foreground="{StaticResource StatusWarningBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- AC10: danh sách 9 token hợp lệ tham chiếu — Admin/Tổ trưởng không phải tự đoán/tra code khi thiết kế file mẫu tem. -->
+                <Expander Header="Danh sách token hợp lệ dùng trong file mẫu tem" IsExpanded="False" Margin="0,0,0,12">
+                    <ItemsControl ItemsSource="{Binding TemplateTokens}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="{Binding Token}" FontFamily="Consolas" FontWeight="Bold" Width="180"/>
+                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
             </StackPanel>
             </ScrollViewer>
         </Grid>

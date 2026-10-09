@@ -54,16 +54,26 @@ public class PackingLabelGenerator : IPackingLabelGenerator
         }
     }
 
-    private static IReadOnlyList<(string Token, string Value)> BuildReplacements(PackingLabelData data) => new[]
+    /// <summary>
+    /// Giá trị thật gắn với từng token — KHÔNG khai báo lại danh sách 9 token ở đây (nguồn duy nhất là
+    /// <see cref="PackingLabelTokens.All"/>), chỉ ánh xạ token -> giá trị để tránh 2 nơi lệch nhau nếu sau này
+    /// thêm/bớt token.
+    /// </summary>
+    private static IReadOnlyList<(string Token, string Value)> BuildReplacements(PackingLabelData data)
     {
-        ("{{Model}}", data.Model),
-        ("{{PartName}}", data.PartName),
-        ("{{Manufacturer}}", data.Manufacturer ?? string.Empty),
-        ("{{PackingQuantity}}", data.PackingQuantity.ToString()),
-        ("{{GrossWeight}}", data.GrossWeight.HasValue ? data.GrossWeight.Value.ToString("0.##") : string.Empty),
-        ("{{BoxNo}}", data.BoxNo.ToString()),
-        ("{{PackedAt}}", data.PackedAtLocal.ToString("dd/MM/yyyy HH:mm")),
-        ("{{LineName}}", data.LineName),
-        ("{{WorkStationName}}", data.WorkStationName),
-    };
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["{{Model}}"] = data.Model,
+            ["{{PartName}}"] = data.PartName,
+            ["{{Manufacturer}}"] = data.Manufacturer ?? string.Empty,
+            ["{{PackingQuantity}}"] = data.PackingQuantity.ToString(),
+            ["{{GrossWeight}}"] = data.GrossWeight.HasValue ? data.GrossWeight.Value.ToString("0.##") : string.Empty,
+            ["{{BoxNo}}"] = data.BoxNo.ToString(),
+            ["{{PackedAt}}"] = data.PackedAtLocal.ToString("dd/MM/yyyy HH:mm"),
+            ["{{LineName}}"] = data.LineName,
+            ["{{WorkStationName}}"] = data.WorkStationName,
+        };
+
+        return PackingLabelTokens.All.Select(t => (t.Token, values[t.Token])).ToList();
+    }
 }

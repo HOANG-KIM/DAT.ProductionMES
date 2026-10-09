@@ -1,13 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { InboxOutlined } from '@ant-design/icons';
-import { Alert, AutoComplete, Form, Input, InputNumber, message, Modal, Typography, Upload } from 'antd';
+import { Alert, AutoComplete, Collapse, Form, Input, InputNumber, message, Modal, Table, Typography, Upload } from 'antd';
 import type { AxiosError } from 'axios';
 import type { RcFile } from 'antd/es/upload/interface';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useCreatePackingModelConfig, useUpdatePackingModelConfig, useUploadPackingTemplate } from './usePackingModelConfigs';
-import type { PackingModelConfig } from '../../types/packingModelConfig';
+import {
+  useCreatePackingModelConfig,
+  usePackingTemplateTokens,
+  useUpdatePackingModelConfig,
+  useUploadPackingTemplate,
+} from './usePackingModelConfigs';
+import type { PackingModelConfig, PackingTemplateWarning } from '../../types/packingModelConfig';
 
 /** Đối chiếu FluentValidation `CreatePackingModelConfigRequestValidator`/`UpdatePackingModelConfigRequestValidator` (backend, AC7). */
 const packingModelConfigSchema = z.object({
@@ -44,9 +49,12 @@ export function PackingModelConfigFormModal({ open, editingConfig, existingModel
   // `editingConfig` (prop, đến từ query cache của trang cha) refresh lại — invalidate query vẫn chạy song song
   // để lần mở tiếp theo/trang danh sách luôn đúng.
   const [templateStatus, setTemplateStatus] = useState<{ hasTemplate: boolean; updatedByUserName: string | null } | null>(null);
+  // AC10: cảnh báo token của lần tải lên gần nhất — KHÔNG chặn lưu, chỉ hiển thị tham khảo cho đến khi mở lại modal/tải lên lần khác.
+  const [templateWarnings, setTemplateWarnings] = useState<PackingTemplateWarning[]>([]);
   const createMutation = useCreatePackingModelConfig();
   const updateMutation = useUpdatePackingModelConfig();
   const uploadMutation = useUploadPackingTemplate();
+  const { data: templateTokens = [] } = usePackingTemplateTokens();
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   const {
@@ -74,6 +82,7 @@ export function PackingModelConfigFormModal({ open, editingConfig, existingModel
       );
       setErrorMessage(null);
       setTemplateStatus(null);
+      setTemplateWarnings([]);
     }
   }, [open, editingConfig, reset]);
 
@@ -115,9 +124,15 @@ export function PackingModelConfigFormModal({ open, editingConfig, existingModel
       return Upload.LIST_IGNORE;
     }
     try {
-      const updated = await uploadMutation.mutateAsync({ id: editingConfig.id, file });
-      setTemplateStatus({ hasTemplate: updated.hasTemplate, updatedByUserName: updated.templateUpdatedByUserName });
-      void message.success('Đã tải lên mẫu tem mới');
+      const result = await uploadMutation.mutateAsync({ id: editingConfig.id, file });
+      setTemplateStatus({ hasTemplate: result.config.hasTemplate, updatedByUserName: result.config.templateUpdatedByUserName });
+      setTemplateWarnings(result.warnings);
+      // AC10: KHÔNG chặn lưu — vẫn báo tải lên thành công dù có cảnh báo, chỉ đổi loại thông báo để Admin chú ý xem chi tiết bên dưới.
+      if (result.warnings.length > 0) {
+        void message.warning(`Đã tải lên mẫu tem mới, nhưng phát hiện ${result.warnings.length} cảnh báo token — xem chi tiết bên dưới.`);
+      } else {
+        void message.success('Đã tải lên mẫu tem mới');
+      }
     } catch {
       void message.error('Tải lên mẫu tem thất bại, vui lòng thử lại');
     }
@@ -208,11 +223,54 @@ export function PackingModelConfigFormModal({ open, editingConfig, existingModel
                 </p>
                 <p className="ant-upload-text">Bấm hoặc kéo thả file .xlsx vào đây để tải lên (thay thế mẫu cũ nếu có)</p>
               </Upload.Dragger>
+
+              {/* AC10: KHÔNG chặn lưu — cảnh báo token của lần tải lên gần nhất, chỉ để Admin biết ngay lúc upload. */}
+              {templateWarnings.length > 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: 8 }}
+                  message={`Phát hiện ${templateWarnings.length} cảnh báo token trong file vừa tải lên`}
+                  description={
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                      {templateWarnings.map((warning, index) => (
+                        <li key={index}>
+                          {warning.cellReference && <strong>[{warning.cellReference}] </strong>}
+                          {warning.message}
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                />
+              )}
             </>
           ) : (
             <Typography.Text type="secondary">Lưu cấu hình trước, sau đó mở lại để tải lên mẫu tem.</Typography.Text>
           )}
         </Form.Item>
+
+        {/* AC10: danh sách 9 token hợp lệ tham chiếu — Admin không phải tự đoán/tra code khi thiết kế file mẫu tem. */}
+        <Collapse
+          size="small"
+          items={[
+            {
+              key: 'template-tokens',
+              label: 'Danh sách token hợp lệ dùng trong file mẫu tem',
+              children: (
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey="token"
+                  dataSource={templateTokens}
+                  columns={[
+                    { title: 'Token', dataIndex: 'token', render: (value: string) => <code>{value}</code> },
+                    { title: 'Mô tả', dataIndex: 'description' },
+                  ]}
+                />
+              ),
+            },
+          ]}
+        />
       </Form>
     </Modal>
   );

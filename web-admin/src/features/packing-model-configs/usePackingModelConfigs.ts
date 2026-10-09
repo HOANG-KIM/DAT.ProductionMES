@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { create, downloadTemplate, getAll, update, uploadTemplate } from '../../api/packingModelConfigsApi';
+import { create, downloadTemplate, getAll, getTemplateTokens, update, uploadTemplate } from '../../api/packingModelConfigsApi';
 import type { CreatePackingModelConfigRequest, UpdatePackingModelConfigRequest } from '../../types/packingModelConfig';
 
 const PACKING_MODEL_CONFIGS_QUERY_KEY = ['packing-model-configs'];
@@ -49,5 +49,18 @@ export function useUploadPackingTemplate() {
 export function useDownloadPackingTemplate() {
   return useMutation({
     mutationFn: (id: number) => downloadTemplate(id),
+  });
+}
+
+/**
+ * `GET /api/v1/packing-model-configs/template-tokens` (AC10) — danh sách 9 token hợp lệ, danh mục tĩnh nên
+ * `staleTime` dài. Query key CỐ Ý tách riêng khỏi `PACKING_MODEL_CONFIGS_QUERY_KEY` — không muốn bị invalidate
+ * theo mỗi lần tạo/sửa/upload cấu hình (danh sách token không đổi theo các thao tác đó).
+ */
+export function usePackingTemplateTokens() {
+  return useQuery({
+    queryKey: ['packing-model-config-template-tokens'],
+    queryFn: getTemplateTokens,
+    staleTime: 60 * 60 * 1000,
   });
 }

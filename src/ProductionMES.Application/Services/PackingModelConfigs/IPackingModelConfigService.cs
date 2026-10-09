@@ -28,9 +28,17 @@ public interface IPackingModelConfigService
     /// <summary>Sửa cấu hình đã có (AC2) — không hồi tố dữ liệu đã có (US-25 xử lý snapshot, US-24 chỉ cần đọc ra giá trị mới).</summary>
     Task<PackingModelConfigDto> UpdateAsync(int id, UpdatePackingModelConfigRequest request, string? updatedByUserName, CancellationToken cancellationToken = default);
 
-    /// <summary>Tải lên (thay thế) file mẫu tem in cho 1 cấu hình (AC4) — chỉ nhận đúng phần mở rộng .xlsx, không rỗng.</summary>
-    Task<PackingModelConfigDto> UploadTemplateAsync(int id, Stream content, string fileName, string? updatedByUserName, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Tải lên (thay thế) file mẫu tem in cho 1 cấu hình (AC4) — chỉ nhận đúng phần mở rộng .xlsx, không rỗng.
+    /// AC10: KHÔNG chặn việc lưu — sau khi lưu thành công, quét toàn bộ ô chữ và trả kèm cảnh báo (nếu có) khi
+    /// không tìm thấy token hợp lệ nào, hoặc phát hiện chuỗi <c>{{...}}</c> không khớp đúng 9 token quy ước
+    /// (<see cref="Services.PackingBoxes.PackingLabelTokens"/>).
+    /// </summary>
+    Task<UploadPackingTemplateResultDto> UploadTemplateAsync(int id, Stream content, string fileName, string? updatedByUserName, CancellationToken cancellationToken = default);
 
     /// <summary>Mở stream tải xuống file mẫu tem đang cấu hình (AC5) — ném <see cref="Domain.Exceptions.EntityNotFoundException"/> nếu chưa từng tải lên.</summary>
     Task<(Stream Content, string FileName)> DownloadTemplateAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>AC10 — danh sách 9 token hợp lệ dùng trong file mẫu tem, để UI (web-admin/Station.Wpf) hiển thị tham chiếu khi thiết kế file, không phải tự đoán hoặc tra code.</summary>
+    IReadOnlyList<PackingLabelTokenDto> GetTemplateTokens();
 }

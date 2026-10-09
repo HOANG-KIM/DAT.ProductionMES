@@ -127,6 +127,7 @@ public class PackingModelConfigServiceTests
     }
 
     // AC4 — Tải lên file mẫu tem hợp lệ (.xlsx) -> lưu file, đánh dấu HasTemplate, ghi nhận người/thời điểm.
+    // Nội dung file KHÔNG phải xlsx thật (byte rác) -> AC10 không throw, chỉ bỏ qua bước quét cảnh báo token (Warnings rỗng).
     [Fact]
     public async Task UploadTemplateAsync_FileXlsxHopLe_LuuThanhCongVaDanhDauHasTemplate()
     {
@@ -136,10 +137,11 @@ public class PackingModelConfigServiceTests
         using var content = new MemoryStream(new byte[] { 1, 2, 3 });
         var result = await _sut.UploadTemplateAsync(1, content, "mau-tem.xlsx", "supervisor01");
 
-        Assert.True(result.HasTemplate);
-        Assert.Equal("supervisor01", result.TemplateUpdatedByUserName);
-        Assert.NotNull(result.TemplateUpdatedAtUtc);
-        _templateStorageMock.Verify(s => s.SaveAsync(1, content, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.True(result.Config.HasTemplate);
+        Assert.Equal("supervisor01", result.Config.TemplateUpdatedByUserName);
+        Assert.NotNull(result.Config.TemplateUpdatedAtUtc);
+        Assert.Empty(result.Warnings); // Không mở được bằng ClosedXML (không phải xlsx thật) -> bỏ qua quét, không cảnh báo.
+        _templateStorageMock.Verify(s => s.SaveAsync(1, It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -166,6 +168,74 @@ public class PackingModelConfigServiceTests
         using var content = new MemoryStream(new byte[] { 1 });
 
         await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.UploadTemplateAsync(99, content, "mau-tem.xlsx", null));
+    }
+
+    // AC10 — Template có đủ token hợp lệ (khớp đúng 9 token quy ước, phân biệt hoa/thường) -> không cảnh báo, KHÔNG chặn lưu.
+    [Fact]
+    public async Task UploadTemplateAsync_FileCoTokenHopLe_KhongCoCanhBao()
+    {
+        var existing = new PackingModelConfig { Id = 1, Model = "ABC-123", ModelNormalized = "ABC-123", PackingQuantity = 10, PartName = "Sản phẩm" };
+        _repositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var xlsxBytes = BuildXlsxWithCellValues("{{Model}}", "{{PartName}}", "{{PackingQuantity}}", "{{GrossWeight}}");
+        using var content = new MemoryStream(xlsxBytes);
+
+        var result = await _sut.UploadTemplateAsync(1, content, "mau-tem.xlsx", "supervisor01");
+
+        Assert.True(result.Config.HasTemplate); // AC10 (a): không chặn lưu.
+        Assert.Empty(result.Warnings);
+    }
+
+    // AC10 (b) — Template có token sai hoa/thường ("{{model}}") và token tự đặt tên không tồn tại ("{{Unknown}}")
+    // -> cảnh báo đúng 2 token lạ này, kèm vị trí ô; vẫn có "{{PartName}}" hợp lệ nên KHÔNG rơi vào cảnh báo (a).
+    [Fact]
+    public async Task UploadTemplateAsync_FileCoTokenSaiHoaThuongVaTokenTuDatTen_CanhBaoDungCacTokenLa()
+    {
+        var existing = new PackingModelConfig { Id = 1, Model = "ABC-123", ModelNormalized = "ABC-123", PackingQuantity = 10, PartName = "Sản phẩm" };
+        _repositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var xlsxBytes = BuildXlsxWithCellValues("{{model}}", "{{Unknown}}", "{{PartName}}");
+        using var content = new MemoryStream(xlsxBytes);
+
+        var result = await _sut.UploadTemplateAsync(1, content, "mau-tem.xlsx", "supervisor01");
+
+        Assert.True(result.Config.HasTemplate); // AC10: không chặn lưu dù có cảnh báo.
+        Assert.Equal(2, result.Warnings.Count);
+        Assert.Contains(result.Warnings, w => w.Message.Contains("{{model}}") && w.CellReference != null);
+        Assert.Contains(result.Warnings, w => w.Message.Contains("{{Unknown}}") && w.CellReference != null);
+    }
+
+    // AC10 (a) — Template không có token nào (tem tĩnh) -> cảnh báo "không tìm thấy token hợp lệ nào", không chặn lưu.
+    [Fact]
+    public async Task UploadTemplateAsync_FileKhongCoTokenNao_CanhBaoKhongTimThayTokenHopLe()
+    {
+        var existing = new PackingModelConfig { Id = 1, Model = "ABC-123", ModelNormalized = "ABC-123", PackingQuantity = 10, PartName = "Sản phẩm" };
+        _repositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var xlsxBytes = BuildXlsxWithCellValues("Tem tĩnh không có dữ liệu động", "ABC Manufacturing");
+        using var content = new MemoryStream(xlsxBytes);
+
+        var result = await _sut.UploadTemplateAsync(1, content, "mau-tem.xlsx", "supervisor01");
+
+        Assert.True(result.Config.HasTemplate); // AC10: không chặn lưu dù có cảnh báo.
+        Assert.Single(result.Warnings);
+        Assert.Null(result.Warnings[0].CellReference);
+        Assert.Contains("Không tìm thấy token hợp lệ", result.Warnings[0].Message);
+    }
+
+    /// <summary>Tạo 1 file .xlsx thật (ClosedXML) với mỗi <paramref name="cellValues"/> đặt ở 1 ô riêng trên Sheet1, dùng cho test quét token AC10.</summary>
+    private static byte[] BuildXlsxWithCellValues(params string[] cellValues)
+    {
+        using var workbook = new ClosedXML.Excel.XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Sheet1");
+        for (var i = 0; i < cellValues.Length; i++)
+        {
+            sheet.Cell(i + 1, 1).SetValue(cellValues[i]);
+        }
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
     }
 
     // AC5 — Tải xuống đúng file đã tải lên gần nhất.

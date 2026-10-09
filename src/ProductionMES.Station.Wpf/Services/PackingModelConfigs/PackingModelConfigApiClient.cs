@@ -52,7 +52,7 @@ public class PackingModelConfigApiClient : ApiClientBase, IPackingModelConfigApi
     /// JSON) — trường form tên "file", khớp tên tham số <c>IFormFile? file</c> ở
     /// <c>PackingModelConfigsController.UploadTemplate</c> (ASP.NET Core model binding theo tên).
     /// </summary>
-    public async Task<PackingModelConfigDto> UploadTemplateAsync(int id, string filePath, CancellationToken cancellationToken = default)
+    public async Task<UploadPackingTemplateResultDto> UploadTemplateAsync(int id, string filePath, CancellationToken cancellationToken = default)
     {
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var streamContent = new StreamContent(fileStream);
@@ -67,7 +67,7 @@ public class PackingModelConfigApiClient : ApiClientBase, IPackingModelConfigApi
             throw await ToApiExceptionAsync(response, cancellationToken);
         }
 
-        var result = await response.Content.ReadFromJsonAsync<PackingModelConfigDto>(JsonDefaults.Options, cancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<UploadPackingTemplateResultDto>(JsonDefaults.Options, cancellationToken);
         return result ?? throw new ApiException(response.StatusCode, "Server trả về dữ liệu rỗng ngoài dự kiến.");
     }
 
@@ -83,5 +83,12 @@ public class PackingModelConfigApiClient : ApiClientBase, IPackingModelConfigApi
         await using var httpStream = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var fileStream = new FileStream(destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await httpStream.CopyToAsync(fileStream, cancellationToken);
+    }
+
+    /// <summary>AC10 — danh sách 9 token hợp lệ, để UI hiển thị tham chiếu.</summary>
+    public async Task<IReadOnlyList<PackingLabelTokenDto>> GetTemplateTokensAsync(CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{BasePath}/template-tokens");
+        return await SendAsync<IReadOnlyList<PackingLabelTokenDto>>(request, cancellationToken);
     }
 }

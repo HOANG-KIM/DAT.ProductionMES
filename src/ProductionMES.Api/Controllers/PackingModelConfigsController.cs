@@ -71,6 +71,14 @@ public class PackingModelConfigsController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>AC10 — danh sách 9 token hợp lệ dùng trong file mẫu tem, để UI (web-admin/Station.Wpf) hiển thị tham chiếu khi Admin/Tổ trưởng thiết kế file .xlsx, không phải tự đoán hoặc tra code.</summary>
+    [HttpGet("template-tokens")]
+    [Authorize(Policy = PermissionPolicies.PackingModelConfigView)]
+    public ActionResult<IReadOnlyList<PackingLabelTokenDto>> GetTemplateTokens()
+    {
+        return Ok(_service.GetTemplateTokens());
+    }
+
     /// <summary>Tạo mới cấu hình cho 1 Model (AC1).</summary>
     [HttpPost]
     [Authorize(Policy = PermissionPolicies.PackingModelConfigCreate)]
@@ -96,12 +104,13 @@ public class PackingModelConfigsController : ControllerBase
     /// dự án (chưa có tiền lệ) — dùng <see cref="IFormFile"/> chuẩn ASP.NET Core, giới hạn kích thước qua
     /// <see cref="RequestSizeLimitAttribute"/>, chỉ nhận đúng phần mở rộng .xlsx (kiểm tra ở
     /// <see cref="IPackingModelConfigService.UploadTemplateAsync"/> — ném <see cref="BusinessRuleException"/> ->
-    /// 409 nếu sai định dạng/file rỗng, đúng quy ước lỗi nghiệp vụ hiện có thay vì tự chế 1 dạng lỗi mới).
+    /// 409 nếu sai định dạng/file rỗng, đúng quy ước lỗi nghiệp vụ hiện có thay vì tự chế 1 dạng lỗi mới). AC10:
+    /// KHÔNG chặn việc lưu — response luôn kèm <c>warnings</c> (có thể rỗng) khi phát hiện token không hợp lệ.
     /// </summary>
     [HttpPost("{id:int}/template")]
     [RequestSizeLimit(MaxTemplateFileSizeBytes)]
     [Authorize(Policy = PermissionPolicies.PackingModelConfigUpdate)]
-    public async Task<ActionResult<PackingModelConfigDto>> UploadTemplate(int id, IFormFile? file, CancellationToken cancellationToken)
+    public async Task<ActionResult<UploadPackingTemplateResultDto>> UploadTemplate(int id, IFormFile? file, CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
         {
@@ -110,8 +119,8 @@ public class PackingModelConfigsController : ControllerBase
 
         var updatedByUserName = User.FindFirst(ClaimTypes.Name)?.Value;
         await using var stream = file.OpenReadStream();
-        var updated = await _service.UploadTemplateAsync(id, stream, file.FileName, updatedByUserName, cancellationToken);
-        return Ok(updated);
+        var result = await _service.UploadTemplateAsync(id, stream, file.FileName, updatedByUserName, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>AC5 — tải xuống file mẫu tem đang cấu hình. Trả 404 nếu Model chưa từng có ai tải mẫu tem lên (xử lý bằng <see cref="EntityNotFoundException"/> qua <see cref="ProductionMES.Api.ExceptionHandling.GlobalExceptionHandler"/>).</summary>
