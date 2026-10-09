@@ -54,7 +54,8 @@ public class StationOptions
     /// Giá trị thô của API Key theo trạm (ADR-005/US-04a) — gửi ở header <c>X-Station-Api-Key</c> cho scheme
     /// <c>StationApiKey</c>. Giá trị thô chỉ được server trả về 1 lần lúc Admin issue/reissue qua web-admin
     /// (<c>StationApiKeysController</c>), sau đó không phục hồi lại được từ DB (chỉ lưu KeyHash) — phải copy thủ
-    /// công vào đây. Đây là cấu hình bí mật, không commit giá trị thật (chỉ commit placeholder rỗng).
+    /// công vào <c>appsettings.local.json</c> cạnh <c>appsettings.json</c> (file này bị .gitignore, đè lên giá trị rỗng
+    /// trong <c>appsettings.json</c>) — KHÔNG ghi key thật vào <c>appsettings.json</c> vì file đó được commit.
     /// </summary>
     public string StationApiKeyValue { get; set; } = string.Empty;
 

@@ -58,6 +58,8 @@ public partial class App : Application
             {
                 config.SetBasePath(AppContext.BaseDirectory);
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
+                // Cấu hình riêng của máy trạm (API Key thật...) — KHÔNG commit (.gitignore), đè lên appsettings.json.
+                config.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: false);
             })
             .ConfigureServices((context, services) => ConfigureServices(context.Configuration, services))
             .Build();
