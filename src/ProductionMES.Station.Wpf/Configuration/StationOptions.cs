@@ -88,4 +88,7 @@ public class StationOptions
     /// <c>ISupervisorSessionService</c> dùng chung).
     /// </summary>
     public int SupervisorSessionIdleTimeoutSeconds { get; set; } = 600;
+
+    /// <summary>US-28: cách in tem thùng tại trạm (Excel/LibreOffice, máy in) — xem <see cref="LabelPrintOptions"/>.</summary>
+    public LabelPrintOptions LabelPrint { get; set; } = new();
 }

@@ -318,4 +318,33 @@ public class PackingBoxServiceTests
         Assert.Equal(expectedBytes, content);
         Assert.Contains("box7", fileName);
     }
+
+    // US-28 — Khách hàng/Lot/Nhân viên vận hành lấy từ kế hoạch sản xuất của thùng để merge vào tem/QR.
+    [Fact]
+    public async Task GenerateLabelAsync_CoKeHoach_TruyenKhachHangLotVaNhanVienVaoDuLieuTem()
+    {
+        var box = new PackingBox
+        {
+            Id = 1, ProductionPlanId = ProductionPlanId, LineId = LineId, StageId = StageId, WorkStationId = WorkStationId,
+            BoxNo = 7, PackingModelConfigId = 9, ModelSnapshot = "ABC-123", PartNameSnapshot = "Sản phẩm A", TargetQuantity = 5,
+        };
+        _packingBoxRepositoryMock.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(box);
+        _templateStorageMock.Setup(s => s.OpenReadAsync(9, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(new byte[] { 1, 2, 3 }));
+        _productionPlanRepositoryMock.Setup(r => r.GetByIdAsync(ProductionPlanId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductionPlan { Id = ProductionPlanId, Customer = "SELIM", Lot = "LOT-01", OperatorNames = "Nguyễn Văn A" });
+
+        PackingLabelData? captured = null;
+        _labelGeneratorMock
+            .Setup(g => g.Generate(It.IsAny<byte[]>(), It.IsAny<PackingLabelData>()))
+            .Callback<byte[], PackingLabelData>((_, d) => captured = d)
+            .Returns(new byte[] { 9 });
+
+        await _sut.GenerateLabelAsync(1);
+
+        Assert.NotNull(captured);
+        Assert.Equal("SELIM", captured!.Customer);
+        Assert.Equal("LOT-01", captured.Lot);
+        Assert.Equal("Nguyễn Văn A", captured.OperatorNames);
+    }
 }

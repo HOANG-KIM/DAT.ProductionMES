@@ -72,9 +72,14 @@
 ## Trạng thái triển khai
 
 - **Trạng thái:** 🟡 Một phần
-- **Cập nhật:** 2026-08-24
+- **Cập nhật:** 2026-10-09
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-10-09 (dev, đổi cách in tem — thực hiện trong US-28)
+- **Station.Wpf:** `PackingLabelPrintService` bỏ ShellExecute `Verb="print"` (phụ thuộc ứng dụng mặc định, không chọn được máy in, không biết in xong chưa), thay bằng in Excel COM hoặc LibreOffice headless theo cấu hình `LabelPrint` tại trạm — chi tiết xem `US-28-barcode-qr-tren-tem-dong-thung/README.md`. Hành vi AC4/AC13 không đổi (in nền, lỗi lệnh gọi in hiển thị cạnh bộ đếm, luôn có "In lại").
+- **Application:** tem có thêm QR + token `{{Customer}}`/`{{Lot}}`/`{{OperatorNames}}`/`{{PackedDate}}` (US-28).
+- **Còn thiếu / lý do giữ 🟡:** vẫn chưa chạy thử UI trạm đóng thùng + in trên máy in tem thật (cùng 2 điểm đã ghi ở đợt 2026-08-24).
 
 #### 2026-08-24 (dev, 2 sửa nhỏ theo phản hồi thực tế sau khi triển khai — gợi ý số thùng + nới lỏng AC8)
 

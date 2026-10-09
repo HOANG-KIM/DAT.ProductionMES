@@ -10,6 +10,7 @@ using ProductionMES.Station.Wpf.Services.LineStageSequences;
 using ProductionMES.Station.Wpf.Services.Lines;
 using ProductionMES.Station.Wpf.Services.Navigation;
 using ProductionMES.Station.Wpf.Services.PackingBoxes;
+using ProductionMES.Station.Wpf.Services.PackingBoxes.Printing;
 using ProductionMES.Station.Wpf.Services.PackingModelConfigs;
 using ProductionMES.Station.Wpf.Services.ProductionPlans;
 using ProductionMES.Station.Wpf.Services.ProductionPlanStages;
@@ -184,6 +185,9 @@ public partial class App : Application
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
         }).AddHttpMessageHandler<StationApiKeyHandler>();
+        // US-28: in tem qua Excel COM hoặc LibreOffice theo StationOptions.LabelPrint.Engine.
+        services.AddSingleton<ExcelComLabelPrinter>();
+        services.AddSingleton<LibreOfficeLabelPrinter>();
         services.AddSingleton<IPackingLabelPrintService, PackingLabelPrintService>();
 
         services.AddSingleton<AndonBoardWindow>();

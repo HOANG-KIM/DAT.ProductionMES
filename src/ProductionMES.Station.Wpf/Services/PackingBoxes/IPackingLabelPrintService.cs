@@ -1,6 +1,6 @@
 namespace ProductionMES.Station.Wpf.Services.PackingBoxes;
 
-/// <summary>Tải + in tem thùng tại trạm (US-25 AC4/AC13) — tải file tem (đã merge dữ liệu ở server) rồi gửi cho máy in mặc định của trạm.</summary>
+/// <summary>Tải + in tem thùng tại trạm (US-25 AC4/AC13) — tải file tem (đã merge dữ liệu ở server) rồi gửi tới máy in qua Excel hoặc LibreOffice (US-28, cấu hình <c>LabelPrint</c> tại trạm).</summary>
 public interface IPackingLabelPrintService
 {
     /// <summary>

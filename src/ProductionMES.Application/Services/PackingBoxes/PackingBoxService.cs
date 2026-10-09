@@ -160,6 +160,10 @@ public class PackingBoxService : IPackingBoxService
 
         var workStation = await _unitOfWork.Repository<WorkStation>().GetByIdAsync(box.WorkStationId, cancellationToken);
         var line = await _unitOfWork.Repository<Line>().GetByIdAsync(box.LineId, cancellationToken);
+        // US-28: Khách hàng/Lot/Nhân viên đọc từ kế hoạch lúc tạo tem (không snapshot trên PackingBox) — Customer/Lot
+        // đã bị khoá khi kế hoạch có scan (FR-05), riêng OperatorNames sửa được nên "In lại" thùng cũ sau khi Tổ
+        // trưởng đổi tên nhân viên sẽ in tên MỚI.
+        var productionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(box.ProductionPlanId, cancellationToken);
 
         var data = new PackingLabelData
         {
@@ -172,6 +176,9 @@ public class PackingBoxService : IPackingBoxService
             PackedAtLocal = box.CompletedAtUtc ?? DateTime.Now,
             LineName = line?.Name ?? $"#{box.LineId}",
             WorkStationName = workStation?.Name ?? $"#{box.WorkStationId}",
+            Customer = productionPlan?.Customer ?? string.Empty,
+            Lot = productionPlan?.Lot ?? string.Empty,
+            OperatorNames = productionPlan?.OperatorNames ?? string.Empty,
         };
 
         var content = _labelGenerator.Generate(templateBuffer.ToArray(), data);

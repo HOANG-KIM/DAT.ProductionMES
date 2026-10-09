@@ -48,11 +48,11 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-22](./backlog/US-22-quan-ly-nguoi-dung-phan-quyen/README.md) | Quản lý người dùng & phân quyền | ✅ Xong | — | 2026-08-14 |
 | [US-23](./backlog/US-23-xuat-bao-cao-excel/README.md) | Xuất báo cáo Excel | 🟡 Một phần | — | 2026-08-19 |
 | [US-24](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md) | Cấu hình Quy cách đóng gói theo Model (Đóng thùng) | ✅ Xong | AC10 đã code xong (backend + web-admin + Station.Wpf) | 2026-08-26 |
-| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | — | 2026-08-24 |
+| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | Cách in đổi sang Excel COM/LibreOffice (US-28); chưa test máy in thật | 2026-10-09 |
 | [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | ✅ Xong | — | 2026-08-25 |
 | [BUG-01](./backlog/BUG-01-lech-gio-utc-vn/README.md) | Lệch giờ 7 tiếng (UTC/VN) khi hiển thị trên web-admin | ✅ Xong | — | 2026-08-19 |
 | [US-27](./backlog/US-27-xac-nhan-to-truong-truoc-khi-luu-scan-bi-tu-choi/README.md) | Xác nhận Tổ trưởng trước khi lưu lịch sử scan bị từ chối | ✅ Xong | Supersede US-25/AC8 | 2026-08-26 |
-| [US-28](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md) | Barcode/QR trên tem đóng thùng | ⬜ Chưa làm | Dự thảo, còn điểm mở | 2026-08-26 |
+| [US-28](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md) | Barcode/QR trên tem đóng thùng | 🟡 Một phần | Đã code QR + token mới + in Excel/LibreOffice; chưa in thử trên máy in tem thật | 2026-10-09 |
 
 *(Chi tiết đầy đủ từng story — mô tả, Acceptance Criteria, ghi chú lịch sử triển khai — đã tách sang file riêng trong `Documents/backlog/US-XX-ten-tinh-nang/README.md`, xem quy ước tại `CLAUDE.md` mục "Theo dõi tiến độ backlog". Bảng trên chỉ giữ trạng thái tổng quan.)*
 
@@ -115,7 +115,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 - **US-24** — Cấu hình Quy cách đóng gói theo Model (Đóng thùng) (✅ Xong) → [chi tiết](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md)
 - **US-25** — Quét tem đóng thùng — đếm số lượng, tự động in tem thùng (🟡 Một phần) → [chi tiết](./backlog/US-25-quet-tem-dong-thung/README.md)
 - **US-26** — Theo dõi tiến độ đóng thùng ở mức quản lý (⬜ Chưa làm) → [chi tiết](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md)
-- **US-28** — Barcode/QR trên tem đóng thùng (⬜ Chưa làm, dự thảo còn điểm mở) → [chi tiết](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md)
+- **US-28** — Barcode/QR trên tem đóng thùng (🟡 Một phần — chưa in thử trên máy in tem thật) → [chi tiết](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md)
 
 ---
 
