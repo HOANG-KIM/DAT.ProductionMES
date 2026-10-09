@@ -33,25 +33,20 @@ public class PackingBoxService : IPackingBoxService
         var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
         var productionPlan = await FindRunningProductionPlanAsync(workStation, cancellationToken);
 
-        var boxes = await _unitOfWork.Repository<PackingBox>().FindAsync(
-            b => b.ProductionPlanId == productionPlan.Id && b.StageId == workStation.StageId, cancellationToken);
+        // Thùng thuộc về (Model, Lot), KHÔNG thuộc riêng kế hoạch/Line: Line X ngưng giữa chừng rồi chạy cùng Model +
+        // Lot ở Line Y thì Line Y thấy đúng thùng đang mở đó (kể cả số lượng Line X đã quét dở) và quét tiếp.
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        var currentBox = FindOpenBox(modelLotBoxes);
 
-        var currentBox = boxes
-            .Where(b => b.Status == PackingBoxStatus.InProgress)
-            .OrderByDescending(b => b.BoxNo)
-            .FirstOrDefault();
-
-        var lastCompletedBox = boxes
+        var lastCompletedBox = modelLotBoxes
             .Where(b => b.Status == PackingBoxStatus.Completed)
             .OrderByDescending(b => b.CompletedAtUtc)
             .ThenByDescending(b => b.Id)
             .FirstOrDefault();
 
-        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
-
         return new PackingBoxStateDto
         {
-            RequiresStartingBoxNo = boxes.Count == 0,
+            RequiresStartingBoxNo = currentBox is null,
             CurrentBox = currentBox is null ? null : ToDto(currentBox),
             LastCompletedBox = lastCompletedBox is null ? null : ToDto(lastCompletedBox),
             Model = productionPlan.Model,
@@ -70,20 +65,19 @@ public class PackingBoxService : IPackingBoxService
         var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
         var productionPlan = await FindRunningProductionPlanAsync(workStation, cancellationToken);
 
-        var existingBoxes = await _unitOfWork.Repository<PackingBox>().FindAsync(
-            b => b.ProductionPlanId == productionPlan.Id && b.StageId == workStation.StageId, cancellationToken);
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
 
-        if (existingBoxes.Count > 0)
+        if (FindOpenBox(modelLotBoxes) is { } openBox)
         {
-            // AC5: chỉ bắt buộc nhập 1 LẦN DUY NHẤT cho lần đầu đóng thùng của kế hoạch — các thùng kế tiếp tự
-            // động (AC4/AC6), sửa lại số thùng hiện tại dùng AC7 (UpdateCurrentBoxNoAsync), không phải endpoint này.
+            // AC5: chỉ nhập số thùng bắt đầu khi (Model, Lot) CHƯA có thùng nào đang mở — đang có thì tiếp tục đúng
+            // thùng đó (kể cả do Line khác mở), sửa số thùng dùng AC7 (UpdateCurrentBoxNoAsync), không phải endpoint này.
             throw new BusinessRuleException(
-                "Kế hoạch này đã có thùng được mở tại công đoạn Đóng thùng — không thể nhập lại số thùng bắt đầu (dùng chức năng Sửa số thùng nếu cần điều chỉnh).");
+                $"Model \"{productionPlan.Model}\" / Lot \"{productionPlan.Lot}\" đang có thùng số {openBox.BoxNo} đóng dở " +
+                $"({openBox.ScannedQuantity}/{openBox.TargetQuantity}) — tiếp tục quét vào thùng đó (dùng chức năng Sửa số thùng nếu cần điều chỉnh).");
         }
 
         var config = await GetPackingModelConfigOrThrowAsync(productionPlan.Model, cancellationToken);
 
-        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
         EnsureBoxNoNotUsed(startingBoxNo, modelLotBoxes, excludedBox: null, productionPlan);
 
         var box = new PackingBox
@@ -128,11 +122,8 @@ public class PackingBoxService : IPackingBoxService
         var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
         var productionPlan = await FindRunningProductionPlanAsync(workStation, cancellationToken);
 
-        var currentBox = (await _unitOfWork.Repository<PackingBox>().FindAsync(
-                b => b.ProductionPlanId == productionPlan.Id && b.StageId == workStation.StageId && b.Status == PackingBoxStatus.InProgress,
-                cancellationToken))
-            .OrderByDescending(b => b.BoxNo)
-            .FirstOrDefault();
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        var currentBox = FindOpenBox(modelLotBoxes);
 
         if (currentBox is null)
         {
@@ -140,7 +131,6 @@ public class PackingBoxService : IPackingBoxService
                 "Hiện chưa có thùng nào đang mở tại công đoạn Đóng thùng để sửa số thùng — vui lòng nhập số thùng bắt đầu trước.");
         }
 
-        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
         EnsureBoxNoNotUsed(newBoxNo, modelLotBoxes, excludedBox: currentBox, productionPlan);
 
         // AC7: chỉ đổi nhãn BoxNo — KHÔNG đổi ScannedQuantity/TargetQuantity đang có của thùng.
@@ -203,15 +193,24 @@ public class PackingBoxService : IPackingBoxService
         // nguyên tắc "không có kế hoạch Running" hiện có ở ScanService).
         await GetPackingModelConfigOrThrowAsync(productionPlan.Model, cancellationToken);
 
-        var currentBox = (await _unitOfWork.Repository<PackingBox>().FindAsync(
-                b => b.ProductionPlanId == productionPlan.Id && b.StageId == workStation.StageId && b.Status == PackingBoxStatus.InProgress,
-                cancellationToken))
-            .OrderByDescending(b => b.BoxNo)
-            .FirstOrDefault();
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
 
-        // AC5: chưa từng nhập số thùng bắt đầu cho kế hoạch này -> chặn quét, KHÔNG lưu bản ghi Scan.
-        return currentBox ?? throw new BusinessRuleException(
+        // AC5: (Model, Lot) chưa có thùng nào đang mở -> chặn quét, KHÔNG lưu bản ghi Scan.
+        var currentBox = FindOpenBox(modelLotBoxes) ?? throw new BusinessRuleException(
             "Chưa nhập số thùng bắt đầu cho kế hoạch này tại công đoạn Đóng thùng — vui lòng nhập số thùng bắt đầu trước khi quét tem.");
+
+        // Thùng đang mở do Line/trạm khác mở (Line X ngưng, chuyển cùng Model + Lot sang Line Y) -> chuyển thùng về
+        // kế hoạch/trạm đang quét: tem in ra mang tên Line/trạm đóng xong thùng, thùng kế tiếp mở theo kế hoạch này.
+        // Chỉ đổi trên entity; được lưu cùng RegisterOkScanAsync (repository.Update) khi lượt quét OK.
+        if (currentBox.ProductionPlanId != productionPlan.Id || currentBox.WorkStationId != workStation.Id)
+        {
+            currentBox.ProductionPlanId = productionPlan.Id;
+            currentBox.LineId = workStation.LineId;
+            currentBox.StageId = workStation.StageId;
+            currentBox.WorkStationId = workStation.Id;
+        }
+
+        return currentBox;
     }
 
     public async Task<PackingScanOutcome> RegisterOkScanAsync(PackingBox currentBox, CancellationToken cancellationToken = default)
@@ -330,6 +329,17 @@ public class PackingBoxService : IPackingBoxService
 
         return await _unitOfWork.Repository<PackingBox>().FindAsync(b => planIds.Contains(b.ProductionPlanId), cancellationToken);
     }
+
+    /// <summary>
+    /// Thùng đang mở của (Model, Lot) — bình thường chỉ có tối đa 1. Phòng vệ dữ liệu cũ (trước khi thùng dùng chung
+    /// theo (Model, Lot), mỗi kế hoạch tự mở thùng riêng): ưu tiên thùng đã có hàng, rồi số thùng nhỏ nhất.
+    /// </summary>
+    private static PackingBox? FindOpenBox(IEnumerable<PackingBox> modelLotBoxes) =>
+        modelLotBoxes
+            .Where(b => b.Status == PackingBoxStatus.InProgress)
+            .OrderByDescending(b => b.ScannedQuantity)
+            .ThenBy(b => b.BoxNo)
+            .FirstOrDefault();
 
     /// <summary>Số lớn nhất đã dùng + 1 (bỏ qua <paramref name="excludedBox"/> — thùng đang được sửa số), chưa có thùng nào thì 1.</summary>
     private static int SuggestNextBoxNo(IEnumerable<PackingBox> modelLotBoxes, PackingBox? excludedBox) =>

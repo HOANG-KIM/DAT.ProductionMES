@@ -68,6 +68,11 @@
   - When Operator nhập số thùng bắt đầu (AC5) hoặc Tổ trưởng sửa số thùng (AC7)
   - Then ô nhập điền sẵn số gợi ý = số thùng lớn nhất đã dùng của cùng (Model, Lot) + 1 (vd đã in 1,2,3 -> gợi ý 4), kèm dòng "Model … — Lot …: thùng kế tiếp gợi ý là số …"; nhập trùng số thùng đã in (hoặc đang đóng ở kế hoạch khác) của cùng (Model, Lot) thì bị từ chối, báo rõ lý do + số gợi ý, thùng giữ nguyên số cũ. Khi thùng đủ số lượng (AC4), số thùng kế tiếp tự nhảy qua các số đã dùng của cùng (Model, Lot)
 
+- **AC16 — Thùng đang mở dùng chung theo (Model, Lot), chuyển Line thì quét tiếp** *(bổ sung 09/10/2026, người giao việc)*
+  - Given Line X đang đóng Model A Lot 123, đã in thùng 1,2,3 rồi ngưng, cài cùng Model A Lot 123 sang Line Y
+  - When trạm Đóng thùng của Line Y mở màn hình / quét tem
+  - Then Line Y hiển thị ĐÚNG thùng 4 đang mở của (Model, Lot) — không hỏi số thùng bắt đầu: (a) Line X đang quét dở thùng 4 (vd 10/50) thì Line Y thấy 10/50 và quét tiếp phần còn lại; (b) thùng 4 chưa quét gì (thùng tự mở sẵn sau khi xong thùng 3) thì Line Y bắt đầu quét thùng 4 như bình thường. Lượt quét OK đầu tiên ở Line Y chuyển thùng về kế hoạch/trạm Line Y (tem in ra mang tên Line Y); các thùng sau đánh số tiếp. Chỉ hỏi số thùng bắt đầu (AC5) khi (Model, Lot) không có thùng nào đang mở
+
 **Nguồn FR:** FR-25
 **Phụ thuộc:** US-24 (cấu hình quy cách — bắt buộc có trước, AC11), US-01/US-02/US-03 (khai báo Stage + trình tự), US-07/US-08 (nền tảng luồng scan + FR-08 kế thừa trực tiếp), US-18 (mẫu tham chiếu bắt buộc cho AC7/AC8 — cơ chế re-auth Supervisor mỗi lần), US-16 (Hàng đợi cục bộ chống mất lượt scan — hiện ⬜ Chưa làm; phụ thuộc gián tiếp vì đếm lũy kế theo thùng nhạy với mất đồng bộ hơn scan độc lập từng lượt, cân nhắc thứ tự triển khai)
 **Cờ cảnh báo mục 8.2:** Không còn — cả 3 điểm mở phát sinh từ US-25 đã chốt 20/08/2026 (xem AC8, AC12, AC13).
@@ -80,6 +85,14 @@
 - **Cập nhật:** 2026-10-09
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-10-09 (dev, AC16 — thùng đang mở dùng chung theo (Model, Lot) khi chuyển Line)
+- **Lỗi phát hiện:** Line X in xong thùng 3 thì server tự mở sẵn thùng 4 trống ở Line X; chuyển cùng Model + Lot sang Line Y thì Line Y bị gợi ý thùng 5 và bị chặn dùng số 4 (đã có test tái hiện trước khi sửa).
+- **Application:** `PackingBoxService` — thùng đang mở xác định theo (Model, Lot) qua mọi kế hoạch (`FindOpenBox`, ưu tiên thùng đã có hàng rồi số nhỏ nhất, phòng dữ liệu cũ) thay cho theo từng kế hoạch, áp dụng ở `GetStateAsync`/`SetStartingBoxNoAsync`/`UpdateCurrentBoxNoAsync`/`EnsureReadyForScanAsync`; `RequiresStartingBoxNo` = (Model, Lot) không có thùng mở; `SetStartingBoxNoAsync` chặn khi đang có thùng mở (báo số thùng + số lượng đang dở) thay cho chặn "kế hoạch đã có thùng"; `EnsureReadyForScanAsync` chuyển thùng do Line/trạm khác mở về kế hoạch/Line/trạm đang quét (lưu khi lượt quét OK); `LastCompletedBox` ("In lại") lấy theo (Model, Lot).
+- **Station.Wpf:** không đổi code — hiển thị theo `CurrentBox` server trả về.
+- **Test:** `PackingBoxServiceTests` +4 test (thùng trống của Line khác -> Line mới dùng tiếp thùng 4; thùng dở 3/5 -> Line mới thấy 3/5; quét tiếp thùng dở -> chuyển về Line mới, đủ thì mở thùng 5 ở Line mới; chỉ có thùng đã in -> hỏi số bắt đầu, gợi ý 4), đổi 1 test AC5 theo quy tắc mới. `dotnet test`: 377/377 pass.
+- **Build:** `dotnet build ProductionMES.sln` 0 Warning/0 Error.
+- **Còn thiếu / lý do giữ 🟡:** 2 Line chạy CÙNG LÚC 1 (Model, Lot) sẽ cùng quét vào 1 thùng (thùng dùng chung theo thiết kế) — giả định 1 (Model, Lot) chỉ đóng thùng ở 1 Line tại 1 thời điểm; chưa chạy thử trên Station.Wpf thật.
 
 #### 2026-10-09 (dev, AC15 — gợi ý số thùng kế tiếp + chặn trùng theo (Model, Lot))
 - **Application:** `PackingBoxService` — helper `GetBoxesInSameModelLotAsync` (lấy mọi kế hoạch cùng Model + Lot, so khớp `Trim().ToUpper()`, rồi mọi thùng của các kế hoạch đó — không cần migration, đã kiểm tra EF sinh SQL `UPPER(TRIM(...))`/`IN (...)` cho MySQL); `GetStateAsync` trả thêm `Model`/`Lot`/`SuggestedNextBoxNo` (`PackingBoxStateDto`); `SetStartingBoxNoAsync`/`UpdateCurrentBoxNoAsync` chặn số thùng đã dùng của cùng (Model, Lot) (`BusinessRuleException` → 409, kèm số gợi ý; sửa giữ nguyên số của chính thùng đang mở thì hợp lệ); `RegisterOkScanAsync` mở thùng kế tiếp bằng số nhỏ nhất > thùng vừa xong chưa bị dùng.

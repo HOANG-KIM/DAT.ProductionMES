@@ -136,13 +136,13 @@ public class PackingBoxServiceTests
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // AC5 — Kế hoạch đã có thùng (bất kể trạng thái) -> từ chối nhập lại số thùng bắt đầu.
+    // AC5 — (Model, Lot) đang có thùng mở -> từ chối nhập số thùng bắt đầu (phải quét tiếp vào thùng đó).
     [Fact]
-    public async Task SetStartingBoxNoAsync_KeHoachDaCoThung_NemBusinessRuleException()
+    public async Task SetStartingBoxNoAsync_ModelLotDangCoThungMo_NemBusinessRuleException()
     {
         SetupExistingBoxes(new List<PackingBox>
         {
-            new() { Id = 1, ProductionPlanId = ProductionPlanId, StageId = StageId, BoxNo = 1, Status = PackingBoxStatus.Completed, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" },
+            new() { Id = 1, ProductionPlanId = ProductionPlanId, StageId = StageId, BoxNo = 1, Status = PackingBoxStatus.InProgress, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" },
         });
         _packingModelConfigServiceMock.Setup(s => s.GetByModelAsync("ABC-123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(SampleConfig());
@@ -482,5 +482,76 @@ public class PackingBoxServiceTests
 
         Assert.True(outcome.BoxCompleted);
         Assert.Equal(5, outcome.BoxNo);
+    }
+
+    // Line X (kế hoạch khác) in xong 1,2,3 -> server tự mở sẵn thùng 4 TRỐNG ở Line X; chuyển cùng Model + Lot sang
+    // Line Y -> Line Y hiển thị thùng 4 (0/5), KHÔNG hỏi số thùng bắt đầu, quét như bình thường.
+    [Fact]
+    public async Task GetStateAsync_LineKhacCoThungMoTrong_LineMoiTiepTucDungThungDo()
+    {
+        AddOtherPlanWithCompletedBoxes(400, "ABC-123", "LOT-A", 1, 2, 3);
+        _existingBoxes.Add(new PackingBox { Id = 9999, ProductionPlanId = 400, StageId = StageId, BoxNo = 4, Status = PackingBoxStatus.InProgress, ScannedQuantity = 0, TargetQuantity = 5, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" });
+
+        var result = await _sut.GetStateAsync(WorkStationId);
+
+        Assert.False(result.RequiresStartingBoxNo);
+        Assert.Equal(4, result.CurrentBox!.BoxNo);
+        Assert.Equal(0, result.CurrentBox.ScannedQuantity);
+        Assert.Equal(3, result.LastCompletedBox!.BoxNo);
+    }
+
+    // Line X đang quét dở thùng 4 (3/5) rồi ngưng -> Line Y thấy thùng 4 kèm số lượng Line X đã quét.
+    [Fact]
+    public async Task GetStateAsync_LineKhacDangQuetDoThung_LineMoiThayDungSoLuongDaQuet()
+    {
+        AddOtherPlanWithCompletedBoxes(400, "ABC-123", "LOT-A", 1, 2, 3);
+        _existingBoxes.Add(new PackingBox { Id = 9999, ProductionPlanId = 400, StageId = StageId, BoxNo = 4, Status = PackingBoxStatus.InProgress, ScannedQuantity = 3, TargetQuantity = 5, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" });
+
+        var result = await _sut.GetStateAsync(WorkStationId);
+
+        Assert.False(result.RequiresStartingBoxNo);
+        Assert.Equal(4, result.CurrentBox!.BoxNo);
+        Assert.Equal(3, result.CurrentBox.ScannedQuantity);
+    }
+
+    // Line Y quét tiếp thùng 4 dở của Line X -> thùng chuyển về kế hoạch/trạm Line Y, cộng tiếp số lượng, đủ thì hoàn tất và mở thùng 5 ở Line Y.
+    [Fact]
+    public async Task QuetTiepThungDoCuaLineKhac_ChuyenVeLineMoi_CongTiepVaMoThungKeTiep()
+    {
+        AddOtherPlanWithCompletedBoxes(400, "ABC-123", "LOT-A", 1, 2, 3);
+        var box4 = new PackingBox { Id = 9999, ProductionPlanId = 400, LineId = 99, StageId = StageId, WorkStationId = 77, BoxNo = 4, Status = PackingBoxStatus.InProgress, ScannedQuantity = 4, TargetQuantity = 5, PackingModelConfigId = 9, ModelSnapshot = "ABC-123", PartNameSnapshot = "A" };
+        _existingBoxes.Add(box4);
+        _packingModelConfigServiceMock.Setup(s => s.GetByModelAsync("ABC-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SampleConfig());
+        var workStationY = new WorkStation { Id = WorkStationId, LineId = LineId, StageId = StageId };
+
+        var box = await _sut.EnsureReadyForScanAsync(workStationY, _currentPlan);
+        var outcome = await _sut.RegisterOkScanAsync(box);
+
+        Assert.Same(box4, box);
+        Assert.Equal(ProductionPlanId, box4.ProductionPlanId);
+        Assert.Equal(LineId, box4.LineId);
+        Assert.Equal(WorkStationId, box4.WorkStationId);
+        Assert.True(outcome.BoxCompleted);
+        Assert.Equal(9999, outcome.CompletedBoxId);
+        Assert.Equal(5, outcome.BoxNo);
+        _packingBoxRepositoryMock.Verify(r => r.AddAsync(
+            It.Is<PackingBox>(b => b.BoxNo == 5 && b.ProductionPlanId == ProductionPlanId && b.WorkStationId == WorkStationId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // (Model, Lot) chỉ có thùng đã in, không còn thùng mở -> hỏi số thùng bắt đầu, gợi ý số kế tiếp, cho phép nhập.
+    [Fact]
+    public async Task SetStartingBoxNoAsync_ChiCoThungDaIn_KhongCoThungMo_ChoPhepNhapSoKeTiep()
+    {
+        AddOtherPlanWithCompletedBoxes(400, "ABC-123", "LOT-A", 1, 2, 3);
+        _packingModelConfigServiceMock.Setup(s => s.GetByModelAsync("ABC-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SampleConfig());
+
+        var state = await _sut.GetStateAsync(WorkStationId);
+        var created = await _sut.SetStartingBoxNoAsync(WorkStationId, state.SuggestedNextBoxNo);
+
+        Assert.True(state.RequiresStartingBoxNo);
+        Assert.Equal(4, created.BoxNo);
     }
 }
