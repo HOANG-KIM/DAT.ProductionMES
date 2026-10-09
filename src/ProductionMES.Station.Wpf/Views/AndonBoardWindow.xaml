@@ -461,6 +461,10 @@
                                    Text="Kế hoạch này chưa từng đóng thùng nào tại công đoạn Đóng thùng — nhập số thùng bắt đầu để nối tiếp đúng số nếu đã đóng trước đó bằng cách khác."
                                    Visibility="{Binding IsAddingStartingBoxNo, Converter={StaticResource BoolToVisibility}}"/>
 
+                        <TextBlock Text="{Binding PackingBoxNoSuggestionText}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="#1677FF" HorizontalAlignment="Center" TextAlignment="Center"
+                                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+
                         <TextBlock Text="SỐ THÙNG" FontSize="13" Foreground="#8A8F98" Margin="0,0,0,4"/>
                         <TextBox x:Name="PackingBoxNoInputBox" FontSize="26" Padding="10"
                                  Text="{Binding PackingBoxNoInputText, UpdateSourceTrigger=PropertyChanged}"

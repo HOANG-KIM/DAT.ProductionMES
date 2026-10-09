@@ -15,4 +15,16 @@ public class PackingBoxStateDto
 
     /// <summary>Thùng vừa hoàn tất gần nhất (nếu có) — dùng cho thao tác "In lại" (AC13) không cần nhớ Id thùng cũ.</summary>
     public PackingBoxDto? LastCompletedBox { get; set; }
+
+    /// <summary>Model của kế hoạch đang chạy — hiển thị kèm gợi ý số thùng (dãy số thùng tính theo (Model, Lot)).</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Lot của kế hoạch đang chạy — hiển thị kèm gợi ý số thùng.</summary>
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Số thùng gợi ý cho lần nhập số thùng bắt đầu (AC5) hoặc sửa số thùng (AC7) = số thùng lớn nhất đã dùng của
+    /// cùng (Model, Lot) qua MỌI kế hoạch + 1, không tính thùng đang mở của kế hoạch hiện tại; chưa có thùng nào thì 1.
+    /// </summary>
+    public int SuggestedNextBoxNo { get; set; } = 1;
 }

@@ -47,11 +47,16 @@ public class PackingBoxService : IPackingBoxService
             .ThenByDescending(b => b.Id)
             .FirstOrDefault();
 
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+
         return new PackingBoxStateDto
         {
             RequiresStartingBoxNo = boxes.Count == 0,
             CurrentBox = currentBox is null ? null : ToDto(currentBox),
             LastCompletedBox = lastCompletedBox is null ? null : ToDto(lastCompletedBox),
+            Model = productionPlan.Model,
+            Lot = productionPlan.Lot,
+            SuggestedNextBoxNo = SuggestNextBoxNo(modelLotBoxes, excludedBox: currentBox),
         };
     }
 
@@ -77,6 +82,9 @@ public class PackingBoxService : IPackingBoxService
         }
 
         var config = await GetPackingModelConfigOrThrowAsync(productionPlan.Model, cancellationToken);
+
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        EnsureBoxNoNotUsed(startingBoxNo, modelLotBoxes, excludedBox: null, productionPlan);
 
         var box = new PackingBox
         {
@@ -131,6 +139,9 @@ public class PackingBoxService : IPackingBoxService
             throw new BusinessRuleException(
                 "Hiện chưa có thùng nào đang mở tại công đoạn Đóng thùng để sửa số thùng — vui lòng nhập số thùng bắt đầu trước.");
         }
+
+        var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        EnsureBoxNoNotUsed(newBoxNo, modelLotBoxes, excludedBox: currentBox, productionPlan);
 
         // AC7: chỉ đổi nhãn BoxNo — KHÔNG đổi ScannedQuantity/TargetQuantity đang có của thùng.
         currentBox.BoxNo = newBoxNo;
@@ -233,13 +244,26 @@ public class PackingBoxService : IPackingBoxService
         // đọc lại config theo đúng Model, KHÔNG tái sử dụng snapshot cũ của currentBox.
         var freshConfig = await _packingModelConfigService.GetByModelAsync(currentBox.ModelSnapshot, cancellationToken);
 
+        // Số thùng kế tiếp = số nhỏ nhất > thùng vừa xong chưa có thùng nào khác cùng (Model, Lot) dùng — tránh trùng
+        // khi dãy số có thùng đóng trước đó ở kế hoạch khác (vd đã có 1,2,4 rồi bắt đầu lại từ 3 -> kế tiếp là 5).
+        var productionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(currentBox.ProductionPlanId, cancellationToken);
+        var modelLotBoxes = productionPlan is null
+            ? (IReadOnlyList<PackingBox>)Array.Empty<PackingBox>()
+            : await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        var usedBoxNos = modelLotBoxes.Select(b => b.BoxNo).ToHashSet();
+        var nextBoxNo = currentBox.BoxNo + 1;
+        while (usedBoxNos.Contains(nextBoxNo))
+        {
+            nextBoxNo++;
+        }
+
         var nextBox = new PackingBox
         {
             ProductionPlanId = currentBox.ProductionPlanId,
             LineId = currentBox.LineId,
             StageId = currentBox.StageId,
             WorkStationId = currentBox.WorkStationId,
-            BoxNo = currentBox.BoxNo + 1,
+            BoxNo = nextBoxNo,
             Status = PackingBoxStatus.InProgress,
             ScannedQuantity = 0,
             // Phòng vệ: config bị xoá giữa chừng (chưa có AC nào cho phép xoá hiện tại) -> giữ nguyên snapshot cũ
@@ -288,6 +312,45 @@ public class PackingBoxService : IPackingBoxService
 
         return await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(runningPlanStage.ProductionPlanId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy kế hoạch sản xuất với Id = {runningPlanStage.ProductionPlanId}.");
+    }
+
+    /// <summary>
+    /// Toàn bộ thùng (mọi kế hoạch, mọi trạng thái) cùng (Model, Lot) với <paramref name="productionPlan"/> — dãy số
+    /// thùng tính theo (Model, Lot), KHÔNG theo từng kế hoạch: 1 Lot có thể chạy qua nhiều kế hoạch (đổi Lot rồi mở
+    /// lại), số thùng phải nối tiếp và không trùng. So khớp Model/Lot không phân biệt hoa/thường, bỏ khoảng trắng 2 đầu.
+    /// </summary>
+    private async Task<IReadOnlyList<PackingBox>> GetBoxesInSameModelLotAsync(ProductionPlan productionPlan, CancellationToken cancellationToken)
+    {
+        var modelKey = productionPlan.Model.Trim().ToUpper();
+        var lotKey = productionPlan.Lot.Trim().ToUpper();
+
+        var plans = await _unitOfWork.Repository<ProductionPlan>().FindAsync(
+            p => p.Model.Trim().ToUpper() == modelKey && p.Lot.Trim().ToUpper() == lotKey, cancellationToken);
+        var planIds = plans.Select(p => p.Id).Append(productionPlan.Id).Distinct().ToList();
+
+        return await _unitOfWork.Repository<PackingBox>().FindAsync(b => planIds.Contains(b.ProductionPlanId), cancellationToken);
+    }
+
+    /// <summary>Số lớn nhất đã dùng + 1 (bỏ qua <paramref name="excludedBox"/> — thùng đang được sửa số), chưa có thùng nào thì 1.</summary>
+    private static int SuggestNextBoxNo(IEnumerable<PackingBox> modelLotBoxes, PackingBox? excludedBox) =>
+        modelLotBoxes.Where(b => excludedBox is null || b.Id != excludedBox.Id)
+            .Select(b => b.BoxNo)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+    /// <summary>Chặn dùng lại số thùng đã in (hoặc đang đóng ở kế hoạch khác) của cùng (Model, Lot).</summary>
+    private static void EnsureBoxNoNotUsed(int boxNo, IReadOnlyList<PackingBox> modelLotBoxes, PackingBox? excludedBox, ProductionPlan productionPlan)
+    {
+        var conflict = modelLotBoxes.FirstOrDefault(b => b.BoxNo == boxNo && (excludedBox is null || b.Id != excludedBox.Id));
+        if (conflict is null)
+        {
+            return;
+        }
+
+        var reason = conflict.Status == PackingBoxStatus.Completed ? "đã được in" : "đang được đóng ở kế hoạch khác";
+        throw new BusinessRuleException(
+            $"Thùng số {boxNo} của Model \"{productionPlan.Model}\" / Lot \"{productionPlan.Lot}\" {reason} — không thể dùng lại. " +
+            $"Số thùng kế tiếp gợi ý: {SuggestNextBoxNo(modelLotBoxes, excludedBox)}.");
     }
 
     /// <summary>AC11: chặn nếu Model của kế hoạch chưa được cấu hình Quy cách đóng gói (US-24).</summary>

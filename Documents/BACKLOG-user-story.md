@@ -48,7 +48,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-22](./backlog/US-22-quan-ly-nguoi-dung-phan-quyen/README.md) | Quản lý người dùng & phân quyền | ✅ Xong | — | 2026-08-14 |
 | [US-23](./backlog/US-23-xuat-bao-cao-excel/README.md) | Xuất báo cáo Excel | 🟡 Một phần | — | 2026-08-19 |
 | [US-24](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md) | Cấu hình Quy cách đóng gói theo Model (Đóng thùng) | ✅ Xong | AC10 đã code xong (backend + web-admin + Station.Wpf) | 2026-08-26 |
-| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | Cách in đổi sang Excel COM/LibreOffice (US-28); chưa test máy in thật | 2026-10-09 |
+| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | AC15 gợi ý/chặn trùng số thùng theo (Model, Lot); in qua Excel/LibreOffice (US-28); chưa test máy in thật | 2026-10-09 |
 | [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | ✅ Xong | — | 2026-08-25 |
 | [BUG-01](./backlog/BUG-01-lech-gio-utc-vn/README.md) | Lệch giờ 7 tiếng (UTC/VN) khi hiển thị trên web-admin | ✅ Xong | — | 2026-08-19 |
 | [US-27](./backlog/US-27-xac-nhan-to-truong-truoc-khi-luu-scan-bi-tu-choi/README.md) | Xác nhận Tổ trưởng trước khi lưu lịch sử scan bị từ chối | ✅ Xong | Supersede US-25/AC8 | 2026-08-26 |

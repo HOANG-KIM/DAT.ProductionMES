@@ -339,6 +339,10 @@ public partial class AndonBoardViewModel : ObservableObject
 
     public bool HasPackingBoxNoOverlayError => !string.IsNullOrEmpty(PackingBoxNoOverlayError);
 
+    /// <summary>Dòng gợi ý trong overlay nhập/sửa số thùng — dãy số thùng tính theo (Model, Lot), nối tiếp qua mọi kế hoạch.</summary>
+    [ObservableProperty]
+    private string packingBoxNoSuggestionText = string.Empty;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SubmitPackingBoxNoCommand))]
     private bool isPackingBoxNoOverlayBusy;
@@ -448,16 +452,20 @@ public partial class AndonBoardViewModel : ObservableObject
         }
 
         // AC5: bắt buộc nhập số thùng bắt đầu TRƯỚC khi cho quét tem đầu tiên — mở overlay ngay, không có nút Hủy.
-        // Gợi ý sẵn "1" (trường hợp thường gặp nhất) — Operator vẫn sửa được nếu cần nối số theo thùng đã đóng
-        // trước đó bằng cách khác (đúng tinh thần AC5, không ép cứng phải là 1).
+        // Điền sẵn số gợi ý của server (thùng kế tiếp của cùng Model + Lot, vd đã in 1,2,3 thì gợi ý 4) — Operator
+        // vẫn sửa được, server chặn nếu trùng số thùng đã in.
         if (PackingRequiresStartingBoxNo)
         {
             IsEditingExistingBoxNo = false;
-            PackingBoxNoInputText = "1";
+            PackingBoxNoInputText = state.SuggestedNextBoxNo.ToString();
+            PackingBoxNoSuggestionText = BuildBoxNoSuggestionText(state);
             PackingBoxNoOverlayError = string.Empty;
             IsPackingBoxNoOverlayVisible = true;
         }
     }
+
+    private static string BuildBoxNoSuggestionText(PackingBoxStateDto state) =>
+        $"Model {state.Model} — Lot {state.Lot}: thùng kế tiếp gợi ý là số {state.SuggestedNextBoxNo}.";
 
     /// <summary>AC2/AC4/AC9/AC12: cập nhật bộ đếm thùng theo kết quả trả về từ lượt scan Ok vừa lưu; kích hoạt in tự động (AC4) khi thùng vừa hoàn tất.</summary>
     private void ApplyPackingScanResult(ScanResultDto result)
@@ -560,7 +568,7 @@ public partial class AndonBoardViewModel : ObservableObject
 
     /// <summary>AC7: nút "Sửa số thùng" — yêu cầu đăng nhập Tổ trưởng (re-auth, permission <see cref="PackingBoxUpdatePermission"/>) TRƯỚC khi mở overlay nhập số mới.</summary>
     [RelayCommand]
-    private Task OpenEditBoxNoAsync()
+    private async Task OpenEditBoxNoAsync()
     {
         var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
         dialog.ViewModel.RequiredPermission = PackingBoxUpdatePermission;
@@ -569,20 +577,32 @@ public partial class AndonBoardViewModel : ObservableObject
         var loggedIn = dialog.ShowDialog() == true;
         if (!loggedIn)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _packingSupervisorAccessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
         if (string.IsNullOrEmpty(_packingSupervisorAccessToken))
         {
-            return Task.CompletedTask;
+            return;
+        }
+
+        // Lấy gợi ý MỚI NHẤT (thùng kế tiếp của cùng Model + Lot, không tính thùng đang sửa) — lỗi mạng thì vẫn mở
+        // overlay với số hiện tại, server vẫn chặn nếu nhập trùng số đã in.
+        PackingBoxNoInputText = PackingBoxNo.ToString();
+        PackingBoxNoSuggestionText = string.Empty;
+        try
+        {
+            var state = await _packingBoxApiClient.GetStateAsync();
+            PackingBoxNoInputText = state.SuggestedNextBoxNo.ToString();
+            PackingBoxNoSuggestionText = BuildBoxNoSuggestionText(state);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
         }
 
         IsEditingExistingBoxNo = true;
-        PackingBoxNoInputText = PackingBoxNo.ToString();
         PackingBoxNoOverlayError = string.Empty;
         IsPackingBoxNoOverlayVisible = true;
-        return Task.CompletedTask;
     }
 
     /// <summary>Chỉ áp dụng cho AC7 (sửa số thùng) — AC5 (nhập số thùng bắt đầu) bắt buộc, không cho hủy.</summary>

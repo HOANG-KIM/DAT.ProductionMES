@@ -63,6 +63,11 @@
   - When Operator vận hành scan tại trạm đó
   - Then hệ thống chạy đúng luồng scan tiêu chuẩn hiện có (US-07/US-08, popup OK/NG/WAITING) — KHÔNG hiển thị bộ đếm số lượng/số thùng, KHÔNG tự động in tem; tem trùng vẫn bị từ chối cứng theo đúng FR-08 mặc định, KHÔNG có bước "Supervisor xác nhận đã biết" như AC8 (đặc thù riêng của Đóng thùng, không áp dụng công đoạn khác)
 
+- **AC15 — Dãy số thùng theo (Model, Lot): gợi ý số kế tiếp, chặn trùng số đã in** *(bổ sung 09/10/2026, người giao việc)*
+  - Given số thùng tính riêng theo từng cặp (Model, Lot) — nối tiếp qua MỌI kế hoạch của cùng Model + Lot (1 Lot có thể chạy qua nhiều kế hoạch, vd đổi Lot rồi mở lại), so khớp không phân biệt hoa/thường, bỏ khoảng trắng 2 đầu; Lot khác thì dãy số riêng (Model A Lot 123 đã in thùng 1-4 thì Model A Lot 111 vẫn được in thùng 1-4)
+  - When Operator nhập số thùng bắt đầu (AC5) hoặc Tổ trưởng sửa số thùng (AC7)
+  - Then ô nhập điền sẵn số gợi ý = số thùng lớn nhất đã dùng của cùng (Model, Lot) + 1 (vd đã in 1,2,3 -> gợi ý 4), kèm dòng "Model … — Lot …: thùng kế tiếp gợi ý là số …"; nhập trùng số thùng đã in (hoặc đang đóng ở kế hoạch khác) của cùng (Model, Lot) thì bị từ chối, báo rõ lý do + số gợi ý, thùng giữ nguyên số cũ. Khi thùng đủ số lượng (AC4), số thùng kế tiếp tự nhảy qua các số đã dùng của cùng (Model, Lot)
+
 **Nguồn FR:** FR-25
 **Phụ thuộc:** US-24 (cấu hình quy cách — bắt buộc có trước, AC11), US-01/US-02/US-03 (khai báo Stage + trình tự), US-07/US-08 (nền tảng luồng scan + FR-08 kế thừa trực tiếp), US-18 (mẫu tham chiếu bắt buộc cho AC7/AC8 — cơ chế re-auth Supervisor mỗi lần), US-16 (Hàng đợi cục bộ chống mất lượt scan — hiện ⬜ Chưa làm; phụ thuộc gián tiếp vì đếm lũy kế theo thùng nhạy với mất đồng bộ hơn scan độc lập từng lượt, cân nhắc thứ tự triển khai)
 **Cờ cảnh báo mục 8.2:** Không còn — cả 3 điểm mở phát sinh từ US-25 đã chốt 20/08/2026 (xem AC8, AC12, AC13).
@@ -75,6 +80,13 @@
 - **Cập nhật:** 2026-10-09
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-10-09 (dev, AC15 — gợi ý số thùng kế tiếp + chặn trùng theo (Model, Lot))
+- **Application:** `PackingBoxService` — helper `GetBoxesInSameModelLotAsync` (lấy mọi kế hoạch cùng Model + Lot, so khớp `Trim().ToUpper()`, rồi mọi thùng của các kế hoạch đó — không cần migration, đã kiểm tra EF sinh SQL `UPPER(TRIM(...))`/`IN (...)` cho MySQL); `GetStateAsync` trả thêm `Model`/`Lot`/`SuggestedNextBoxNo` (`PackingBoxStateDto`); `SetStartingBoxNoAsync`/`UpdateCurrentBoxNoAsync` chặn số thùng đã dùng của cùng (Model, Lot) (`BusinessRuleException` → 409, kèm số gợi ý; sửa giữ nguyên số của chính thùng đang mở thì hợp lệ); `RegisterOkScanAsync` mở thùng kế tiếp bằng số nhỏ nhất > thùng vừa xong chưa bị dùng.
+- **Station.Wpf:** `PackingBoxStateDto` mirror 3 field mới; `AndonBoardViewModel` — overlay nhập số thùng bắt đầu điền sẵn `SuggestedNextBoxNo` (thay cho "1" cố định), "Sửa số thùng" lấy lại trạng thái mới nhất rồi điền sẵn số gợi ý; `AndonBoardWindow.xaml` thêm dòng gợi ý (`PackingBoxNoSuggestionText`) trong overlay. Lỗi trùng số hiển thị ở dòng lỗi có sẵn của overlay.
+- **Test:** `PackingBoxServiceTests` +8 test (gợi ý 4 sau 1,2,3 ở kế hoạch khác; lệch hoa/thường + khoảng trắng; khác Lot dãy riêng; chặn nhập số bắt đầu trùng; khác Lot cho phép trùng số; chặn sửa trùng; giữ nguyên số chính thùng đó; tự nhảy qua số đã dùng). `dotnet test`: 373/373 pass.
+- **Build:** `dotnet build ProductionMES.sln` 0 Warning/0 Error.
+- **Còn thiếu / lý do giữ 🟡:** chưa chạy thử overlay trên Station.Wpf thật; 2 trạm cùng đóng 1 (Model, Lot) cùng lúc có thể tranh nhau 1 số (không có khoá DB — ngoài phạm vi, kịch bản hiếm).
 
 #### 2026-10-09 (dev, đổi cách in tem — thực hiện trong US-28)
 - **Station.Wpf:** `PackingLabelPrintService` bỏ ShellExecute `Verb="print"` (phụ thuộc ứng dụng mặc định, không chọn được máy in, không biết in xong chưa), thay bằng in Excel COM hoặc LibreOffice headless theo cấu hình `LabelPrint` tại trạm — chi tiết xem `US-28-barcode-qr-tren-tem-dong-thung/README.md`. Hành vi AC4/AC13 không đổi (in nền, lỗi lệnh gọi in hiển thị cạnh bộ đếm, luôn có "In lại").
