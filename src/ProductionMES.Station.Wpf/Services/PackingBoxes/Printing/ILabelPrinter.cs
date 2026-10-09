@@ -10,9 +10,9 @@ public interface ILabelPrinter
     bool IsAvailable();
 
     /// <summary>
-    /// In <paramref name="filePath"/> tới <paramref name="printerName"/> (rỗng = máy in mặc định), CHỜ tới khi lệnh in
+    /// In <paramref name="filePath"/> ra máy in mặc định của Windows, CHỜ tới khi lệnh in
     /// đã gửi xong cho Windows. Ném exception bất kỳ khi CHÍNH lệnh gọi in thất bại — caller bọc lại thành
     /// <see cref="PackingLabelPrintException"/>.
     /// </summary>
-    Task PrintAsync(string filePath, string printerName, TimeSpan timeout, CancellationToken cancellationToken);
+    Task PrintAsync(string filePath, TimeSpan timeout, CancellationToken cancellationToken);
 }

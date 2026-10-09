@@ -5,8 +5,8 @@ using ProductionMES.Station.Wpf.Configuration;
 namespace ProductionMES.Station.Wpf.Services.PackingBoxes.Printing;
 
 /// <summary>
-/// In qua LibreOffice ở chế độ headless (không mở cửa sổ): <c>soffice --headless -p file</c> (máy in mặc định) hoặc
-/// <c>soffice --headless --pt "máy in" file</c>. Dùng profile LibreOffice riêng (<c>-env:UserInstallation</c>) để
+/// In qua LibreOffice ở chế độ headless (không mở cửa sổ): <c>soffice --headless -p file</c> ra máy in mặc định.
+/// Dùng profile LibreOffice riêng (<c>-env:UserInstallation</c>) để
 /// lệnh in không bị "dính" vào cửa sổ LibreOffice người dùng đang mở sẵn trên máy (khi đó soffice chuyển lệnh sang
 /// instance cũ và thoát ngay, không in).
 /// </summary>
@@ -23,7 +23,7 @@ public class LibreOfficeLabelPrinter : ILabelPrinter
 
     public bool IsAvailable() => FindSofficePath() != null;
 
-    public async Task PrintAsync(string filePath, string printerName, TimeSpan timeout, CancellationToken cancellationToken)
+    public async Task PrintAsync(string filePath, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var sofficePath = FindSofficePath()
             ?? throw new InvalidOperationException("Không tìm thấy LibreOffice (soffice.exe) — cài LibreOffice hoặc khai báo LabelPrint:LibreOfficePath trong appsettings.json của trạm.");
@@ -42,15 +42,8 @@ public class LibreOfficeLabelPrinter : ILabelPrinter
         startInfo.ArgumentList.Add("--headless");
         startInfo.ArgumentList.Add("--norestore");
         startInfo.ArgumentList.Add("--nologo");
-        if (string.IsNullOrWhiteSpace(printerName))
-        {
-            startInfo.ArgumentList.Add("-p");
-        }
-        else
-        {
-            startInfo.ArgumentList.Add("--pt");
-            startInfo.ArgumentList.Add(printerName.Trim());
-        }
+        // -p: in ra máy in mặc định của Windows (quyết định 09/10/2026 — không cấu hình tên máy in).
+        startInfo.ArgumentList.Add("-p");
         startInfo.ArgumentList.Add(filePath);
 
         using var process = Process.Start(startInfo)

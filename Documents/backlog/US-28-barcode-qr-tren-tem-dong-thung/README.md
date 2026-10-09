@@ -27,13 +27,15 @@
 - **AC5 — In tem bằng Excel hoặc LibreOffice, chọn theo cấu hình trạm**
   - Given trạm Đóng thùng có cài Microsoft Excel và/hoặc LibreOffice
   - When hệ thống in tem (tự động khi đủ thùng, hoặc "In lại")
-  - Then trạm in im lặng (không mở cửa sổ) theo `LabelPrint:Engine` trong `appsettings.json` của trạm: `Auto` (Excel nếu có, không thì LibreOffice — mặc định), `Excel`, hoặc `LibreOffice`; in tới `LabelPrint:PrinterName` (trống = máy in mặc định Windows). Thiếu phần mềm/sai tên máy in/quá `LabelPrint:TimeoutSeconds` → báo lỗi rõ ràng cạnh bộ đếm thùng, vẫn không chặn đóng thùng kế tiếp và vẫn có "In lại" (giữ nguyên US-25/AC13)
+  - Then trạm in im lặng (không mở cửa sổ) theo `LabelPrint:Engine` trong `appsettings.json` của trạm: `Auto` (Excel nếu có, không thì LibreOffice — mặc định), `Excel`, hoặc `LibreOffice`; luôn in ra **máy in mặc định của Windows** (chọn máy in tem bằng cách đặt làm mặc định trên máy trạm). Thiếu phần mềm/quá `LabelPrint:TimeoutSeconds` → báo lỗi rõ ràng cạnh bộ đếm thùng, vẫn không chặn đóng thùng kế tiếp và vẫn có "In lại" (giữ nguyên US-25/AC13)
 
 **Quyết định đã chốt (09/10/2026, người giao việc):**
 1. **Template theo khách hàng:** mỗi Model chỉ thuộc 1 khách hàng → giữ mô hình "1 Model = 1 template" của US-24, KHÔNG cần thư viện template riêng.
 2. **Loại mã:** QR (không làm barcode 1D). Thư viện `QRCoder` 1.6.0 (cùng thư viện PrintLabel dùng).
 3. **"Ecode"/"NV cân" của tem cũ:** = `ProductionPlan.OperatorNames` (Nhân viên vận hành Tổ trưởng nhập ở Cài đặt kế hoạch). Lưu ý: là free-text cấp kế hoạch — nhập nhiều tên thì tem in cả danh sách.
 4. **Cách in:** hỗ trợ cả Excel và LibreOffice, chọn bằng cấu hình cục bộ tại trạm (không đưa lên web-admin — phụ thuộc phần mềm/máy in từng máy, cùng nguyên tắc CLAUDE.md mục "Cấu hình").
+5. **Máy in:** luôn in ra máy in mặc định của Windows, KHÔNG cấu hình tên máy in (chốt 09/10/2026).
+6. **Số thùng trên tem:** template mẫu có ô riêng hiển thị số thùng (`{{BoxNo}}`), giống tem cũ của PrintLabel.
 
 **Nguồn FR:** chưa có trong SRS gốc — cần bổ sung FR-28 vào SRS
 **Phụ thuộc:** US-24 (cơ chế template + `IPackingLabelGenerator`), US-25 (luồng in tem tự động)
@@ -46,6 +48,12 @@
 - **Cập nhật:** 2026-10-09
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-10-09 (dev, chỉ in máy in mặc định + thêm số thùng vào Template_v1)
+- **Station.Wpf:** bỏ `LabelPrint:PrinterName` theo quyết định người giao việc — `ExcelComLabelPrinter` bỏ dò `ActivePrinter`/cổng `NeXX`, `LibreOfficeLabelPrinter` bỏ `--pt` (chỉ còn `-p`), `ILabelPrinter.PrintAsync` bỏ tham số `printerName`; luôn in ra máy in mặc định của Windows.
+- **Template:** `templates/Template_v1.xlsx` sửa về đúng bố cục tem cũ của PrintLabel — vùng QR gộp `A1:A5` (trước đó gộp nhầm `A1:A6` nên mất chỗ ghi số thùng), `A6` = `{{BoxNo}}` (chữ đậm căn giữa, có viền). Đã xuất PDF bằng Excel kiểm tra: QR căn giữa `A1:A5`, số thùng hiện ở `A6`.
+- **Build:** `dotnet build ProductionMES.sln` 0 Warning/0 Error. Không đổi Application nên test giữ 365/365.
+- **Còn thiếu / lý do giữ 🟡:** như đợt trước — chưa in thử trên máy in tem thật.
 
 #### 2026-10-09 (dev, implement AC1-AC5 — QR + token mới + in Excel/LibreOffice)
 - **Application:**

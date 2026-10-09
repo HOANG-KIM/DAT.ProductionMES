@@ -9,9 +9,9 @@ namespace ProductionMES.Station.Wpf.Services.PackingBoxes;
 /// <inheritdoc cref="IPackingLabelPrintService"/>
 /// <remarks>
 /// US-28 (thay cách in ShellExecute <c>Verb = "print"</c> của US-25 — phụ thuộc ứng dụng mặc định của Windows, không
-/// chọn được máy in, không biết in xong chưa): in qua Excel COM hoặc LibreOffice headless theo
+/// biết in xong chưa): in qua Excel COM hoặc LibreOffice headless ra máy in mặc định của Windows, theo
 /// <see cref="LabelPrintOptions.Engine"/> cấu hình cục bộ tại trạm. Mọi lỗi của CHÍNH lệnh gọi in (thiếu template ở
-/// server, thiếu Excel/LibreOffice, sai tên máy in, quá thời gian) đều bọc thành <see cref="PackingLabelPrintException"/>
+/// server, thiếu Excel/LibreOffice, quá thời gian) đều bọc thành <see cref="PackingLabelPrintException"/>
 /// (AC13) — lỗi vật lý kẹt/hết giấy xảy ra sau khi Windows đã nhận lệnh in, vẫn không phát hiện được ở tầng này.
 /// </remarks>
 public class PackingLabelPrintService : IPackingLabelPrintService
@@ -62,7 +62,7 @@ public class PackingLabelPrintService : IPackingLabelPrintService
             try
             {
                 await printer.PrintAsync(
-                    tempFilePath, _options.PrinterName, TimeSpan.FromSeconds(Math.Max(10, _options.TimeoutSeconds)), cancellationToken);
+                    tempFilePath, TimeSpan.FromSeconds(Math.Max(10, _options.TimeoutSeconds)), cancellationToken);
             }
             catch (TimeoutException ex)
             {

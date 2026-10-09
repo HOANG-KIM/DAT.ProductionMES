@@ -16,14 +16,12 @@ public enum LabelPrintEngine
 /// <summary>
 /// Cấu hình in tem thùng — section <c>LabelPrint</c> trong <c>appsettings.json</c> của từng trạm (US-28). Cấu hình
 /// cục bộ theo trạm (không phải server) vì phụ thuộc phần mềm/máy in thực tế cài trên từng máy, cùng nguyên tắc
-/// với <see cref="StationOptions.ArduinoTimeoutSeconds"/> (CLAUDE.md mục "Cấu hình").
+/// với <see cref="StationOptions.ArduinoTimeoutSeconds"/> (CLAUDE.md mục "Cấu hình"). Luôn in ra máy in mặc định của
+/// Windows — chọn máy in tem bằng cách đặt nó làm mặc định trên máy trạm, không cấu hình tên máy in ở đây.
 /// </summary>
 public class LabelPrintOptions
 {
     public LabelPrintEngine Engine { get; set; } = LabelPrintEngine.Auto;
-
-    /// <summary>Tên máy in đúng như hiển thị trong Windows (Settings &gt; Printers). Để trống = máy in mặc định của Windows.</summary>
-    public string PrinterName { get; set; } = string.Empty;
 
     /// <summary>Đường dẫn đầy đủ tới <c>soffice.exe</c>. Để trống = tự dò trong thư mục cài đặt mặc định của LibreOffice.</summary>
     public string LibreOfficePath { get; set; } = string.Empty;

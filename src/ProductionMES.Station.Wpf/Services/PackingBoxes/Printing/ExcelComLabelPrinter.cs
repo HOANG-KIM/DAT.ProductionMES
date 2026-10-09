@@ -15,7 +15,7 @@ public class ExcelComLabelPrinter : ILabelPrinter
 
     public bool IsAvailable() => Type.GetTypeFromProgID(ExcelProgId) != null;
 
-    public Task PrintAsync(string filePath, string printerName, TimeSpan timeout, CancellationToken cancellationToken)
+    public Task PrintAsync(string filePath, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -24,7 +24,7 @@ public class ExcelComLabelPrinter : ILabelPrinter
         {
             try
             {
-                PrintOnStaThread(filePath, printerName);
+                PrintOnStaThread(filePath);
                 completion.TrySetResult();
             }
             catch (Exception ex)
@@ -43,7 +43,7 @@ public class ExcelComLabelPrinter : ILabelPrinter
         return completion.Task.WaitAsync(timeout, cancellationToken);
     }
 
-    private static void PrintOnStaThread(string filePath, string printerName)
+    private static void PrintOnStaThread(string filePath)
     {
         var excelType = Type.GetTypeFromProgID(ExcelProgId)
             ?? throw new InvalidOperationException("Microsoft Excel chưa được cài đặt trên máy này.");
@@ -58,11 +58,7 @@ public class ExcelComLabelPrinter : ILabelPrinter
 
             workbook = excel.Workbooks.Open(filePath, ReadOnly: true);
 
-            if (!string.IsNullOrWhiteSpace(printerName))
-            {
-                SetActivePrinter(excel, printerName.Trim());
-            }
-
+            // Không truyền ActivePrinter -> Excel in ra máy in mặc định của Windows (quyết định 09/10/2026).
             workbook.PrintOut();
         }
         finally
@@ -82,35 +78,5 @@ public class ExcelComLabelPrinter : ILabelPrinter
             GC.Collect();
             GC.WaitForPendingFinalizers();
         }
-    }
-
-    /// <summary>
-    /// Excel chỉ nhận tên máy in kèm cổng dạng <c>"Tên máy in on Ne01:"</c> (cổng NeXX khác nhau theo từng máy) — thử
-    /// tên trần trước, rồi lần lượt Ne00..Ne99 cho tới khi Excel chấp nhận.
-    /// </summary>
-    private static void SetActivePrinter(dynamic excel, string printerName)
-    {
-        try
-        {
-            excel.ActivePrinter = printerName;
-            return;
-        }
-        catch (COMException)
-        {
-        }
-
-        for (var port = 0; port < 100; port++)
-        {
-            try
-            {
-                excel.ActivePrinter = $"{printerName} on Ne{port:00}:";
-                return;
-            }
-            catch (COMException)
-            {
-            }
-        }
-
-        throw new InvalidOperationException($"Không tìm thấy máy in \"{printerName}\" — kiểm tra lại LabelPrint:PrinterName trong appsettings.json của trạm.");
     }
 }
