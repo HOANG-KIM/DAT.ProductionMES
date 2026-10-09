@@ -15,4 +15,16 @@ public class PackingBoxStateDto
 
     /// <summary>Số thùng gợi ý (số lớn nhất đã dùng của cùng Model + Lot + 1) — điền sẵn khi nhập/sửa số thùng.</summary>
     public int SuggestedNextBoxNo { get; set; } = 1;
+
+    /// <summary>Tổng số lượng Lot — null = Lot chưa có, server chặn đóng thùng.</summary>
+    public int? LotTotalQuantity { get; set; }
+
+    public int LotPackedQuantity { get; set; }
+
+    /// <summary>Tổng số thùng (= số tem) của Lot = làm tròn lên (Tổng SL Lot / Quy cách).</summary>
+    public int? LotTotalBoxCount { get; set; }
+
+    public int LotCompletedBoxCount { get; set; }
+
+    public bool IsLotFullyPacked { get; set; }
 }

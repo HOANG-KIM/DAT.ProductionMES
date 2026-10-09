@@ -217,6 +217,20 @@
                                 Background="#2A3040" Foreground="White" BorderBrush="#3A4155"
                                 Command="{Binding ReprintPackingLabelCommand}"/>
                     </StackPanel>
+                    <!-- AC17: tiến độ đóng thùng của Lot — số tem thùng giới hạn bởi Tổng số lượng Lot. -->
+                    <TextBlock Text="{Binding PackingLotProgressLabel}" FontSize="18" FontWeight="SemiBold"
+                               Margin="0,8,0,0" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#B0B6C2"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPackingLotFullyPacked}" Value="True">
+                                        <Setter Property="Foreground" Value="#4CAF50"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Text="{Binding PackingPrintStatusMessage}" FontSize="15" Foreground="#FFC107"
                                Margin="0,8,0,0" TextWrapping="Wrap"
                                Visibility="{Binding HasPackingPrintStatusMessage, Converter={StaticResource BoolToVisibility}}"/>

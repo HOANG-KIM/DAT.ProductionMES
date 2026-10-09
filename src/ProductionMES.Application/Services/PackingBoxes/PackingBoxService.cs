@@ -44,14 +44,24 @@ public class PackingBoxService : IPackingBoxService
             .ThenByDescending(b => b.Id)
             .FirstOrDefault();
 
+        var lotTotalQuantity = await FindLotTotalQuantityAsync(productionPlan, cancellationToken);
+        var completedQuantity = CompletedQuantity(modelLotBoxes);
+        var isLotFullyPacked = lotTotalQuantity is { } total && completedQuantity >= total;
+        var packingQuantity = (await _packingModelConfigService.GetByModelAsync(productionPlan.Model, cancellationToken))?.PackingQuantity;
+
         return new PackingBoxStateDto
         {
-            RequiresStartingBoxNo = currentBox is null,
+            RequiresStartingBoxNo = currentBox is null && !isLotFullyPacked,
             CurrentBox = currentBox is null ? null : ToDto(currentBox),
             LastCompletedBox = lastCompletedBox is null ? null : ToDto(lastCompletedBox),
             Model = productionPlan.Model,
             Lot = productionPlan.Lot,
             SuggestedNextBoxNo = SuggestNextBoxNo(modelLotBoxes, excludedBox: currentBox),
+            LotTotalQuantity = lotTotalQuantity,
+            LotPackedQuantity = completedQuantity + (currentBox?.ScannedQuantity ?? 0),
+            LotTotalBoxCount = lotTotalQuantity is { } t && packingQuantity is > 0 ? (t + packingQuantity.Value - 1) / packingQuantity.Value : null,
+            LotCompletedBoxCount = modelLotBoxes.Count(b => b.Status == PackingBoxStatus.Completed),
+            IsLotFullyPacked = isLotFullyPacked,
         };
     }
 
@@ -78,6 +88,9 @@ public class PackingBoxService : IPackingBoxService
 
         var config = await GetPackingModelConfigOrThrowAsync(productionPlan.Model, cancellationToken);
 
+        // AC17: số tem thùng giới hạn bởi Tổng số lượng Lot — Lot chưa có tổng số lượng hoặc đã đóng đủ thì chặn.
+        var remainingQuantity = await GetRemainingLotQuantityOrThrowAsync(productionPlan, modelLotBoxes, cancellationToken);
+
         EnsureBoxNoNotUsed(startingBoxNo, modelLotBoxes, excludedBox: null, productionPlan);
 
         var box = new PackingBox
@@ -88,7 +101,8 @@ public class PackingBoxService : IPackingBoxService
             WorkStationId = workStation.Id,
             BoxNo = startingBoxNo,
             Status = PackingBoxStatus.InProgress,
-            TargetQuantity = config.PackingQuantity,
+            // Thùng cuối của Lot lẻ chỉ đóng phần còn lại (vd Lot 939, quy cách 100 -> thùng cuối 39).
+            TargetQuantity = Math.Min(config.PackingQuantity, remainingQuantity),
             ScannedQuantity = 0,
             PackingModelConfigId = config.Id,
             ModelSnapshot = config.Model,
@@ -195,9 +209,19 @@ public class PackingBoxService : IPackingBoxService
 
         var modelLotBoxes = await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
 
-        // AC5: (Model, Lot) chưa có thùng nào đang mở -> chặn quét, KHÔNG lưu bản ghi Scan.
-        var currentBox = FindOpenBox(modelLotBoxes) ?? throw new BusinessRuleException(
-            "Chưa nhập số thùng bắt đầu cho kế hoạch này tại công đoạn Đóng thùng — vui lòng nhập số thùng bắt đầu trước khi quét tem.");
+        // AC17: Lot chưa có Tổng số lượng -> chặn (không biết được tối đa bao nhiêu tem thùng), KHÔNG lưu bản ghi Scan.
+        var lotTotalQuantity = await RequireLotTotalQuantityAsync(productionPlan, cancellationToken);
+
+        var currentBox = FindOpenBox(modelLotBoxes);
+        if (currentBox is null)
+        {
+            // AC17: đã đóng đủ Tổng số lượng Lot -> chặn quét thêm, không ghi nhận.
+            EnsureLotNotFullyPacked(productionPlan, lotTotalQuantity, modelLotBoxes);
+
+            // AC5: (Model, Lot) chưa có thùng nào đang mở -> chặn quét, KHÔNG lưu bản ghi Scan.
+            throw new BusinessRuleException(
+                "Chưa nhập số thùng bắt đầu cho kế hoạch này tại công đoạn Đóng thùng — vui lòng nhập số thùng bắt đầu trước khi quét tem.");
+        }
 
         // Thùng đang mở do Line/trạm khác mở (Line X ngưng, chuyển cùng Model + Lot sang Line Y) -> chuyển thùng về
         // kế hoạch/trạm đang quét: tem in ra mang tên Line/trạm đóng xong thùng, thùng kế tiếp mở theo kế hoạch này.
@@ -218,8 +242,22 @@ public class PackingBoxService : IPackingBoxService
         currentBox.ScannedQuantity += 1;
         var repository = _unitOfWork.Repository<PackingBox>();
 
+        var productionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(currentBox.ProductionPlanId, cancellationToken);
+        var modelLotBoxes = productionPlan is null
+            ? (IReadOnlyList<PackingBox>)Array.Empty<PackingBox>()
+            : await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
+        var lotTotalQuantity = productionPlan is null ? null : await FindLotTotalQuantityAsync(productionPlan, cancellationToken);
+
+        // AC17: số đã đóng ở các thùng KHÁC đã xong của cùng (Model, Lot) — phần còn lại của Lot quyết định thùng này
+        // cần đủ bao nhiêu (Tổng SL Lot bị sửa giảm trong lúc thùng đang mở thì thùng này đóng sớm theo phần còn lại).
+        var completedBefore = CompletedQuantity(modelLotBoxes.Where(b => b.Id != currentBox.Id));
+        var effectiveTarget = lotTotalQuantity is { } total
+            ? Math.Min(currentBox.TargetQuantity, Math.Max(1, total - completedBefore))
+            : currentBox.TargetQuantity;
+        var lotPackedQuantity = lotTotalQuantity is null ? (int?)null : completedBefore + currentBox.ScannedQuantity;
+
         // AC2: chưa đủ số lượng -> chỉ tăng đếm, thùng vẫn InProgress.
-        if (currentBox.ScannedQuantity < currentBox.TargetQuantity)
+        if (currentBox.ScannedQuantity < effectiveTarget)
         {
             repository.Update(currentBox);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -231,13 +269,34 @@ public class PackingBoxService : IPackingBoxService
                 ScannedQuantity = currentBox.ScannedQuantity,
                 TargetQuantity = currentBox.TargetQuantity,
                 BoxCompleted = false,
+                LotPackedQuantity = lotPackedQuantity,
             };
         }
 
-        // AC4: vừa đủ số lượng -> hoàn tất thùng này VÀ tự động mở thùng kế tiếp ngay (sẵn sàng nhận tem mới).
+        // AC4: vừa đủ số lượng -> hoàn tất thùng này (TargetQuantity ghi đúng số thực đóng, vd thùng cuối 39).
         currentBox.Status = PackingBoxStatus.Completed;
         currentBox.CompletedAtUtc = DateTime.Now;
+        currentBox.TargetQuantity = currentBox.ScannedQuantity;
         repository.Update(currentBox);
+
+        // AC17: đóng đủ Tổng số lượng Lot -> KHÔNG mở thùng kế tiếp (số tem thùng = làm tròn lên Tổng SL / Quy cách).
+        var remainingAfter = lotTotalQuantity - lotPackedQuantity;
+        if (remainingAfter is <= 0)
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return new PackingScanOutcome
+            {
+                BoxId = currentBox.Id,
+                BoxNo = currentBox.BoxNo,
+                ScannedQuantity = currentBox.ScannedQuantity,
+                TargetQuantity = currentBox.TargetQuantity,
+                BoxCompleted = true,
+                CompletedBoxId = currentBox.Id,
+                LotPackedQuantity = lotPackedQuantity,
+                LotFullyPacked = true,
+            };
+        }
 
         // AC12: thùng MỚI snapshot Quy cách đóng gói HIỆN TẠI (có thể đã bị Admin sửa từ lúc mở thùng trước) —
         // đọc lại config theo đúng Model, KHÔNG tái sử dụng snapshot cũ của currentBox.
@@ -245,16 +304,16 @@ public class PackingBoxService : IPackingBoxService
 
         // Số thùng kế tiếp = số nhỏ nhất > thùng vừa xong chưa có thùng nào khác cùng (Model, Lot) dùng — tránh trùng
         // khi dãy số có thùng đóng trước đó ở kế hoạch khác (vd đã có 1,2,4 rồi bắt đầu lại từ 3 -> kế tiếp là 5).
-        var productionPlan = await _unitOfWork.Repository<ProductionPlan>().GetByIdAsync(currentBox.ProductionPlanId, cancellationToken);
-        var modelLotBoxes = productionPlan is null
-            ? (IReadOnlyList<PackingBox>)Array.Empty<PackingBox>()
-            : await GetBoxesInSameModelLotAsync(productionPlan, cancellationToken);
         var usedBoxNos = modelLotBoxes.Select(b => b.BoxNo).ToHashSet();
         var nextBoxNo = currentBox.BoxNo + 1;
         while (usedBoxNos.Contains(nextBoxNo))
         {
             nextBoxNo++;
         }
+
+        // Phòng vệ: config bị xoá giữa chừng (chưa có AC nào cho phép xoá hiện tại) -> giữ nguyên snapshot cũ thay vì
+        // crash, để Operator vẫn tiếp tục đóng thùng kế tiếp được (AC13 tinh thần "không chặn").
+        var nextPackingQuantity = freshConfig?.PackingQuantity ?? currentBox.TargetQuantity;
 
         var nextBox = new PackingBox
         {
@@ -265,9 +324,8 @@ public class PackingBoxService : IPackingBoxService
             BoxNo = nextBoxNo,
             Status = PackingBoxStatus.InProgress,
             ScannedQuantity = 0,
-            // Phòng vệ: config bị xoá giữa chừng (chưa có AC nào cho phép xoá hiện tại) -> giữ nguyên snapshot cũ
-            // thay vì crash, để Operator vẫn tiếp tục đóng thùng kế tiếp được (AC13 tinh thần "không chặn").
-            TargetQuantity = freshConfig?.PackingQuantity ?? currentBox.TargetQuantity,
+            // AC17: thùng cuối của Lot lẻ chỉ đóng phần còn lại (vd Lot 939, quy cách 100 -> thùng cuối 39).
+            TargetQuantity = remainingAfter is { } remaining ? Math.Min(nextPackingQuantity, remaining) : nextPackingQuantity,
             PackingModelConfigId = freshConfig?.Id ?? currentBox.PackingModelConfigId,
             ModelSnapshot = freshConfig?.Model ?? currentBox.ModelSnapshot,
             PartNameSnapshot = freshConfig?.PartName ?? currentBox.PartNameSnapshot,
@@ -287,8 +345,47 @@ public class PackingBoxService : IPackingBoxService
             TargetQuantity = nextBox.TargetQuantity,
             BoxCompleted = true,
             CompletedBoxId = currentBox.Id,
+            LotPackedQuantity = lotPackedQuantity,
         };
     }
+
+    /// <summary>Tổng số lượng Lot (US-21a, nhập tay) của Lot thuộc kế hoạch — null nếu Lot chưa từng được nhập.</summary>
+    private async Task<int?> FindLotTotalQuantityAsync(ProductionPlan productionPlan, CancellationToken cancellationToken)
+    {
+        var lotKey = productionPlan.Lot.Trim().ToUpper();
+        var lots = await _unitOfWork.Repository<Lot>().FindAsync(l => l.Code.Trim().ToUpper() == lotKey, cancellationToken);
+        return lots.FirstOrDefault()?.TotalQuantity;
+    }
+
+    /// <summary>AC17: Lot chưa có Tổng số lượng -> chặn đóng thùng, yêu cầu Tổ trưởng nhập trước.</summary>
+    private async Task<int> RequireLotTotalQuantityAsync(ProductionPlan productionPlan, CancellationToken cancellationToken) =>
+        await FindLotTotalQuantityAsync(productionPlan, cancellationToken) ?? throw new BusinessRuleException(
+            $"Lot \"{productionPlan.Lot}\" chưa có Tổng số lượng Lot — Tổ trưởng nhập Tổng số lượng Lot ở Cài đặt kế hoạch trước khi đóng thùng " +
+            "(cần để giới hạn số tem thùng được in).");
+
+    /// <summary>AC17: số lượng Lot còn được đóng thùng (> 0) — chặn nếu Lot chưa có Tổng số lượng hoặc đã đóng đủ.</summary>
+    private async Task<int> GetRemainingLotQuantityOrThrowAsync(
+        ProductionPlan productionPlan, IReadOnlyList<PackingBox> modelLotBoxes, CancellationToken cancellationToken)
+    {
+        var lotTotalQuantity = await RequireLotTotalQuantityAsync(productionPlan, cancellationToken);
+        EnsureLotNotFullyPacked(productionPlan, lotTotalQuantity, modelLotBoxes);
+        return lotTotalQuantity - CompletedQuantity(modelLotBoxes);
+    }
+
+    private static void EnsureLotNotFullyPacked(ProductionPlan productionPlan, int lotTotalQuantity, IReadOnlyList<PackingBox> modelLotBoxes)
+    {
+        var completedQuantity = CompletedQuantity(modelLotBoxes);
+        if (completedQuantity >= lotTotalQuantity)
+        {
+            var completedBoxCount = modelLotBoxes.Count(b => b.Status == PackingBoxStatus.Completed);
+            throw new BusinessRuleException(
+                $"Lot \"{productionPlan.Lot}\" đã đóng đủ {completedQuantity}/{lotTotalQuantity} pcs ({completedBoxCount} thùng) — không thể quét thêm.");
+        }
+    }
+
+    /// <summary>Tổng số sản phẩm trong các thùng đã đóng xong (đã in tem).</summary>
+    private static int CompletedQuantity(IEnumerable<PackingBox> boxes) =>
+        boxes.Where(b => b.Status == PackingBoxStatus.Completed).Sum(b => b.ScannedQuantity);
 
     private async Task<WorkStation> GetWorkStationAsync(int workStationId, CancellationToken cancellationToken) =>
         await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)

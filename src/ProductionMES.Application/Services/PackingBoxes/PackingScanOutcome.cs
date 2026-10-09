@@ -16,4 +16,10 @@ public class PackingScanOutcome
 
     /// <summary>Id thùng vừa hoàn tất — chỉ có giá trị khi <see cref="BoxCompleted"/> = true (dùng cho AC4 tự động in tem).</summary>
     public int? CompletedBoxId { get; set; }
+
+    /// <summary>Tổng số sản phẩm đã quét vào thùng (mọi thùng của cùng Model + Lot, gồm thùng đang mở) SAU lượt này — null khi Lot chưa có Tổng số lượng.</summary>
+    public int? LotPackedQuantity { get; set; }
+
+    /// <summary>true khi lượt này vừa đóng đủ Tổng số lượng Lot — KHÔNG mở thùng kế tiếp, trạm Đóng thùng chặn quét thêm.</summary>
+    public bool LotFullyPacked { get; set; }
 }

@@ -302,6 +302,51 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>AC9: "đã quét / mục tiêu" của thùng hiện tại.</summary>
     public string PackingProgressLabel => $"{PackingScannedQuantity} / {PackingTargetQuantity}";
 
+    // --- AC17: số tem thùng giới hạn bởi Tổng số lượng Lot ---
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private string packingLotCode = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int? packingLotTotalQuantity;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int packingLotPackedQuantity;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int? packingLotTotalBoxCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int packingLotCompletedBoxCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private bool isPackingLotFullyPacked;
+
+    public string PackingLotProgressLabel
+    {
+        get
+        {
+            if (PackingLotTotalQuantity is not { } total)
+            {
+                return $"LOT {PackingLotCode}: chưa có Tổng số lượng Lot — Tổ trưởng nhập ở Cài đặt kế hoạch trước khi đóng thùng.";
+            }
+
+            if (IsPackingLotFullyPacked)
+            {
+                return $"LOT {PackingLotCode} ĐÃ ĐÓNG ĐỦ: {PackingLotPackedQuantity}/{total} pcs — {PackingLotCompletedBoxCount} thùng.";
+            }
+
+            var boxCount = PackingLotTotalBoxCount is { } count ? $"/{count}" : string.Empty;
+            return $"LOT {PackingLotCode}: {PackingLotPackedQuantity}/{total} pcs — đã in {PackingLotCompletedBoxCount}{boxCount} tem thùng.";
+        }
+    }
+
     /// <summary>AC13: true khi kế hoạch hiện tại đã có ít nhất 1 thùng hoàn tất — điều khiển hiện/ẩn nút "In lại" (luôn sẵn sàng theo AC13, không phụ thuộc lượt scan gần nhất có hoàn tất thùng hay không).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ReprintPackingLabelCommand))]
@@ -437,6 +482,12 @@ public partial class AndonBoardViewModel : ObservableObject
     private void ApplyPackingState(PackingBoxStateDto state)
     {
         PackingRequiresStartingBoxNo = state.RequiresStartingBoxNo;
+        PackingLotCode = state.Lot;
+        PackingLotTotalQuantity = state.LotTotalQuantity;
+        PackingLotPackedQuantity = state.LotPackedQuantity;
+        PackingLotTotalBoxCount = state.LotTotalBoxCount;
+        PackingLotCompletedBoxCount = state.LotCompletedBoxCount;
+        IsPackingLotFullyPacked = state.IsLotFullyPacked;
 
         if (state.CurrentBox is { } currentBox)
         {
@@ -483,8 +534,19 @@ public partial class AndonBoardViewModel : ObservableObject
             PackingTargetQuantity = targetQuantity;
         }
 
+        if (result.PackingLotPackedQuantity is { } lotPackedQuantity)
+        {
+            PackingLotPackedQuantity = lotPackedQuantity;
+        }
+        if (result.PackingLotFullyPacked)
+        {
+            IsPackingLotFullyPacked = true;
+        }
+
         if (result.PackingBoxCompleted && result.PackingCompletedBoxId is { } completedBoxId)
         {
+            PackingLotCompletedBoxCount++;
+
             _lastCompletedPackingBoxId = completedBoxId;
             PackingHasCompletedBox = true;
 

@@ -220,6 +220,8 @@ public class ScanService : IScanService
             result.PackingTargetQuantity = packingOutcome.TargetQuantity;
             result.PackingBoxCompleted = packingOutcome.BoxCompleted;
             result.PackingCompletedBoxId = packingOutcome.CompletedBoxId;
+            result.PackingLotPackedQuantity = packingOutcome.LotPackedQuantity;
+            result.PackingLotFullyPacked = packingOutcome.LotFullyPacked;
         }
 
         // US-05a AC5: tự động Completed khi số lượt scan OK (tính động, gồm cả lượt vừa lưu) đạt đủ số lượng kế hoạch.

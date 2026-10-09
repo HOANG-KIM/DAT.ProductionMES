@@ -73,6 +73,11 @@
   - When trạm Đóng thùng của Line Y mở màn hình / quét tem
   - Then Line Y hiển thị ĐÚNG thùng 4 đang mở của (Model, Lot) — không hỏi số thùng bắt đầu: (a) Line X đang quét dở thùng 4 (vd 10/50) thì Line Y thấy 10/50 và quét tiếp phần còn lại; (b) thùng 4 chưa quét gì (thùng tự mở sẵn sau khi xong thùng 3) thì Line Y bắt đầu quét thùng 4 như bình thường. Lượt quét OK đầu tiên ở Line Y chuyển thùng về kế hoạch/trạm Line Y (tem in ra mang tên Line Y); các thùng sau đánh số tiếp. Chỉ hỏi số thùng bắt đầu (AC5) khi (Model, Lot) không có thùng nào đang mở
 
+- **AC17 — Số tem thùng giới hạn bởi Tổng số lượng Lot, thùng cuối đóng phần lẻ** *(bổ sung 09/10/2026, người giao việc)*
+  - Given Lot có "Tổng số lượng Lot" (US-21a, nhập tay) và Model có Quy cách đóng gói (US-24) — vd Lot 1000 pcs, 100 pcs/thùng
+  - When đóng thùng tại trạm Đóng thùng
+  - Then số thùng (= số tem in ra) tối đa = làm tròn lên (Tổng SL Lot / Quy cách): Lot 1000 -> đúng 10 tem; Lot 939 -> 9 thùng × 100 + thùng cuối 39 (quét đủ 39 thì tự in tem). Đóng đủ Tổng SL Lot thì KHÔNG mở thùng kế tiếp; quét thêm tem tại Đóng thùng bị chặn ("Lot … đã đóng đủ 939/939 pcs (10 thùng)"), không ghi nhận. Lot chưa có Tổng SL Lot (dữ liệu cũ) -> chặn đóng thùng, yêu cầu Tổ trưởng nhập ở Cài đặt kế hoạch. Trạm hiển thị tiến độ "LOT …: 320/939 pcs — đã in 3/10 tem thùng". "In lại" vẫn dùng được (in lại tem đã có, không sinh thêm thùng). Giới hạn tính theo SỐ LƯỢNG đã đóng của cùng (Model, Lot), không theo số thùng (số thùng bắt đầu có thể khác 1)
+
 **Nguồn FR:** FR-25
 **Phụ thuộc:** US-24 (cấu hình quy cách — bắt buộc có trước, AC11), US-01/US-02/US-03 (khai báo Stage + trình tự), US-07/US-08 (nền tảng luồng scan + FR-08 kế thừa trực tiếp), US-18 (mẫu tham chiếu bắt buộc cho AC7/AC8 — cơ chế re-auth Supervisor mỗi lần), US-16 (Hàng đợi cục bộ chống mất lượt scan — hiện ⬜ Chưa làm; phụ thuộc gián tiếp vì đếm lũy kế theo thùng nhạy với mất đồng bộ hơn scan độc lập từng lượt, cân nhắc thứ tự triển khai)
 **Cờ cảnh báo mục 8.2:** Không còn — cả 3 điểm mở phát sinh từ US-25 đã chốt 20/08/2026 (xem AC8, AC12, AC13).
@@ -85,6 +90,17 @@
 - **Cập nhật:** 2026-10-09
 
 ## Lịch sử triển khai (ghi chú backlog)
+
+#### 2026-10-09 (dev, AC17 — giới hạn số tem thùng theo Tổng số lượng Lot)
+- **Application:** `PackingBoxService` đọc `Lot.TotalQuantity` (US-21a, so khớp `Code` `Trim().ToUpper()`, qua `IUnitOfWork.Repository<Lot>()` — không đổi constructor):
+  - `SetStartingBoxNoAsync`: chặn nếu Lot chưa có Tổng SL hoặc đã đóng đủ; mục tiêu thùng = min(Quy cách, phần còn lại).
+  - `EnsureReadyForScanAsync`: chặn nếu Lot chưa có Tổng SL; không có thùng mở + đã đóng đủ -> chặn "đã đóng đủ" (không lưu Scan, cùng cơ chế AC5/AC11).
+  - `RegisterOkScanAsync`: mục tiêu hiệu lực = min(mục tiêu thùng, Tổng SL − số đã đóng ở thùng khác) (Tổng SL bị sửa giảm giữa chừng thì thùng đóng sớm); thùng xong ghi `TargetQuantity` = số thực đóng; đủ Tổng SL -> không mở thùng kế tiếp (`LotFullyPacked`); thùng kế tiếp mục tiêu = min(Quy cách mới nhất, phần còn lại).
+  - `PackingBoxStateDto` +`LotTotalQuantity`/`LotPackedQuantity`/`LotTotalBoxCount`/`LotCompletedBoxCount`/`IsLotFullyPacked`; `PackingScanOutcome`/`ScanResultDto` +`LotPackedQuantity`/`LotFullyPacked` (`ScanService` map sang `PackingLotPackedQuantity`/`PackingLotFullyPacked`).
+- **Station.Wpf:** mirror DTO; `AndonBoardViewModel` + `AndonBoardWindow.xaml` thêm dòng tiến độ Lot dưới bộ đếm thùng (`PackingLotProgressLabel`: "LOT …: 320/939 pcs — đã in 3/10 tem thùng" / "ĐÃ ĐÓNG ĐỦ" màu xanh / "chưa có Tổng số lượng Lot"), cập nhật theo từng lượt quét.
+- **Test:** `PackingBoxServiceTests` +9 test (Lot lẻ 939 -> thùng cuối 39; xong thùng cuối không mở thùng mới; Lot chẵn 1000 đủ 10 thùng thì dừng; chặn quét khi đã đủ; chặn khi Lot chưa có Tổng SL; nhập số bắt đầu khi còn 39 -> mục tiêu 39; nhập số bắt đầu khi đã đủ -> chặn; tiến độ Lot trong GetState; Lot đủ không hỏi số thùng), sửa 1 test dùng kế hoạch có Lot. `dotnet test`: 386/386 pass.
+- **Build:** `dotnet build ProductionMES.sln` 0 Warning/0 Error.
+- **Còn thiếu / lý do giữ 🟡:** chưa chạy thử trên Station.Wpf thật.
 
 #### 2026-10-09 (dev, AC16 — thùng đang mở dùng chung theo (Model, Lot) khi chuyển Line)
 - **Lỗi phát hiện:** Line X in xong thùng 3 thì server tự mở sẵn thùng 4 trống ở Line X; chuyển cùng Model + Lot sang Line Y thì Line Y bị gợi ý thùng 5 và bị chặn dùng số 4 (đã có test tái hiện trước khi sửa).
