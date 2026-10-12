@@ -18,18 +18,26 @@ public class WorkStation
     public int StageId { get; set; }
 
     /// <summary>
-    /// Cờ bật/tắt sử dụng Arduino tại trạm (FR-11/US-11). Khi <c>true</c>, bắt buộc phải có đủ thông tin
-    /// cổng COM (AC2); khi <c>false</c>, không yêu cầu (AC3).
+    /// "Trạm có máy thông điện" (FR-11/US-11, viết lại 12/10/2026) — về mặt vật lý trạm có gắn máy thông điện
+    /// ESP32; do Admin đặt. Chỉ trạm có cờ này mới chạy luồng "thông điện trước, quét QR sau" (US-12) và mới
+    /// hiện công tắc chế độ. Khác <see cref="TesterEnabled"/> (công tắc runtime do Tổ trưởng đổi).
     /// </summary>
     public bool UseArduino { get; set; }
 
-    /// <summary>Tên cổng COM (vd "COM3") — bắt buộc khi <see cref="UseArduino"/> = true (AC2).</summary>
+    /// <summary>
+    /// Công tắc runtime "Đang sử dụng máy thông điện" (US-11 AC10) — lưu trên server (không nằm trong
+    /// appsettings.json trạm) để mọi lần đổi đều đi qua API có log. Mặc định <c>true</c> (BẬT) khi trạm mới. Chỉ
+    /// có ý nghĩa khi <see cref="UseArduino"/> = true: TẮT = Bypass (<c>Scan.TesterMode = Bypass</c>).
+    /// </summary>
+    public bool TesterEnabled { get; set; } = true;
+
+    /// <summary>[US-11 AC12] KHÔNG còn dùng để kết nối — cấu hình COM nay ở appsettings.json cục bộ (section Tester). Giữ cột để tương thích dữ liệu cũ.</summary>
     public string? ComPort { get; set; }
 
-    /// <summary>Baud rate kết nối Serial — bắt buộc khi <see cref="UseArduino"/> = true (AC2).</summary>
+    /// <summary>[US-11 AC12] KHÔNG còn dùng — xem <see cref="ComPort"/>.</summary>
     public int? BaudRate { get; set; }
 
-    /// <summary>Giao thức lệnh trao đổi với Arduino (vd "OK\n") — bắt buộc khi <see cref="UseArduino"/> = true (AC2).</summary>
+    /// <summary>[US-11 AC12] KHÔNG còn dùng — xem <see cref="ComPort"/>.</summary>
     public string? CommandProtocol { get; set; }
 
     /// <summary>

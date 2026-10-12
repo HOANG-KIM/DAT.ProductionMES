@@ -114,6 +114,7 @@ public class WorkStationService : IWorkStationService
         ComPort = workStation.ComPort,
         BaudRate = workStation.BaudRate,
         CommandProtocol = workStation.CommandProtocol,
+        TesterEnabled = workStation.TesterEnabled,
         IsActive = workStation.IsActive,
     };
 }

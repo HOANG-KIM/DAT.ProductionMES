@@ -581,6 +581,13 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("TaktTimeSeconds")
                         .HasColumnType("decimal(10,2)");
 
+                    b.Property<string>("TesterMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("None");
+
                     b.Property<int>("WorkStationId")
                         .HasColumnType("int");
 
@@ -661,6 +668,50 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.ToTable("StationApiKey", (string)null);
                 });
 
+            modelBuilder.Entity("ProductionMES.Domain.Entities.TesterModeChangeLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ApprovedByUserName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FromMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ToMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("WorkStationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkStationId", "ChangedAtUtc");
+
+                    b.ToTable("TesterModeChangeLog", (string)null);
+                });
+
             modelBuilder.Entity("ProductionMES.Domain.Entities.User", b =>
                 {
                     b.Property<int>("Id")
@@ -736,6 +787,11 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("StageId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("TesterEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
 
                     b.Property<bool>("UseArduino")
                         .ValueGeneratedOnAdd()

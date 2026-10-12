@@ -19,5 +19,8 @@ public class WorkStationDto
 
     public string? CommandProtocol { get; set; }
 
+    /// <summary>Công tắc runtime "Đang sử dụng máy thông điện" (US-11) — chỉ đọc; đổi qua <c>PUT api/v1/tester/enabled</c>, không qua form quản lý trạm.</summary>
+    public bool TesterEnabled { get; set; }
+
     public bool IsActive { get; set; }
 }

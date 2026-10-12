@@ -93,6 +93,17 @@ public class ScanService : IScanService
         var workStation = await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy trạm làm việc với Id = {workStationId}.");
 
+        // US-11 AC2/AC6: trạm có máy thông điện (UseArduino) + công tắc BẬT phải đi luồng "thông điện trước, quét QR
+        // sau" (US-12, endpoint scans/tester) — chặn luồng scan thường để không ai lưu OK bỏ qua máy mà không để lại
+        // dấu vết Bypass. Công tắc TẮT -> scan thường vẫn chạy nhưng bản ghi OK mang TesterMode = Bypass.
+        if (workStation.UseArduino && workStation.TesterEnabled)
+        {
+            throw new BusinessRuleException(
+                "Trạm đang dùng máy thông điện (công tắc BẬT): phải thông điện dây trước rồi mới quét QR — không thể scan thường.");
+        }
+
+        var plainScanTesterMode = workStation.UseArduino ? TesterMode.Bypass : TesterMode.None;
+
         // US-05a/mục 6 quy tắc 12: tại 1 thời điểm, 1 cặp (Line, Công đoạn) chỉ có tối đa 1 kế hoạch Running.
         var productionPlanStageRepository = _unitOfWork.Repository<ProductionPlanStage>();
         var runningPlanStages = await productionPlanStageRepository.FindAsync(
@@ -207,6 +218,7 @@ public class ScanService : IScanService
         // US-26 AC7/AC8: gắn liên kết thùng NGAY tại đây (currentPackingBox đã xác định trước khi lưu Scan, ở
         // trên) — null khi không phải công đoạn Đóng thùng, đúng bất biến đã ghi ở remarks entity Scan.
         okScan.PackingBoxId = currentPackingBox?.Id;
+        okScan.TesterMode = plainScanTesterMode;
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
         result.IsPackingStage = isPackingStage;
 
@@ -371,6 +383,7 @@ public class ScanService : IScanService
                 (query.Customer == null || s.Customer == query.Customer) &&
                 (query.Revision == null || s.Revision == query.Revision) &&
                 (query.Result == null || s.Result == query.Result) &&
+                (query.TesterMode == null || s.TesterMode == query.TesterMode) &&
                 (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) &&
                 (query.ToUtc == null || s.ScannedAtUtc <= query.ToUtc),
             cancellationToken);
@@ -500,6 +513,7 @@ public class ScanService : IScanService
             OperatorNames = scan.OperatorNames,
             ScannedAtUtc = scan.ScannedAtUtc,
             Result = scan.Result,
+            TesterMode = scan.TesterMode,
             RejectionReason = scan.RejectionReason,
             ConfirmedByUserId = scan.ConfirmedByUserId,
             ConfirmedByUserName = scan.ConfirmedByUserName,
@@ -568,6 +582,7 @@ public class ScanService : IScanService
         OperatorNames = scan.OperatorNames,
         ScannedAtUtc = scan.ScannedAtUtc,
         Result = scan.Result,
+        TesterMode = scan.TesterMode,
         RejectionReason = scan.RejectionReason,
         ConfirmedByUserId = scan.ConfirmedByUserId,
         ConfirmedByUserName = scan.ConfirmedByUserName,

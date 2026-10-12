@@ -43,6 +43,9 @@ public class ScanResultDto
 
     public ScanResult Result { get; set; }
 
+    /// <summary>US-11/US-12: chế độ máy thông điện của lượt scan (None/Tester/Bypass).</summary>
+    public TesterMode TesterMode { get; set; }
+
     /// <summary>Lý do bị từ chối (vd "Chưa qua công đoạn: Lắp ráp") — <c>null</c> khi <see cref="Result"/> = Ok.</summary>
     public string? RejectionReason { get; set; }
 

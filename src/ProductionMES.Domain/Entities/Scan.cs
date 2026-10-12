@@ -118,4 +118,11 @@ public class Scan
     /// thị "Không có dữ liệu chi tiết lượt scan" dù <see cref="PackingBox.ScannedQuantity"/> > 0.
     /// </summary>
     public int? PackingBoxId { get; set; }
+
+    /// <summary>
+    /// US-11/US-12: chế độ của lượt scan đối với máy thông điện — <see cref="Enums.TesterMode.None"/> (trạm không có
+    /// máy, mặc định), <see cref="Enums.TesterMode.Tester"/> (kết quả OK của máy gắn với tem) hoặc
+    /// <see cref="Enums.TesterMode.Bypass"/> (trạm có máy nhưng công tắc TẮT). Các bản ghi trước US-11 mang giá trị mặc định None.
+    /// </summary>
+    public TesterMode TesterMode { get; set; } = TesterMode.None;
 }

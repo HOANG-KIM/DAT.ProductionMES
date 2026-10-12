@@ -27,6 +27,11 @@ public class WorkStationConfiguration : IEntityTypeConfiguration<WorkStation>
             .IsRequired()
             .HasDefaultValue(false);
 
+        // US-11 AC10: công tắc runtime mặc định BẬT (xem WorkStation.TesterEnabled).
+        builder.Property(t => t.TesterEnabled)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         builder.Property(t => t.IsActive)
             .IsRequired()
             .HasDefaultValue(true);

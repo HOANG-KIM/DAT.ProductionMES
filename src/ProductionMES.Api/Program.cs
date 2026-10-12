@@ -209,6 +209,10 @@ try
 
         // US-25 AC7: thao tác Supervisor tại "Đóng thùng" (AC8/PackingBoxConfirmDuplicate đã bị xóa — superseded bởi ScanConfirmReject, US-27 AC12).
         AddPermissionPolicy(PermissionPolicies.PackingBoxUpdate, PermissionResource.PackingBox, PermissionAction.Update);
+
+        // US-11/US-12: máy thông điện ESP32 - đổi công tắc và hủy kết quả đang chờ.
+        AddPermissionPolicy(PermissionPolicies.TesterModeChange, PermissionResource.TesterMode, PermissionAction.Change);
+        AddPermissionPolicy(PermissionPolicies.TesterResultDiscard, PermissionResource.TesterResult, PermissionAction.Discard);
     });
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 

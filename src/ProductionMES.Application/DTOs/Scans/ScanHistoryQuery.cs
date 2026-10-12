@@ -39,6 +39,9 @@ public class ScanHistoryQuery
     /// </summary>
     public ScanResult? Result { get; set; }
 
+    /// <summary>US-11 AC6: lọc riêng theo chế độ máy thông điện (None/Tester/Bypass). <c>null</c> = không áp dụng.</summary>
+    public TesterMode? TesterMode { get; set; }
+
     /// <summary>AC3 — cận dưới khoảng thời gian (bao gồm), so trên <c>Scan.ScannedAtUtc</c>.</summary>
     public DateTime? FromUtc { get; set; }
 

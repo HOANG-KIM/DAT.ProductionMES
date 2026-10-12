@@ -50,6 +50,9 @@ public class ScanHistoryItemDto
 
     public ScanResult Result { get; set; }
 
+    /// <summary>US-11/US-12: chế độ máy thông điện của lượt scan (None/Tester/Bypass).</summary>
+    public TesterMode TesterMode { get; set; }
+
     public string? RejectionReason { get; set; }
 
     /// <summary>US-18 (thay đổi 18/08/2026): Id tài khoản đã đăng nhập xác nhận Scan NG — <c>null</c> khi <see cref="Result"/> != Ng, hoặc bản ghi Ng cũ trước thay đổi này (không backfill).</summary>

@@ -9,10 +9,10 @@ public class CreateWorkStationRequest
 
     public int StageId { get; set; }
 
-    /// <summary>Bật/tắt sử dụng Arduino tại trạm (US-11). Khi true, bắt buộc kèm thông tin cổng COM (AC2).</summary>
+    /// <summary>"Trạm có máy thông điện" (US-11). Cấu hình COM nay ở appsettings.json cục bộ tại trạm — không còn bắt buộc ComPort/BaudRate/CommandProtocol (AC12).</summary>
     public bool UseArduino { get; set; }
 
-    /// <summary>Bắt buộc khi <see cref="UseArduino"/> = true (AC2), không bắt buộc khi false (AC3).</summary>
+    /// <summary>Không còn dùng để kết nối (US-11 AC12) — giữ để tương thích.</summary>
     public string? ComPort { get; set; }
 
     public int? BaudRate { get; set; }

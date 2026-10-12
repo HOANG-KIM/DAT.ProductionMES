@@ -46,6 +46,9 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<ReworkUnlock> ReworkUnlocks => Set<ReworkUnlock>();
 
+    /// <summary>US-11 AC4: log đổi công tắc "Đang sử dụng máy thông điện" theo trạm.</summary>
+    public DbSet<TesterModeChangeLog> TesterModeChangeLogs => Set<TesterModeChangeLog>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

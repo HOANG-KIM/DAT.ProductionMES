@@ -19,6 +19,7 @@ using ProductionMES.Application.Services.Reports;
 using ProductionMES.Application.Services.ReworkUnlocks;
 using ProductionMES.Application.Services.Scans;
 using ProductionMES.Application.Services.StationApiKeys;
+using ProductionMES.Application.Services.Testers;
 using ProductionMES.Application.Services.Users;
 using ProductionMES.Application.Services.WorkStations;
 using ProductionMES.Domain.Entities;
@@ -45,6 +46,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IProductionPlanStageService, ProductionPlanStageService>();
         services.AddScoped<ILineStageSequenceService, LineStageSequenceService>();
         services.AddScoped<IScanService, ScanService>();
+        services.AddScoped<ITesterStationService, TesterStationService>();
         services.AddScoped<IReworkUnlockService, ReworkUnlockService>();
         services.AddScoped<IAndonBoardService, AndonBoardService>();
         services.AddScoped<IProductionReportService, ProductionReportService>();

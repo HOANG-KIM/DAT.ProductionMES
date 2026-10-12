@@ -63,4 +63,16 @@ public enum PermissionResource
     /// thích dữ liệu Permission cũ).
     /// </summary>
     PackingBox = 10,
+
+    /// <summary>
+    /// US-11: <c>Change</c> — bật/tắt công tắc "Đang sử dụng máy thông điện" tại trạm (Bearer Tổ trưởng, đăng nhập
+    /// nâng quyền mỗi lần). Seed cho Supervisor/Admin/Manager.
+    /// </summary>
+    TesterMode = 11,
+
+    /// <summary>
+    /// US-12 AC11: <c>Discard</c> — Hủy kết quả thông điện OK đang chờ (gửi DISCARD xuống máy). Seed cho
+    /// Supervisor/Admin/Manager.
+    /// </summary>
+    TesterResult = 12,
 }

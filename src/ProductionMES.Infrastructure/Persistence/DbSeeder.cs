@@ -112,6 +112,11 @@ public static class DbSeeder
             // mỗi lần của US-18, chỉ Tổ trưởng/Admin, KHÔNG Manager). AC8 (ConfirmDuplicate) đã bị xóa — superseded
             // bởi (Scan, ConfirmReject) ở trên (US-27 AC12, 25/08/2026).
             (PermissionResource.PackingBox, PermissionAction.Update),
+
+            // US-11: đổi công tắc "Đang sử dụng máy thông điện" tại trạm; US-12 AC11: Hủy kết quả thông điện đang chờ.
+            // Cấp cho Supervisor/Admin/Manager (xem EnsureTesterPermissionGrantsAsync).
+            (PermissionResource.TesterMode, PermissionAction.Change),
+            (PermissionResource.TesterResult, PermissionAction.Discard),
         };
 
         var existingPairs = (await dbContext.Permissions
@@ -172,6 +177,7 @@ public static class DbSeeder
         await EnsureReportViewPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsurePackingModelConfigPermissionGrantsAsync(dbContext, cancellationToken);
         await EnsurePackingBoxPermissionGrantsAsync(dbContext, cancellationToken);
+        await EnsureTesterPermissionGrantsAsync(dbContext, cancellationToken);
     }
 
     /// <summary>
@@ -456,6 +462,47 @@ public static class DbSeeder
         }
 
         var roles = new[] { UserRole.Admin, UserRole.Supervisor };
+
+        var alreadyGranted = (await dbContext.RolePermissions
+                .Where(rp => permissionIds.Contains(rp.PermissionId) && roles.Contains(rp.Role))
+                .Select(rp => new { rp.Role, rp.PermissionId })
+                .ToListAsync(cancellationToken))
+            .Select(rp => (rp.Role, rp.PermissionId))
+            .ToHashSet();
+
+        var missing = roles
+            .SelectMany(role => permissionIds.Select(permissionId => (Role: role, PermissionId: permissionId)))
+            .Where(pair => !alreadyGranted.Contains(pair))
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.RolePermissions.AddRange(missing.Select(pair => new RolePermission { Role = pair.Role, PermissionId = pair.PermissionId }));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bổ sung 12/10/2026 (US-11/US-12, máy thông điện ESP32): đảm bảo <c>(TesterMode, Change)</c> và
+    /// <c>(TesterResult, Discard)</c> được cấp cho <c>Supervisor</c>/<c>Admin</c>/<c>Manager</c> — cùng lý do/idiom
+    /// lưới an toàn với <see cref="EnsureScanConfirmRejectPermissionGrantsAsync"/>. Idempotent theo từng cặp
+    /// (Role, PermissionId), chạy MỖI lần khởi động.
+    /// </summary>
+    private static async Task EnsureTesterPermissionGrantsAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var permissionIds = await dbContext.Permissions
+            .Where(p => p.Resource == PermissionResource.TesterMode || p.Resource == PermissionResource.TesterResult)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (permissionIds.Count == 0)
+        {
+            return;
+        }
+
+        var roles = new[] { UserRole.Admin, UserRole.Supervisor, UserRole.Manager };
 
         var alreadyGranted = (await dbContext.RolePermissions
                 .Where(rp => permissionIds.Contains(rp.PermissionId) && roles.Contains(rp.Role))

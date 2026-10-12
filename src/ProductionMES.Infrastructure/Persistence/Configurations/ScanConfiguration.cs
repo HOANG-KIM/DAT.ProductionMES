@@ -64,6 +64,13 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
             .HasConversion<string>()
             .HasMaxLength(30);
 
+        // US-11/US-12: chế độ máy thông điện của lượt scan, lưu dạng chuỗi (None/Tester/Bypass) — bản ghi cũ mang "None".
+        builder.Property(s => s.TesterMode)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(ProductionMES.Domain.Enums.TesterMode.None);
+
         // Không dùng khoá ngoại ở DB — StageId/LineId/WorkStationId/ProductionPlanId là cột tham chiếu thuần,
         // toàn vẹn xử lý ở ScanService.
 
