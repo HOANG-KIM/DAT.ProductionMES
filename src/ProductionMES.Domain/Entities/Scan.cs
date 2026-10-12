@@ -125,4 +125,23 @@ public class Scan
     /// <see cref="Enums.TesterMode.Bypass"/> (trạm có máy nhưng công tắc TẮT). Các bản ghi trước US-11 mang giá trị mặc định None.
     /// </summary>
     public TesterMode TesterMode { get; set; } = TesterMode.None;
+
+    /// <summary>
+    /// US-12: BOOT id (số ngẫu nhiên 32-bit hex sinh lúc máy boot, 8 ký tự) của máy thông điện tại thời điểm có kết quả
+    /// OK được gắn với tem này. Cùng <see cref="TesterSeq"/> + <see cref="WorkStationId"/> tạo khóa chống lưu trùng
+    /// (unique index) — <c>null</c> nếu <see cref="TesterMode"/> != <see cref="Enums.TesterMode.Tester"/>.
+    /// </summary>
+    public string? TesterBootId { get; set; }
+
+    /// <summary>US-12: SEQ kết quả của máy (bắt đầu từ 1 mỗi lần boot) — xem <see cref="TesterBootId"/>.</summary>
+    public int? TesterSeq { get; set; }
+
+    /// <summary>US-12: GM — CRC-16 của golden matrix (mẫu) tại thời điểm thông điện, 4 ký tự hex.</summary>
+    public string? GoldenCrc { get; set; }
+
+    /// <summary>US-12: phiên bản firmware máy thông điện (<c>FW</c> trong HELLO).</summary>
+    public string? FirmwareVersion { get; set; }
+
+    /// <summary>US-12: thời điểm App nhận kết quả OK của máy — giờ local PC trạm (máy không có đồng hồ thực).</summary>
+    public DateTime? TestedAtUtc { get; set; }
 }

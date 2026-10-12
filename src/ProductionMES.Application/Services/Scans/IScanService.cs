@@ -20,6 +20,19 @@ public interface IScanService
     Task<ScanResultDto> CreateAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// US-12 AC3/AC4: kiểm tra tem theo ĐÚNG logic FR-08 của <see cref="CreateAsync"/> (cùng 1 đường code) nhưng KHÔNG ghi
+    /// gì — dùng ở bước "quét QR khi App đang giữ kết quả OK của máy" trước khi gửi BIND. Trả <see cref="ScanResultDto"/>
+    /// với <c>Result = Ok</c> nếu hợp lệ, hoặc kết quả bị từ chối (DuplicateTag/PreviousStageNotPassed/WaitingReworkUnlock).
+    /// </summary>
+    Task<ScanResultDto> CheckAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-12 AC2/AC15: lưu Scan OK gắn kết quả của máy thông điện (sau BIND_OK), idempotent theo
+    /// (WorkStationId, TesterBootId, TesterSeq). Chỉ dùng cho trạm có máy (UseArduino) + công tắc BẬT.
+    /// </summary>
+    Task<ScanResultDto> CreateTesterScanAsync(int workStationId, CreateTesterScanRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// US-27 AC5/AC6: xác nhận LƯU 1 lượt scan bị hệ thống tự động từ chối (đã trả về ở <see cref="CreateAsync"/>
     /// nhưng CHƯA lưu) — client gửi lại nguyên vẹn snapshot đã nhận ở Bước 1. KHÔNG chạy lại 3 bước kiểm tra
     /// FR-08/US-19 (AC6 "bản ghi phải phản ánh đúng thời điểm scan gốc") — chỉ validate

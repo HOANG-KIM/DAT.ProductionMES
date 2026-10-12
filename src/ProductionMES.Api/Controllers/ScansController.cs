@@ -53,6 +53,39 @@ public class ScansController : ControllerBase
     }
 
     /// <summary>
+    /// US-12 AC3/AC4: kiểm tra tem (FR-08) KHÔNG lưu — trạm có máy thông điện gọi ở bước quét QR khi đang giữ kết quả OK,
+    /// trước khi gửi BIND xuống máy. Trả 200 kèm kết quả (Ok hoặc lý do bị từ chối).
+    /// </summary>
+    [HttpPost("check")]
+    public async Task<ActionResult<ScanResultDto>> Check([FromBody] CheckScanRequest request, CancellationToken cancellationToken)
+    {
+        var workStationIdClaim = User.FindFirst(StationApiKeyDefaults.WorkStationIdClaimType)?.Value;
+        if (!int.TryParse(workStationIdClaim, out var workStationId))
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await _scanService.CheckAsync(workStationId, request.TagCode, cancellationToken));
+    }
+
+    /// <summary>
+    /// US-12 AC2/AC15: lưu Scan OK gắn với kết quả của máy thông điện (sau BIND_OK) — idempotent theo
+    /// (WorkStationId, TesterBootId, TesterSeq): gửi lại cùng bộ khóa trả về bản ghi cũ. Luôn trả 201.
+    /// </summary>
+    [HttpPost("tester")]
+    public async Task<ActionResult<ScanResultDto>> CreateTesterScan([FromBody] CreateTesterScanRequest request, CancellationToken cancellationToken)
+    {
+        var workStationIdClaim = User.FindFirst(StationApiKeyDefaults.WorkStationIdClaimType)?.Value;
+        if (!int.TryParse(workStationIdClaim, out var workStationId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _scanService.CreateTesterScanAsync(workStationId, request, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>
     /// US-18 AC4: danh sách lý do lỗi đã từng nhập cho đúng công đoạn <paramref name="stageId"/>, dùng làm gợi ý
     /// autocomplete khi nhập lý do Scan NG mới — không bắt buộc chọn từ danh sách này (vẫn free text).
     /// </summary>

@@ -527,6 +527,14 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<string>("FirmwareVersion")
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("GoldenCrc")
+                        .HasMaxLength(4)
+                        .HasColumnType("varchar(4)");
+
                     b.Property<int>("LineId")
                         .HasColumnType("int");
 
@@ -581,12 +589,22 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("TaktTimeSeconds")
                         .HasColumnType("decimal(10,2)");
 
+                    b.Property<DateTime?>("TestedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TesterBootId")
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)");
+
                     b.Property<string>("TesterMode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasDefaultValue("None");
+
+                    b.Property<int?>("TesterSeq")
+                        .HasColumnType("int");
 
                     b.Property<int>("WorkStationId")
                         .HasColumnType("int");
@@ -600,6 +618,9 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProductionPlanId", "StageId");
 
                     b.HasIndex("TagCode", "StageId");
+
+                    b.HasIndex("WorkStationId", "TesterBootId", "TesterSeq")
+                        .IsUnique();
 
                     b.ToTable("Scan", (string)null);
                 });

@@ -71,6 +71,10 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
             .HasMaxLength(20)
             .HasDefaultValue(ProductionMES.Domain.Enums.TesterMode.None);
 
+        builder.Property(s => s.TesterBootId).HasMaxLength(8);
+        builder.Property(s => s.GoldenCrc).HasMaxLength(4);
+        builder.Property(s => s.FirmwareVersion).HasMaxLength(16);
+
         // Không dùng khoá ngoại ở DB — StageId/LineId/WorkStationId/ProductionPlanId là cột tham chiếu thuần,
         // toàn vẹn xử lý ở ScanService.
 
@@ -88,5 +92,9 @@ public class ScanConfiguration : IEntityTypeConfiguration<Scan>
         // US-26 AC7: tăng tốc truy vấn "các lượt scan OK đã cộng vào 1 thùng cụ thể" (PackingBoxId nullable —
         // không dùng khoá ngoại, cùng nguyên tắc StageId/LineId/... ở trên).
         builder.HasIndex(s => s.PackingBoxId);
+
+        // US-12 AC15: chống lưu trùng 1 kết quả của máy thông điện khi App retry (UNIQUE INDEX, không phải khoá ngoại).
+        // MySQL cho phép nhiều dòng NULL trong UNIQUE nên các bản ghi None/Bypass (BootId/Seq = NULL) không bị ảnh hưởng.
+        builder.HasIndex(s => new { s.WorkStationId, s.TesterBootId, s.TesterSeq }).IsUnique();
     }
 }
