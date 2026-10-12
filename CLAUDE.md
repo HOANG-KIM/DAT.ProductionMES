@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-DAT.ProductionMES — hệ thống MES quản lý kế hoạch sản xuất: theo dõi sản xuất qua scan tem tại từng trạm làm việc, đối chiếu kế hoạch sản xuất, tích hợp Arduino cho công đoạn kiểm tra tự động (vd. Thông điện).
+DAT.ProductionMES — hệ thống MES quản lý kế hoạch sản xuất: theo dõi sản xuất qua scan tem tại từng trạm làm việc, đối chiếu kế hoạch sản xuất, tích hợp máy thông điện ESP32 qua cổng COM cho công đoạn Thông điện (trước 12/10/2026 gọi là "Arduino").
 
 Trước khi implement bất kỳ tính năng nào liên quan đến business rule, đọc:
 - `Documents/SRS-he-thong-quan-ly-ke-hoach-san-xuat.md` — đặc tả nghiệp vụ đầy đủ (FR-01 → FR-23), các quy tắc đã chốt ở mục 6, acceptance criteria ở mục 7.
@@ -15,6 +15,7 @@ Trước khi implement bất kỳ tính năng nào liên quan đến business ru
 - `Documents/ADR-004-role-permission-dong.md` — quyết định chuyển phân quyền từ `[Authorize(Roles=...)]` hardcode sang permission `Resource.Action` lưu DB, Admin quản lý runtime qua UI. Đọc trước khi thêm Controller/action mới hoặc đổi phân quyền.
 - `Documents/ADR-005-auth-station-wpf.md` — quyết định auth riêng cho `Station.Wpf`: API Key theo từng trạm (scheme `StationApiKey`) cho luồng scan thường (Operator không đăng nhập cá nhân), Bearer + Refresh Token (JSON body, không cookie) cho luồng Supervisor nâng quyền tại trạm. Đọc trước khi implement US-07/US-08 hoặc bất kỳ endpoint nào `Station.Wpf` gọi.
 - `Documents/ADR-006-dieu-huong-2-cua-so-station-wpf.md` — quyết định kiến trúc điều hướng `Station.Wpf`: 2 `Window` riêng biệt (`AndonBoardWindow` fullscreen luôn hiển thị, `MainWindow` chứa các trang Tổ trưởng US-05/US-05a/US-05b), `Esc` 1 chiều (đóng popup trước, chuyển cửa sổ sau), `Alt+Tab` để nguyên cho Windows xử lý. Đọc trước khi tạo Window/Page mới hoặc đổi luồng điều hướng trong `Station.Wpf`.
+- `Documents/spec-firmware-app-link.md` (giao thức serial mục 4 — nguồn chân lý) và `Documents/spec-app-wpf-station.md` — đặc tả kết nối `Station.Wpf` với máy thông điện ESP32 (thông điện trước, quét QR sau; `#PING/#BIND/#SAVED`...). Quyết định áp dụng vào project (2 cờ, Bypass, bỏ timeout 45s...) đã ghi ở SRS FR-11 → FR-14 và US-11 → US-14 — đọc trước khi implement các story này.
 - `Documents/ADR-007-materialdesigninxaml-va-quy-uoc-mau-station-wpf.md` — quyết định dùng MaterialDesignInXaml (Light theme, `Themes/AppColors.xaml` là nguồn màu duy nhất) cho các màn hình Tổ trưởng trong `Station.Wpf`; **`AndonBoardWindow` KHÔNG theo Light theme này**, giữ mockup Andon board riêng (nền tối, màu trạng thái động OK/NG/WAITING). Đọc trước khi thêm màu/style mới hoặc tạo Page/Window mới trong `Station.Wpf`.
 
 ## Theo dõi tiến độ backlog
@@ -109,10 +110,10 @@ Database **không dùng khoá ngoại** (foreign key constraint) ở tầng DB. 
 - Chống trùng tem xét theo `(Mã tem, Công đoạn)` **trên toàn hệ thống**, không theo Line — cùng công đoạn (entity `Stage`, tham chiếu qua `StageId`) không được scan 2 lần dù khác Line.
 - Kiểm tra "đã qua công đoạn liền trước" cũng tra cứu toàn hệ thống, không giới hạn theo Line (xem cách suy ra công đoạn liền trước từ `SequenceNumber - 1` tại `ProductionPlanStageService`).
 - Mọi lượt scan (kể cả bị từ chối) đều lưu lịch sử — không có scan "biến mất".
-- Trạm WPF có hàng đợi cục bộ (SQLite) ghi trước khi gửi server, chống mất dữ liệu khi crash/mất mạng, dùng GUID để chống ghi trùng khi retry — áp dụng đồng nhất cho mọi trạm, không phân biệt theo vị trí trong chuỗi công đoạn.
+- Trạm WPF có hàng đợi cục bộ (SQLite) ghi trước khi gửi server, chống mất dữ liệu khi crash/mất mạng, dùng GUID để chống ghi trùng khi retry — áp dụng đồng nhất cho mọi trạm, không phân biệt theo vị trí trong chuỗi công đoạn. **Ngoại lệ (12/10/2026)**: trạm có máy thông điện đang BẬT công tắc sử dụng máy thì KHÔNG dùng hàng đợi — lưu thẳng lên server, chỉ sau khi server commit mới gửi `SAVED` mở khóa máy (SRS FR-12, US-12/AC14, US-16).
 - `UNIQUE(TagCode, StageId)` kiểu truyền thống không áp dụng được vì 1 tem có thể có nhiều bản ghi NG + 1 bản ghi OK tại cùng công đoạn — ràng buộc "tối đa 1 OK" phải xử lý ở Service, không dựa vào DB constraint. (Entity lượt scan chưa implement — khi implement, đặt tên "Mã tem" là `TagCode` để nhất quán quy ước tiếng Anh đã chốt ở trên.)
 - "Đóng thùng" không thuộc phạm vi hệ thống này (module riêng, khác mô hình dữ liệu — xem mục 1.2 SRS).
 
 ### Cấu hình
 
-Dùng Options pattern (`IOptions<T>`), không đọc `IConfiguration` rải rác. Timeout nghiệp vụ (chờ Arduino 45s, chế độ Scan NG 30s — xem `ArduinoTimeoutSeconds`/`NgModeTimeoutSeconds` trong `Station.Wpf/appsettings.json`) đọc từ **file cấu hình cục bộ tại từng trạm**, không phải từ server — cho phép chỉnh riêng theo trạm không cần deploy lại.
+Dùng Options pattern (`IOptions<T>`), không đọc `IConfiguration` rải rác. Timeout/cấu hình nghiệp vụ tại trạm (chế độ Scan NG 30s — `NgModeTimeoutSeconds`; cổng COM, baud, PING/link timeout của máy thông điện — section `Tester`, trong `Station.Wpf/appsettings.json`; timeout chờ Arduino 45s/`ArduinoTimeoutSeconds` đã bỏ 12/10/2026) đọc từ **file cấu hình cục bộ tại từng trạm**, không phải từ server — cho phép chỉnh riêng theo trạm không cần deploy lại.
