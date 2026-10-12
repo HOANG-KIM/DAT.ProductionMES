@@ -68,6 +68,26 @@ public class TesterStationService : ITesterStationService
         return ToStateDto(workStation);
     }
 
+    public async Task RecordEventAsync(int workStationId, RecordTesterEventRequest request, CancellationToken cancellationToken = default)
+    {
+        // Đảm bảo trạm tồn tại (không ghi log mồ côi), nhưng không yêu cầu UseArduino: sự kiện có thể xảy ra ngay sau khi Admin đổi cờ.
+        _ = await GetWorkStationAsync(workStationId, cancellationToken);
+
+        var log = new TesterEventLog
+        {
+            WorkStationId = workStationId,
+            OccurredAtUtc = DateTime.Now,
+            EventType = request.EventType,
+            TagCode = request.TagCode,
+            TesterSeq = request.TesterSeq,
+            Detail = request.Detail,
+            ApprovedByUserName = request.ApprovedByUserName,
+        };
+
+        await _unitOfWork.Repository<TesterEventLog>().AddAsync(log, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task<WorkStation> GetWorkStationAsync(int workStationId, CancellationToken cancellationToken)
         => await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy trạm làm việc với Id = {workStationId}.");

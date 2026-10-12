@@ -43,6 +43,24 @@ public class TesterController : ControllerBase
     }
 
     /// <summary>
+    /// US-14 AC12: trạm ghi event log sự kiện máy (VOID_REMOVED, LINK_LOST, SCAN_ON_NG...). WorkStationId lấy từ claim API
+    /// key. Station.Wpf chỉ ghi file khi gọi lỗi và KHÔNG chặn thao tác của người vận hành.
+    /// </summary>
+    [HttpPost("events")]
+    [Authorize(AuthenticationSchemes = StationApiKeyDefaults.AuthenticationScheme)]
+    public async Task<IActionResult> RecordEvent([FromBody] RecordTesterEventRequest request, CancellationToken cancellationToken)
+    {
+        var workStationIdClaim = User.FindFirst(StationApiKeyDefaults.WorkStationIdClaimType)?.Value;
+        if (!int.TryParse(workStationIdClaim, out var workStationId))
+        {
+            return Unauthorized();
+        }
+
+        await _testerStationService.RecordEventAsync(workStationId, request, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
     /// US-11 AC4/AC5: đổi công tắc "Đang sử dụng máy thông điện" — người duyệt lấy từ claim Bearer (không tin body).
     /// Trạm không có máy / thiếu lý do -> 409 / 400, công tắc giữ nguyên, không ghi log.
     /// </summary>

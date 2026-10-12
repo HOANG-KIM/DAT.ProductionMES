@@ -49,6 +49,9 @@ public class ApplicationDbContext : DbContext
     /// <summary>US-11 AC4: log đổi công tắc "Đang sử dụng máy thông điện" theo trạm.</summary>
     public DbSet<TesterModeChangeLog> TesterModeChangeLogs => Set<TesterModeChangeLog>();
 
+    /// <summary>US-14 AC12: event log sự kiện máy thông điện (VOID_REMOVED, LINK_LOST, SCAN_ON_NG...).</summary>
+    public DbSet<TesterEventLog> TesterEventLogs => Set<TesterEventLog>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

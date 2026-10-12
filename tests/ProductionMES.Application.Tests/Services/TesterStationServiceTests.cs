@@ -12,6 +12,7 @@ public class TesterStationServiceTests
 {
     private readonly Mock<IRepository<WorkStation>> _workStationRepositoryMock = new();
     private readonly Mock<IRepository<TesterModeChangeLog>> _changeLogRepositoryMock = new();
+    private readonly Mock<IRepository<TesterEventLog>> _eventLogRepositoryMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly TesterStationService _sut;
 
@@ -19,6 +20,7 @@ public class TesterStationServiceTests
     {
         _unitOfWorkMock.Setup(u => u.Repository<WorkStation>()).Returns(_workStationRepositoryMock.Object);
         _unitOfWorkMock.Setup(u => u.Repository<TesterModeChangeLog>()).Returns(_changeLogRepositoryMock.Object);
+        _unitOfWorkMock.Setup(u => u.Repository<TesterEventLog>()).Returns(_eventLogRepositoryMock.Object);
         _sut = new TesterStationService(_unitOfWorkMock.Object);
     }
 
@@ -140,5 +142,45 @@ public class TesterStationServiceTests
         Assert.True(state.TesterEnabled);
         _changeLogRepositoryMock.Verify(r => r.AddAsync(It.IsAny<TesterModeChangeLog>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // US-14 AC12 — ghi event log: trạm, thời điểm, loại, mã tem/SEQ, chi tiết, người duyệt.
+    [Fact]
+    public async Task RecordEventAsync_GhiDayDuTruong()
+    {
+        SetupWorkStation(useArduino: true);
+        TesterEventLog? saved = null;
+        _eventLogRepositoryMock.Setup(r => r.AddAsync(It.IsAny<TesterEventLog>(), It.IsAny<CancellationToken>()))
+            .Callback((TesterEventLog e, CancellationToken _) => saved = e)
+            .Returns(Task.CompletedTask);
+
+        var before = DateTime.Now;
+        await _sut.RecordEventAsync(1, new ProductionMES.Application.DTOs.Testers.RecordTesterEventRequest
+        {
+            EventType = TesterEventType.VoidDiscard,
+            TagCode = "TAG1",
+            TesterSeq = 105,
+            Detail = "Hủy kết quả",
+            ApprovedByUserName = "tt01",
+        });
+
+        Assert.NotNull(saved);
+        Assert.Equal(1, saved!.WorkStationId);
+        Assert.Equal(TesterEventType.VoidDiscard, saved.EventType);
+        Assert.Equal("TAG1", saved.TagCode);
+        Assert.Equal(105, saved.TesterSeq);
+        Assert.Equal("Hủy kết quả", saved.Detail);
+        Assert.Equal("tt01", saved.ApprovedByUserName);
+        Assert.True(saved.OccurredAtUtc >= before);
+        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RecordEventAsync_TramKhongTonTai_NemEntityNotFoundException()
+    {
+        _workStationRepositoryMock.Setup(r => r.GetByIdAsync(99, It.IsAny<CancellationToken>())).ReturnsAsync((WorkStation?)null);
+
+        await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.RecordEventAsync(99,
+            new ProductionMES.Application.DTOs.Testers.RecordTesterEventRequest { EventType = TesterEventType.LinkLost }));
     }
 }

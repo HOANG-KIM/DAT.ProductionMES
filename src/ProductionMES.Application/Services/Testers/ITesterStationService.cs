@@ -15,4 +15,9 @@ public interface ITesterStationService
     /// </summary>
     Task<TesterStationStateDto> SetEnabledAsync(
         int workStationId, bool enabled, string reason, int approvedByUserId, string approvedByUserName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ghi 1 sự kiện máy thông điện (US-14 AC12) cho trạm <paramref name="workStationId"/>. Thời điểm lấy theo giờ server.
+    /// </summary>
+    Task RecordEventAsync(int workStationId, RecordTesterEventRequest request, CancellationToken cancellationToken = default);
 }

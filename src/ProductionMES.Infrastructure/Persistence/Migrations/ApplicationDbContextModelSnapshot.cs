@@ -668,6 +668,47 @@ namespace ProductionMES.Infrastructure.Persistence.Migrations
                     b.ToTable("StationApiKey", (string)null);
                 });
 
+            modelBuilder.Entity("ProductionMES.Domain.Entities.TesterEventLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApprovedByUserName")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TagCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int?>("TesterSeq")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkStationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkStationId", "OccurredAtUtc");
+
+                    b.ToTable("TesterEventLog", (string)null);
+                });
+
             modelBuilder.Entity("ProductionMES.Domain.Entities.TesterModeChangeLog", b =>
                 {
                     b.Property<int>("Id")
