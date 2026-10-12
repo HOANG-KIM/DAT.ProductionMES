@@ -8,7 +8,8 @@
         Background="#0B0E13"
         PreviewKeyDown="Window_PreviewKeyDown"
         Loaded="Window_Loaded"
-        Activated="Window_Activated">
+        Activated="Window_Activated"
+        Deactivated="Window_Deactivated">
     <!--
       AndonBoardWindow KHÔNG dùng Light theme MaterialDesignInXaml/Themes/AppColors.xaml của phần còn lại
       trong Station.Wpf (xem ADR-007) — màn hình này theo mockup Andon board thực tế riêng (nền tối, màu
@@ -64,14 +65,76 @@
     </Window.Resources>
 
     <Grid>
+        <!--
+          Row 0: dải cảnh báo (US-12 AC18, US-14 AC3/AC8, US-11 AC11) · Row 1: header số liệu chính · Row 2: bảng
+          PLAN/ACTUAL/BALANCE · Row 3: panel máy thông điện (chỉ trạm có máy + công tắc BẬT). Các overlay phủ cả 4 hàng.
+        -->
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!--
+          Dải cảnh báo luôn nằm trên cùng, KHÔNG che số liệu. Không âm thanh (US-12 AC19) — chỉ chữ và màu.
+        -->
+        <StackPanel Grid.Row="0">
+            <!-- US-12 AC18 (spec-app 6.2): áp dụng mọi trạm. Máy quét HID chỉ gõ vào cửa sổ đang focus. -->
+            <Border Background="#B71C1C" Padding="12,10"
+                    Visibility="{Binding IsWindowInactive, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="APP KHÔNG ĐƯỢC CHỌN — KHÔNG NHẬN MÃ QUÉT" FontSize="28" FontWeight="Bold"
+                           Foreground="White" HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- US-11 AC11: không đọc được chế độ máy thông điện từ server -> chặn quét. -->
+            <Border Background="#8A1C1C" Padding="12,8"
+                    Visibility="{Binding IsTesterModeUnknown, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Không xác định được chế độ máy thông điện — đang chặn quét, tự thử đọc lại từ server" FontSize="24"
+                               FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
+                    <TextBlock Text="{Binding TesterModeError}" FontSize="14" Foreground="#FFD6D2" HorizontalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center"
+                               Visibility="{Binding HasTesterModeError, Converter={StaticResource BoolToVisibility}}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- US-14 AC3: banner đỏ nhấp nháy khi mất kết nối máy thông điện (chặn quét). -->
+            <Border Padding="12,10" Background="#C62828"
+                    Visibility="{Binding IsTesterLinkLost, Converter={StaticResource BoolToVisibility}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <Trigger Property="Visibility" Value="Visible">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard x:Name="LinkLostBlink">
+                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="1" To="0.3" Duration="0:0:0.6"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="LinkLostBlink"/>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="MẤT KẾT NỐI MÁY THÔNG ĐIỆN" FontSize="34" FontWeight="Bold"
+                           Foreground="White" HorizontalAlignment="Center"/>
+            </Border>
+
+            <!-- US-14 AC8: GM = 0000 / ST = NO_SAMPLE — không chặn cổng (Learn thực hiện trên máy). -->
+            <Border Background="#6B4E00" BorderBrush="#FFC107" BorderThickness="0,0,0,2" Padding="12,6"
+                    Visibility="{Binding TesterNoSample, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Máy chưa có mẫu — cần Learn" FontSize="22" FontWeight="Bold"
+                           Foreground="#FFC107" HorizontalAlignment="Center"/>
+            </Border>
+        </StackPanel>
+
         <!-- Vùng "số liệu chính" (AC5): tên trạm/công đoạn + số lượng đã scan OK — banner KHÔNG được che vùng này. -->
-        <Grid Grid.Row="0" Margin="24">
+        <Grid Grid.Row="1" Margin="24">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -137,6 +200,29 @@
                     <Button Content="NG" Command="{Binding ActivateNgModeCommand}"
                             Margin="0,16,0,0" Padding="32,10" FontSize="24" FontWeight="Bold"
                             Background="#E53935" Foreground="White" BorderBrush="#E53935" HorizontalAlignment="Right"/>
+
+                    <!--
+                      US-11 AC3: công tắc "Đang sử dụng máy thông điện" — CHỈ hiển thị ở trạm có máy (UseArduino). Bấm -> đăng
+                      nhập Tổ trưởng (TesterMode.Change) + nhập lý do (ComboBox editable ở overlay bên dưới).
+                    -->
+                    <Button Content="{Binding TesterSwitchLabel}" Command="{Binding ToggleTesterModeCommand}"
+                            Margin="0,10,0,0" Padding="16,8" FontSize="16" FontWeight="Bold"
+                            Foreground="White" HorizontalAlignment="Right"
+                            Visibility="{Binding HasTesterMachine, Converter={StaticResource BoolToVisibility}}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Background" Value="#6B4E00"/>
+                                <Setter Property="BorderBrush" Value="#FFC107"/>
+                                <Setter Property="BorderThickness" Value="1.5"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTesterSwitchOn}" Value="True">
+                                        <Setter Property="Background" Value="#1F5D34"/>
+                                        <Setter Property="BorderBrush" Value="#4CAF50"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </Grid>
 
@@ -238,7 +324,7 @@
             </Border>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <!-- US-09 AC1/AC5/AC6: bảng PLAN/ACTUAL/BALANCE theo mốc giờ + ô NG/%NG gộp — chỉ hiển thị khi trạm đang có kế hoạch active. -->
             <Grid Margin="24" Visibility="{Binding HasActivePlan, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
@@ -345,7 +431,7 @@
           bao giờ chạm tới MaxWidth nên tăng MaxWidth không thấy khác biệt; Width cố định buộc banner luôn rộng
           đúng kích thước này bất kể nội dung dài/ngắn.
         -->
-        <Border x:Name="ScanBanner" Grid.RowSpan="3"
+        <Border x:Name="ScanBanner" Grid.RowSpan="4"
                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
                 Background="{Binding BannerBackground}" BorderBrush="{Binding BannerBorderBrush}" BorderThickness="2"
                 CornerRadius="10" Padding="24" Width="720"
@@ -396,7 +482,7 @@
           nền tối trước đây). Bên trong tách 2 bước con: chờ quét tem lỗi (IsWaitingForNgTagCode) và form nhập
           lý do (IsNgReasonPanelVisible).
         -->
-        <Grid Grid.RowSpan="3" Background="#B3000000"
+        <Grid Grid.RowSpan="4" Background="#B3000000"
               Visibility="{Binding IsNgModeActive, Converter={StaticResource BoolToVisibility}}">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="720"
                     Background="#FFF8F1" BorderBrush="#D32F2A" BorderThickness="3" CornerRadius="14"
@@ -447,7 +533,7 @@
           Scan NG (nền làm tối RowSpan=3 + khung căn giữa), tách màu khác (xanh dương #1677FF, không phải đỏ) để
           không gây nhầm lẫn với tình huống lỗi NG.
         -->
-        <Grid Grid.RowSpan="3" Background="#B3000000"
+        <Grid Grid.RowSpan="4" Background="#B3000000"
               Visibility="{Binding IsPackingBoxNoOverlayVisible, Converter={StaticResource BoolToVisibility}}">
             <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520"
                     Background="#FFF8F1" BorderBrush="#1677FF" BorderThickness="3" CornerRadius="14"
@@ -496,6 +582,118 @@
                             <Button Content="XÁC NHẬN" Padding="18,10" FontWeight="Bold"
                                     Background="#1677FF" Foreground="White" BorderBrush="#1677FF"
                                     Command="{Binding SubmitPackingBoxNoCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!--
+          US-12 AC19 / US-14 AC9: panel máy thông điện — CHỈ hiển thị ở trạm có máy + công tắc BẬT. Chữ trạng thái lớn
+          ("Đặt dây và chờ thông điện" / "OK — QUÉT MÃ QR TRÊN DÂY" / "Đang xác nhận…" / "Đang lưu…"), thông báo
+          BIND_FAIL (DÂY NG, Chưa thông điện, ...), nút "Hủy kết quả" (cần Tổ trưởng) và "Thử lại". Giữ nền tối của
+          AndonBoardWindow (ADR-007), KHÔNG âm thanh.
+        -->
+        <Border Grid.Row="3" Background="#10141B" BorderBrush="#2A3040" BorderThickness="0,1,0,0" Padding="24,12,24,16"
+                Visibility="{Binding IsTesterActive, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Chỉ báo kết nối + FW + GM (US-14 AC9). -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Ellipse Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#E53935"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTesterConnected}" Value="True">
+                                        <Setter Property="Fill" Value="#4CAF50"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding TesterMachineInfo}" FontSize="20" FontWeight="SemiBold" Foreground="#B0B6C2" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Chữ trạng thái lớn + nút thao tác. -->
+                <Grid Grid.Row="1" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding TesterStatusText}" Foreground="{Binding TesterStatusBrush}"
+                               FontSize="52" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="THỬ LẠI" Padding="22,12" Margin="0,0,12,0" FontSize="20" FontWeight="Bold"
+                                Background="#FFC107" Foreground="#1B1B1B" BorderBrush="#FFC107"
+                                Command="{Binding RetryTesterSaveCommand}" Click="AcknowledgeButton_Click"
+                                Visibility="{Binding CanRetryTesterSave, Converter={StaticResource BoolToVisibility}}"/>
+                        <Button Content="HỦY KẾT QUẢ" Padding="22,12" FontSize="20" FontWeight="Bold"
+                                Background="#2A3040" Foreground="White" BorderBrush="#E53935" BorderThickness="1.5"
+                                Command="{Binding DiscardTesterResultCommand}" Click="AcknowledgeButton_Click"
+                                Visibility="{Binding CanDiscardTesterResult, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Thông báo BIND_FAIL / rút dây / ... (giữ vài giây hoặc tới khi bấm OK với lỗi). -->
+                <Grid Grid.Row="2" Margin="0,4,0,0"
+                      Visibility="{Binding HasTesterNotice, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding TesterNoticeText}" Foreground="{Binding TesterNoticeBrush}"
+                               FontSize="30" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="OK" Padding="26,8" Margin="16,0,0,0" FontSize="20" FontWeight="Bold"
+                            Background="White" Foreground="#1B1B1B" BorderBrush="White"
+                            Command="{Binding DismissTesterNoticeCommand}" Click="AcknowledgeButton_Click"
+                            Visibility="{Binding TesterNoticeNeedsAck, Converter={StaticResource BoolToVisibility}}"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!--
+          US-11 AC4/AC5: overlay đổi công tắc máy thông điện — hiện SAU KHI đăng nhập Tổ trưởng thành công (TesterMode.Change),
+          bắt buộc lý do: ComboBox editable (gợi ý + tự gõ), giống lý do Chế độ Scan NG (US-18). Cùng kiểu khung với các
+          overlay khác (nền làm tối + khung căn giữa), header màu hổ phách để khác overlay NG (đỏ) và số thùng (xanh dương).
+        -->
+        <Grid Grid.RowSpan="4" Background="#B3000000"
+              Visibility="{Binding IsTesterModeOverlayVisible, Converter={StaticResource BoolToVisibility}}">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560"
+                    Background="#FFF8F1" BorderBrush="#FFAB1F" BorderThickness="3" CornerRadius="14"
+                    ClipToBounds="True">
+                <StackPanel>
+                    <Border Background="#FFAB1F" Padding="28,20">
+                        <TextBlock Text="{Binding TesterModeOverlayTitle}" FontSize="26" FontWeight="Bold" Foreground="#1B1B1B"
+                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <StackPanel Margin="36,26,36,30">
+                        <TextBlock Text="{Binding TesterModeOverlayHint}" FontSize="15" Foreground="#3A3F47"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,18"/>
+
+                        <TextBlock Text="LÝ DO (bắt buộc)" FontSize="13" Foreground="#8A8F98" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="TesterModeReasonComboBox" IsEditable="True" IsTextSearchEnabled="True"
+                                  ItemsSource="{Binding TesterModeReasonSuggestions}"
+                                  Text="{Binding TesterModeReasonText, UpdateSourceTrigger=PropertyChanged}"
+                                  FontSize="20" Padding="8" KeyDown="TesterModeReasonComboBox_KeyDown"/>
+
+                        <TextBlock Text="{Binding TesterModeOverlayError}" FontSize="15" Foreground="#D32F2A"
+                                   Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding HasTesterModeOverlayError, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                            <Button Content="HỦY" Padding="18,10" Margin="0,0,12,0"
+                                    Background="Transparent" Foreground="#3A3F47" BorderBrush="#C7CBD1" BorderThickness="1.5"
+                                    Command="{Binding CancelTesterModeOverlayCommand}"/>
+                            <Button Content="XÁC NHẬN" Padding="18,10" FontWeight="Bold"
+                                    Background="#FFAB1F" Foreground="#1B1B1B" BorderBrush="#FFAB1F"
+                                    Command="{Binding ConfirmTesterModeChangeCommand}"/>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

@@ -80,6 +80,19 @@ public partial class AndonBoardWindow : Window
                 case nameof(AndonBoardViewModel.IsPackingBoxNoOverlayVisible):
                     FocusScanInput();
                     break;
+
+                // US-11 AC4: overlay đổi công tắc máy thông điện (lý do) vừa mở/đóng — cùng idiom các overlay trên.
+                case nameof(AndonBoardViewModel.IsTesterModeOverlayVisible) when _viewModel.IsTesterModeOverlayVisible:
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        TesterModeReasonComboBox.Focus();
+                        Keyboard.Focus(TesterModeReasonComboBox);
+                    }, DispatcherPriority.Background);
+                    break;
+
+                case nameof(AndonBoardViewModel.IsTesterModeOverlayVisible):
+                    FocusScanInput();
+                    break;
             }
         };
     }
@@ -97,7 +110,9 @@ public partial class AndonBoardWindow : Window
     // US-18: không cướp focus khỏi ô nhập lý do NG khi Window được kích hoạt lại (vd Alt+Tab quay lại giữa lúc đang gõ).
     private void Window_Activated(object sender, EventArgs e)
     {
-        if (!_viewModel.IsNgReasonPanelVisible)
+        _viewModel.SetWindowActive(true);
+
+        if (!_viewModel.IsNgReasonPanelVisible && !_viewModel.IsTesterModeOverlayVisible)
         {
             FocusScanInput();
         }
@@ -109,10 +124,33 @@ public partial class AndonBoardWindow : Window
         _ = _viewModel.RefreshAsync();
     }
 
+    /// <summary>
+    /// US-12 AC18 (spec-app 6.2, S13): máy quét HID chỉ gõ vào cửa sổ đang focus. Mất focus (click sang cửa sổ khác,
+    /// Alt+Tab) -> hiện banner đỏ "APP KHÔNG ĐƯỢC CHỌN — KHÔNG NHẬN MÃ QUÉT" và không xử lý mã quét tới khi active lại.
+    /// Bỏ qua khi Deactivated chỉ vì mở hộp thoại con (đăng nhập Tổ trưởng...) do chính cửa sổ này sở hữu.
+    /// </summary>
+    private void Window_Deactivated(object sender, EventArgs e)
+    {
+        if (OwnedWindows.Count > 0)
+        {
+            return;
+        }
+
+        _viewModel.SetWindowActive(false);
+    }
+
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
         {
+            return;
+        }
+
+        // US-11 AC4: overlay đổi công tắc máy thông điện (lý do) — Esc = Hủy, giữ nguyên chế độ (AC5).
+        if (_viewModel.IsTesterModeOverlayVisible)
+        {
+            _viewModel.CancelTesterModeOverlayCommand.Execute(null);
+            e.Handled = true;
             return;
         }
 
@@ -227,6 +265,21 @@ public partial class AndonBoardWindow : Window
     }
 
     private void AcknowledgeButton_Click(object sender, RoutedEventArgs e) => FocusScanInput();
+
+    /// <summary>US-11 AC4: Enter trong ô lý do cũng xác nhận đổi công tắc luôn.</summary>
+    private void TesterModeReasonComboBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_viewModel.ConfirmTesterModeChangeCommand.CanExecute(null))
+        {
+            _viewModel.ConfirmTesterModeChangeCommand.Execute(null);
+        }
+    }
 
     /// <summary>US-25 AC5/AC7: Enter trong ô nhập số thùng cũng xác nhận luôn, không bắt buộc bấm nút "XÁC NHẬN".</summary>
     private void PackingBoxNoInputBox_KeyDown(object sender, KeyEventArgs e)

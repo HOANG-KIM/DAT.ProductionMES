@@ -91,4 +91,23 @@ public class ScanApiClient : ApiClientBase, IScanApiClient
             throw new ApiException(ex.StatusCode, "Phiên đăng nhập Tổ trưởng dùng để xác nhận lưu lượt scan bị từ chối đã hết hạn — vui lòng bấm lại \"Lưu\".");
         }
     }
+
+    public async Task<ScanResultDto> CheckAsync(string tagCode, int workStationId, CancellationToken cancellationToken = default)
+    {
+        var request = new CheckScanRequest { TagCode = tagCode, WorkStationId = workStationId };
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/v1/scans/check")
+        {
+            Content = JsonContent.Create(request, options: JsonDefaults.Options),
+        };
+        return await SendAsync<ScanResultDto>(httpRequest, cancellationToken);
+    }
+
+    public async Task<ScanResultDto> CreateTesterScanAsync(CreateTesterScanRequest request, CancellationToken cancellationToken = default)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "api/v1/scans/tester")
+        {
+            Content = JsonContent.Create(request, options: JsonDefaults.Options),
+        };
+        return await SendAsync<ScanResultDto>(httpRequest, cancellationToken);
+    }
 }

@@ -31,4 +31,9 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- US-11/12/14: thư viện máy thông điện (TesterLink, parser, state machine) - không phụ thuộc WPF/backend. -->
+    <ProjectReference Include="../ProductionMES.Station.Tester/ProductionMES.Station.Tester.csproj" />
+  </ItemGroup>
+
 </Project>

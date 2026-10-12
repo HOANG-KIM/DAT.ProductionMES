@@ -30,4 +30,15 @@ public interface IScanApiClient
     /// là access token đã đăng nhập RIÊNG cho lượt xác nhận này (AC5, cùng cách <see cref="CreateNgAsync"/>).
     /// </summary>
     Task<ScanResultDto> ConfirmRejectedScanAsync(ScanResultDto rejectedScan, string supervisorAccessToken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-12 AC3/AC4: kiểm tra tem theo logic FR-08 của server, KHÔNG lưu — dùng khi App đang giữ kết quả OK của máy
+    /// thông điện, trước khi gửi BIND. Luôn trả <see cref="ScanResultDto"/> (Result = Ok hoặc lý do bị từ chối).
+    /// </summary>
+    Task<ScanResultDto> CheckAsync(string tagCode, int workStationId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// US-12 AC2/AC15: lưu Scan OK gắn kết quả máy thông điện (sau BIND_OK), idempotent theo (BootId, Seq). StationApiKey.
+    /// </summary>
+    Task<ScanResultDto> CreateTesterScanAsync(CreateTesterScanRequest request, CancellationToken cancellationToken = default);
 }

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ProductionMES.Station.Tester\ProductionMES.Station.Tester.csproj" />
+    <ProjectReference Include="..\..\tools\ProductionMES.Tester.Simulator\ProductionMES.Tester.Simulator.csproj" />
   </ItemGroup>
 
 </Project>
