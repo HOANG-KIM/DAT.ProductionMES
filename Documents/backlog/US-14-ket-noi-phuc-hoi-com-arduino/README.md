@@ -83,7 +83,7 @@ Section `Tester` trong `Station.Wpf/appsettings.json` (cục bộ tại từng t
 
 ## Trạng thái triển khai
 
-- **Trạng thái:** ⬜ Chưa làm
+- **Trạng thái:** 🟡 Một phần (code + test xong, chưa nghiệm thu với máy thật / COM thật)
 - **Cập nhật:** 2026-10-12
 
 ## Lịch sử triển khai (ghi chú backlog)
@@ -93,3 +93,20 @@ Section `Tester` trong `Station.Wpf/appsettings.json` (cục bộ tại từng t
 - **Bỏ** bảng `LichSuLenhArduino`; log serial vào/ra ghi file Serilog mức Debug.
 - Cấu hình COM/baud/timeout chuyển về `appsettings.json` cục bộ (section `Tester`); không có màn hình Cài đặt.
 - Chưa có code triển khai.
+
+#### 2026-10-12 (dev, triển khai kết nối COM / heartbeat / đồng bộ lại / event log) — commit `3b4713b` (thư viện + event log backend), `90df2ad` (đồng bộ lại — state machine), `102cb15` (Station.Wpf + công cụ giả lập)
+- **Thư viện mới `src/ProductionMES.Station.Tester`** (net8.0, KHÔNG phụ thuộc WPF/backend; package `System.IO.Ports 8.0.0`): `TesterOptions` (section `Tester`: `PortName`, `BaudRate=115200`, `PingIntervalMs=1000`, `LinkTimeoutMs=5000`, `CommandTimeoutMs=2000`, `ReconnectIntervalMs=2000`), `ProtocolParser` + `LineAssembler` (AC10: tra key theo tên, bỏ key lạ, thiếu key bắt buộc => dòng hỏng, dòng không `#` chỉ log, `\r\n`, dòng > 256 byte bỏ rồi đồng bộ lại ở `\n` kế tiếp), `ISerialPort`/`SystemSerialPort` (115200 8N1, `Handshake.None`, `DtrEnable = false`, `RtsEnable = false` đặt TRƯỚC khi mở — AC1), `TesterLink` (luồng đọc nền; `#HELLO?` ngay khi mở; `#PING` mỗi 1000 ms độc lập; mất PONG > 5000 ms / lỗi I/O => đóng cổng + raise `PortClosed`, thử mở lại mỗi 2000 ms — AC3/AC4; ghi có `lock` — AC13; `Stop()` đóng cổng + ngừng PING + không tự mở lại — AC2; log RX/TX/dòng rác/dòng hỏng qua `ITesterLog`).
+- **Đồng bộ lại (AC5–AC8)** nằm trong `TesterStationController` (xem US-12): HELLO `BOOT` khác lần trước => `VOID_REBOOT`; PONG đầu tiên sau (tái) kết nối đối chiếu `ST`/`SEQ` đúng bảng spec-app 7.3 (`WAIT_BIND`+SEQ khớp => `WaitScan`; `BINDING`+SEQ khớp => `Saving`; `WAIT_BIND`/`BINDING` với SEQ khác hoặc App không giữ => `#RESULT?`; `SEQ=0` + App giữ => `VOID_LINK_LOST`; `SEQ=0` không giữ => `Ready`); mọi `ST` (`IDLE/TESTING/WAIT_BIND/BINDING/WAIT_REMOVE/BROWSE/NO_SAMPLE`) và mọi `ERR` (`BAD_CMD/BAD_SEQ/NO_PENDING/TOO_LONG/BUSY`) được xử lý không treo; `GM=0000`/`ST=NO_SAMPLE` => banner "Máy chưa có mẫu — cần Learn" (không chặn cổng); `GM` của `RESULT` đổi => ghi log "Mẫu (golden matrix) đã thay đổi".
+- **Event log (AC12):** entity `TesterEventLog` + migration `AddTesterEventLog` + `POST api/v1/tester/events` (StationApiKey, 204). Loại sự kiện (enum `TesterEventType`, lưu chuỗi PascalCase): `VoidRemoved`, `VoidDiscard`, `VoidReboot`, `VoidLinkLost`, `LinkLost`, `LinkRestored`, `BindFail`, `ScanOnNg`, `DbError` (tương ứng `VOID_REMOVED`... trong tài liệu). Station.Wpf ghi lỗi (mất server) chỉ ra file Serilog, không chặn thao tác.
+- **Station.Wpf:** DI `TesterLink`/`TesterStationController`; Serilog ghi `logs/station-YYYYMMDD.log` mức Debug (toàn bộ dòng serial vào/ra — AC11, không ghi DB, không có bảng `LichSuLenhArduino`); `AndonBoardWindow`: chỉ báo "Máy: KẾT NỐI · FW · GM · số pin" (AC9), banner đỏ nhấp nháy "MẤT KẾT NỐI MÁY THÔNG ĐIỆN" + chặn quét (AC3), banner "Máy chưa có mẫu — cần Learn" (AC8). Cổng COM chỉ mở khi trạm `UseArduino` + công tắc BẬT (AC2).
+- **Công cụ giả lập firmware:** `tools/ProductionMES.Tester.Simulator` (console, dùng `System.IO.Ports`, nối cặp COM ảo com0com — hướng dẫn trong comment `Program.cs`; phím `i p f r m b g s q`) + lớp `MachineSimulator` (logic thuần theo spec mục 4–5) dùng lại trong test tích hợp.
+- **Test:** `ProductionMES.Station.Tester.Tests` (xUnit, 160 test, pass): `ProtocolParserTests`, `LineAssemblerTests`, `TesterLinkTests` (cổng COM giả: mở cổng + HELLO?/PING, mất PONG, rút cáp, tự mở lại, Stop/Start, handler ném exception), `TesterStationControllerTests` (đồng bộ lại / ERR / ST), `TesterIntegrationTests` (link + controller + `MachineSimulator`: S1, S7, S7b, S8...); `TesterStationServiceTests.RecordEventAsync_*`.
+- **Build:** `dotnet build ProductionMES.sln` 0 lỗi 0 cảnh báo.
+- **Quyết định tự chọn:**
+  - "Kết nối" của App = đã mở cổng VÀ đã nhận PONG đầu tiên + đồng bộ xong (`Disconnected` chặn quét cho tới lúc đó); `RESULT`/`VOID` nhận được khi chưa đồng bộ xong bị bỏ qua/không mở khóa quét — PONG đầu tiên + `#RESULT?` sẽ lấy lại trạng thái đúng.
+  - Cổng mở mà không có PONG nào trong `LinkTimeoutMs` kể từ lúc mở => đóng và thử lại (cổng nhầm thiết bị).
+  - `LINK_LOST`/`LINK_RESTORED` chỉ ghi sau khi đã từng kết nối được (lần mở cổng thất bại lúc khởi động không sinh event).
+  - Thời điểm event log lấy theo giờ server; người duyệt của `VOID_DISCARD` do Station.Wpf gửi lên (endpoint dùng StationApiKey, không có Bearer).
+  - Chưa kiểm tra `PINS` theo Model (đúng phạm vi: chỉ hiển thị/log).
+  - Lưu ý phần cứng: một số driver USB-UART vẫn kéo DTR trong thoáng chốc lúc mở handle (trước khi áp DCB) làm ESP32 reset; firmware đã chịu được (gửi HELLO lúc boot, App đồng bộ theo `BOOT`).
+- **Còn thiếu / lý do giữ 🟡:** chưa chạy với máy thật / cặp COM ảo (đã kiểm tra bằng cổng giả + `MachineSimulator` ở mức giao thức); chưa đo "không chậm đáng kể" của luồng PING trên PC trạm; chưa chạy 1 ca dài (S12) để xác nhận không mất kết nối.

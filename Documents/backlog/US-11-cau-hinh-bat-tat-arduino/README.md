@@ -83,7 +83,7 @@
 
 ## Trạng thái triển khai
 
-- **Trạng thái:** ⬜ Chưa làm
+- **Trạng thái:** 🟡 Một phần (code + test xong, chưa kiểm tra trực quan UI đầy đủ / chưa nghiệm thu với máy thật)
 - **Cập nhật:** 2026-10-12
 
 ## Lịch sử triển khai (ghi chú backlog)
@@ -95,3 +95,21 @@
 
 #### 2026-10-12 (người giao việc chốt, ghi bởi agent chính)
 - Chốt các giả định của BA: AC9, AC10 (mặc định BẬT), AC11 (chặn quét khi không đọc được công tắc); lý do đổi chế độ = gợi ý + tự gõ. Bỏ mục "Câu hỏi mở".
+
+#### 2026-10-12 (dev, triển khai công tắc "Đang sử dụng máy thông điện" / Bypass) — commit `f990cd2` (backend + web-admin), `102cb15` (Station.Wpf)
+- **Domain:** `WorkStation.TesterEnabled` (mặc định `true` = BẬT), `Scan.TesterMode` (enum `TesterMode`: `None`/`Tester`/`Bypass`, mặc định `None`), entity `TesterModeChangeLog` (trạm, từ/đến chế độ, lý do, người duyệt, thời điểm); permission mới `TesterMode.Change` + `TesterResult.Discard` (enum `PermissionResource`/`PermissionAction`).
+- **Application:** `ITesterStationService` — `GetStateAsync` (UseArduino + công tắc), `SetEnabledAsync` (bắt buộc lý do, chỉ trạm `UseArduino = true`, đã ở đúng giá trị thì không ghi log). `ScanService.CreateAsync`: trạm có máy + công tắc BẬT => ném `BusinessRuleException` (409, phải đi luồng máy US-12); trạm có máy + công tắc TẮT => lưu `Result = Ok` + `TesterMode = Bypass` (vẫn qua FR-08, tính vào ACTUAL); trạm không có máy => `None`. `ScanHistoryQuery.TesterMode` + `ScanHistoryItemDto/ScanResultDto.TesterMode` (lọc/tra cứu riêng theo chế độ, query `?testerMode=Bypass`). Validator `CreateWorkStationRequest/UpdateWorkStationRequest` bỏ bắt buộc `ComPort/BaudRate/CommandProtocol` (AC12); validator `SetTesterEnabledRequest` (lý do bắt buộc).
+- **Infrastructure:** migration `AddTesterModeSwitchAndScanTesterMode` (cột `WorkStation.TesterEnabled`, `Scan.TesterMode`, bảng `TesterModeChangeLog`); `DbSeeder` seed 2 permission mới + `EnsureTesterPermissionGrantsAsync` cấp cho Supervisor/Admin/Manager (idempotent, chạy mỗi lần khởi động).
+- **Api:** `TesterController` — `GET api/v1/tester/station-state` (StationApiKey, trạm đọc trạng thái của chính nó theo claim), `PUT api/v1/tester/enabled` (Bearer + policy `TesterMode.Change`, người duyệt lấy từ claim JWT).
+- **web-admin:** form trạm bỏ các ô Cổng COM/Baud/Giao thức, đổi nhãn thành "Trạm có máy thông điện"; type `WorkStation.testerEnabled` (chỉ đọc).
+- **Station.Wpf:** `AndonBoardViewModel` đọc `GET tester/station-state` khi khởi động và mỗi chu kỳ làm mới => chế độ `Unknown` (CHẶN quét + banner "Không xác định được chế độ máy thông điện", tự thử lại mỗi 5 giây) / `NoMachine` (luồng thường, không công tắc, không mở COM) / `Bypass` / `Active`. Công tắc "MÁY THÔNG ĐIỆN: BẬT/TẮT" chỉ hiện ở trạm `UseArduino`; bấm => từ chối ngay nếu đang có kết quả chờ (AC9) => đăng nhập Tổ trưởng (`LoginDialog`, permission `TesterMode.Change`; sai tài khoản/thiếu quyền/Hủy => giữ nguyên, không log — AC5) => overlay lý do (`ComboBox` editable: gợi ý + tự gõ, bắt buộc) => `PUT tester/enabled`. Đổi thành công: TẮT => `TesterStationController.Stop()` (đóng COM, ngừng PING — AC7); BẬT => `Start()` (mở COM + đồng bộ — AC8). Bỏ `ArduinoTimeoutSeconds` khỏi `StationOptions`/`appsettings.json`/màn "Cấu hình trạm".
+- **Test:** `TesterStationServiceTests`, `ScanServiceTesterModeTests` (None/Bypass/chặn khi BẬT), `WorkStationAndTesterValidatorTests` — `dotnet test tests/ProductionMES.Application.Tests` 424/424 pass.
+- **Build:** `dotnet build ProductionMES.sln` 0 lỗi 0 cảnh báo; `npm run build` (web-admin) OK.
+- **Quyết định tự chọn (người giao việc chưa chốt chi tiết):**
+  - Server là nơi quyết định `TesterMode` (client không gửi chế độ): tránh client sai/lệch gây lưu nhầm; scan thường ở trạm có máy + công tắc BẬT bị chặn 409 để không ai lưu OK bỏ qua máy mà không để lại dấu vết.
+  - `PUT tester/enabled` nhận `WorkStationId` trong body (cùng pattern `ScanNgController`/`CreateNgScanRequest`) vì scheme Bearer không mang danh tính trạm.
+  - Giữ nguyên 3 cột `ComPort/BaudRate/CommandProtocol` trên `WorkStation` (không drop, không còn dùng) để không mất dữ liệu cũ.
+  - Không đọc được trạng thái công tắc => chặn quét ở MỌI trạm (kể cả trạm không có máy, vì lúc đó chưa biết trạm có máy hay không); đọc lỗi sau khi đã biết chế độ thì giữ chế độ hiện tại. Nếu server báo đổi `UseArduino`/công tắc trong lúc đang có kết quả chờ thì hoãn áp dụng tới lần đọc sau.
+  - Danh sách lý do gợi ý là hằng số trong `AndonBoardViewModel.Tester.cs` (2 danh sách: khi TẮT / khi BẬT lại), vẫn tự gõ được.
+  - Chưa làm màn hình xem `TesterModeChangeLog` (chỉ lưu DB) — chưa có AC.
+- **Còn thiếu / lý do giữ 🟡:** người dùng chưa chạy thử UI bằng mắt trên trạm thật (đã smoke-test mở app + chụp màn hình với server giả: banner không xác định chế độ, trạng thái BẬT/TẮT, panel máy); chưa nghiệm thu S9/S10 với máy thật; nên chạy migration trên DB thật và đăng nhập thử các tài khoản Supervisor/Manager (permission mới).

@@ -34,10 +34,10 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-08](./backlog/US-08-kiem-tra-hop-le-khi-scan/README.md) | Kiểm tra hợp lệ khi scan | ✅ Xong | — | 2026-08-14 |
 | [US-09](./backlog/US-09-hien-thi-so-luong-chi-so-am-duong/README.md) | Hiển thị số lượng & chỉ số +/- tại trạm | 🟡 Một phần | — | 2026-08-17 |
 | [US-10](./backlog/US-10-luu-tra-cuu-lich-su-scan/README.md) | Lưu & tra cứu lịch sử scan | ✅ Xong | — | 2026-08-19 |
-| [US-11](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md) | Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) | ⬜ Chưa làm | Viết lại 12/10/2026 theo spec ESP32 | 2026-10-12 |
-| [US-12](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md) | Luồng thông điện trước → quét QR sau (BIND/SAVED) | ⬜ Chưa làm | Viết lại 12/10/2026; bỏ xác nhận NG bởi Tổ trưởng | 2026-10-12 |
+| [US-11](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md) | Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) | 🟡 Một phần | Code + test xong 12/10/2026 (commit f990cd2, 102cb15); chưa kiểm tra UI trực quan đầy đủ, chưa nghiệm thu với máy thật | 2026-10-12 |
+| [US-12](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md) | Luồng thông điện trước → quét QR sau (BIND/SAVED) | 🟡 Một phần | Code + test xong 12/10/2026 (commit 86fdfb3, 90df2ad, 102cb15); chưa nghiệm thu S1–S15 với máy thật | 2026-10-12 |
 | [US-13](./backlog/US-13-timeout-kiem-tra-arduino/README.md) | ~~Timeout xác định kết quả Arduino~~ | ⛔ Hủy | Không áp dụng từ 12/10/2026 — thay bằng heartbeat ở US-14 | 2026-10-12 |
-| [US-14](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md) | Kết nối COM, heartbeat & đồng bộ lại máy thông điện | ⬜ Chưa làm | Viết lại 12/10/2026 (thay US-13) | 2026-10-12 |
+| [US-14](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md) | Kết nối COM, heartbeat & đồng bộ lại máy thông điện | 🟡 Một phần | Code + test xong 12/10/2026 (commit 3b4713b, 90df2ad, 102cb15); chưa chạy với COM thật | 2026-10-12 |
 | [US-15](./backlog/US-15-khoi-phuc-trang-thai-phien-lam-viec/README.md) | Khôi phục trạng thái phiên khi mở lại | ⬜ Chưa làm | — | 2026-08-14 |
 | [US-16](./backlog/US-16-hang-doi-cuc-bo-chong-mat-scan/README.md) | Hàng đợi cục bộ chống mất lượt scan | ⬜ Chưa làm | — | 2026-08-14 |
 | [US-17](./backlog/US-17-hien-thi-trang-thai-dong-bo/README.md) | Hiển thị trạng thái đồng bộ trên UI | ⬜ Chưa làm | — | 2026-08-14 |
@@ -87,10 +87,10 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 
 Luồng mới: **thông điện TRƯỚC, quét QR SAU** (spec: `Documents/spec-firmware-app-link.md`, `Documents/spec-app-wpf-station.md`).
 
-- **US-11** — Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) (⬜ Chưa làm) → [chi tiết](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md)
-- **US-12** — Luồng thông điện trước → quét QR sau (BIND/SAVED) (⬜ Chưa làm) → [chi tiết](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md)
+- **US-11** — Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) (🟡 Một phần) → [chi tiết](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md)
+- **US-12** — Luồng thông điện trước → quét QR sau (BIND/SAVED) (🟡 Một phần) → [chi tiết](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md)
 - **US-13** — ~~Timeout xác định kết quả Arduino~~ (⛔ Hủy — thay bằng heartbeat ở US-14) → [chi tiết](./backlog/US-13-timeout-kiem-tra-arduino/README.md)
-- **US-14** — Kết nối COM, heartbeat & đồng bộ lại máy thông điện (⬜ Chưa làm) → [chi tiết](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md)
+- **US-14** — Kết nối COM, heartbeat & đồng bộ lại máy thông điện (🟡 Một phần) → [chi tiết](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md)
 
 ## 3.5 Nhóm chức năng: Khôi phục trạng thái & chống mất dữ liệu
 
