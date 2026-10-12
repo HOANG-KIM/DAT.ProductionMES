@@ -19,7 +19,7 @@
 
 **Nguồn FR:** FR-02
 **Phụ thuộc:** Không có (song song với US-01, có thể làm ngay sau/cùng US-01)
-**Cờ cảnh báo mục 8.2:** Có — danh sách công đoạn cụ thể từng Line và công đoạn nào dùng Arduino chưa xác định; ảnh hưởng tới US-04 (SuDungArduino) khi cần biết chính xác công đoạn nào cần bật cờ này.
+**Cờ cảnh báo mục 8.2:** Có — danh sách công đoạn cụ thể từng Line và công đoạn nào dùng máy thông điện (hiện chỉ Thông điện); ảnh hưởng tới US-04 (`UseArduino`) khi cần biết chính xác công đoạn nào cần bật cờ này.
 
 ---
 

@@ -74,4 +74,10 @@ public class ScanResultDto
 
     /// <summary>Id thùng VỪA hoàn tất (khi <see cref="PackingBoxCompleted"/> = true) — dùng để gọi endpoint tải tem in (AC4/AC13). Null nếu <see cref="PackingBoxCompleted"/> = false.</summary>
     public int? PackingCompletedBoxId { get; set; }
+
+    /// <summary>Số sản phẩm đã đóng thùng của cùng Model + Lot sau lượt này (giới hạn bởi Tổng số lượng Lot).</summary>
+    public int? PackingLotPackedQuantity { get; set; }
+
+    /// <summary>true khi lượt này vừa đóng đủ Tổng số lượng Lot — không mở thùng kế tiếp.</summary>
+    public bool PackingLotFullyPacked { get; set; }
 }

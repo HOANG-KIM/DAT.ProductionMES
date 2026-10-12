@@ -1,6 +1,6 @@
 # US-04: Quản lý trạm làm việc
 **Là** Quản trị hệ thống (Admin)
-**Tôi muốn** cấu hình trạm làm việc gắn với 1 Line và 1 công đoạn cụ thể, kèm thông tin cổng COM nếu có Arduino
+**Tôi muốn** cấu hình trạm làm việc gắn với 1 Line và 1 công đoạn cụ thể, và đánh dấu trạm có máy thông điện hay không
 **Để** mỗi trạm hoạt động đúng phạm vi nghiệp vụ của nó (Line/công đoạn) và có đủ thông tin kết nối phần cứng khi cần
 
 **Acceptance Criteria**
@@ -8,12 +8,12 @@
   - Given Line và công đoạn đã tồn tại trong danh mục
   - When Admin tạo trạm mới, chọn đúng 1 Line và 1 công đoạn
   - Then trạm được tạo, gắn cố định với Line/công đoạn đã chọn
-- **AC2 — Cấu hình cổng COM khi trạm có Arduino**
-  - Given trạm được đánh dấu có sử dụng Arduino (`SuDungArduino = true`, xem US-11)
-  - When Admin nhập cổng COM, baud rate, giao thức lệnh
-  - Then thông tin được lưu và dùng để trạm WPF kết nối Serial khi khởi động
-- **AC3 — Trạm không dùng Arduino không yêu cầu cấu hình COM**
-  - Given trạm có `SuDungArduino = false`
+- **AC2 — Đánh dấu trạm có máy thông điện** *(sửa 12/10/2026)*
+  - Given Admin cấu hình trạm
+  - When bật cờ "Trạm có máy thông điện" (`UseArduino = true`, xem US-11)
+  - Then cờ được lưu; **không bắt buộc** nhập cổng COM/baud rate/giao thức lệnh — cấu hình kết nối máy nằm ở `appsettings.json` cục bộ tại trạm (section `Tester`, US-14). Các trường `ComPort`/`BaudRate`/`CommandProtocol` trên server không còn dùng cho kết nối
+- **AC3 — Trạm không dùng máy thông điện không yêu cầu cấu hình COM**
+  - Given trạm có `UseArduino = false`
   - When Admin cấu hình trạm
   - Then hệ thống không bắt buộc nhập thông tin cổng COM
 
@@ -31,3 +31,7 @@
 ## Lịch sử triển khai (ghi chú backlog)
 
 Backend + UI web-admin (`a42c9f2`, `cedf66b`)
+
+#### 2026-10-12 (ba, sửa AC2 theo spec máy thông điện ESP32)
+- **Spec:** AC2 đổi từ "bắt buộc nhập cổng COM/baud/giao thức khi `UseArduino = true`" thành "chỉ đánh dấu trạm có máy"; cấu hình kết nối chuyển về `appsettings.json` cục bộ tại trạm (US-14). Đổi tên `SuDungArduino` → `UseArduino` (tên thật trong code).
+- **Còn thiếu:** code hiện tại vẫn bắt buộc 3 trường COM khi `UseArduino = true` (`CreateWorkStationRequestValidator`/`UpdateWorkStationRequestValidator` + form web-admin) — gỡ cùng lúc implement US-11 (AC12). Giữ trạng thái ✅ vì phần quản lý trạm vẫn dùng được, chỉ thừa ràng buộc.

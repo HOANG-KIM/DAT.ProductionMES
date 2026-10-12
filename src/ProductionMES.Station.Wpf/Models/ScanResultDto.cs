@@ -50,4 +50,10 @@ public class ScanResultDto
 
     /// <summary>Id thùng VỪA hoàn tất — dùng để tải tem in tự động (AC4/AC13).</summary>
     public int? PackingCompletedBoxId { get; set; }
+
+    /// <summary>Số sản phẩm đã đóng thùng của cùng Model + Lot sau lượt này (giới hạn bởi Tổng số lượng Lot).</summary>
+    public int? PackingLotPackedQuantity { get; set; }
+
+    /// <summary>true khi lượt này vừa đóng đủ Tổng số lượng Lot — không mở thùng kế tiếp.</summary>
+    public bool PackingLotFullyPacked { get; set; }
 }

@@ -21,4 +21,13 @@ public class PackingLabelData
     public string LineName { get; set; } = string.Empty;
 
     public string WorkStationName { get; set; } = string.Empty;
+
+    /// <summary>Khách hàng của kế hoạch sản xuất (US-28) — đọc từ <c>ProductionPlan.Customer</c> lúc tạo tem.</summary>
+    public string Customer { get; set; } = string.Empty;
+
+    /// <summary>Lot của kế hoạch sản xuất (US-28) — đọc từ <c>ProductionPlan.Lot</c> lúc tạo tem.</summary>
+    public string Lot { get; set; } = string.Empty;
+
+    /// <summary>Nhân viên vận hành (US-28, thay ô "NV cân" của tem cũ) — đọc từ <c>ProductionPlan.OperatorNames</c> lúc tạo tem.</summary>
+    public string OperatorNames { get; set; } = string.Empty;
 }

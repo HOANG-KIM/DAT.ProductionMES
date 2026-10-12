@@ -302,6 +302,51 @@ public partial class AndonBoardViewModel : ObservableObject
     /// <summary>AC9: "đã quét / mục tiêu" của thùng hiện tại.</summary>
     public string PackingProgressLabel => $"{PackingScannedQuantity} / {PackingTargetQuantity}";
 
+    // --- AC17: số tem thùng giới hạn bởi Tổng số lượng Lot ---
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private string packingLotCode = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int? packingLotTotalQuantity;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int packingLotPackedQuantity;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int? packingLotTotalBoxCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private int packingLotCompletedBoxCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PackingLotProgressLabel))]
+    private bool isPackingLotFullyPacked;
+
+    public string PackingLotProgressLabel
+    {
+        get
+        {
+            if (PackingLotTotalQuantity is not { } total)
+            {
+                return $"LOT {PackingLotCode}: chưa có Tổng số lượng Lot — Tổ trưởng nhập ở Cài đặt kế hoạch trước khi đóng thùng.";
+            }
+
+            if (IsPackingLotFullyPacked)
+            {
+                return $"LOT {PackingLotCode} ĐÃ ĐÓNG ĐỦ: {PackingLotPackedQuantity}/{total} pcs — {PackingLotCompletedBoxCount} thùng.";
+            }
+
+            var boxCount = PackingLotTotalBoxCount is { } count ? $"/{count}" : string.Empty;
+            return $"LOT {PackingLotCode}: {PackingLotPackedQuantity}/{total} pcs — đã in {PackingLotCompletedBoxCount}{boxCount} tem thùng.";
+        }
+    }
+
     /// <summary>AC13: true khi kế hoạch hiện tại đã có ít nhất 1 thùng hoàn tất — điều khiển hiện/ẩn nút "In lại" (luôn sẵn sàng theo AC13, không phụ thuộc lượt scan gần nhất có hoàn tất thùng hay không).</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ReprintPackingLabelCommand))]
@@ -338,6 +383,10 @@ public partial class AndonBoardViewModel : ObservableObject
     private string packingBoxNoOverlayError = string.Empty;
 
     public bool HasPackingBoxNoOverlayError => !string.IsNullOrEmpty(PackingBoxNoOverlayError);
+
+    /// <summary>Dòng gợi ý trong overlay nhập/sửa số thùng — dãy số thùng tính theo (Model, Lot), nối tiếp qua mọi kế hoạch.</summary>
+    [ObservableProperty]
+    private string packingBoxNoSuggestionText = string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SubmitPackingBoxNoCommand))]
@@ -433,6 +482,12 @@ public partial class AndonBoardViewModel : ObservableObject
     private void ApplyPackingState(PackingBoxStateDto state)
     {
         PackingRequiresStartingBoxNo = state.RequiresStartingBoxNo;
+        PackingLotCode = state.Lot;
+        PackingLotTotalQuantity = state.LotTotalQuantity;
+        PackingLotPackedQuantity = state.LotPackedQuantity;
+        PackingLotTotalBoxCount = state.LotTotalBoxCount;
+        PackingLotCompletedBoxCount = state.LotCompletedBoxCount;
+        IsPackingLotFullyPacked = state.IsLotFullyPacked;
 
         if (state.CurrentBox is { } currentBox)
         {
@@ -448,16 +503,20 @@ public partial class AndonBoardViewModel : ObservableObject
         }
 
         // AC5: bắt buộc nhập số thùng bắt đầu TRƯỚC khi cho quét tem đầu tiên — mở overlay ngay, không có nút Hủy.
-        // Gợi ý sẵn "1" (trường hợp thường gặp nhất) — Operator vẫn sửa được nếu cần nối số theo thùng đã đóng
-        // trước đó bằng cách khác (đúng tinh thần AC5, không ép cứng phải là 1).
+        // Điền sẵn số gợi ý của server (thùng kế tiếp của cùng Model + Lot, vd đã in 1,2,3 thì gợi ý 4) — Operator
+        // vẫn sửa được, server chặn nếu trùng số thùng đã in.
         if (PackingRequiresStartingBoxNo)
         {
             IsEditingExistingBoxNo = false;
-            PackingBoxNoInputText = "1";
+            PackingBoxNoInputText = state.SuggestedNextBoxNo.ToString();
+            PackingBoxNoSuggestionText = BuildBoxNoSuggestionText(state);
             PackingBoxNoOverlayError = string.Empty;
             IsPackingBoxNoOverlayVisible = true;
         }
     }
+
+    private static string BuildBoxNoSuggestionText(PackingBoxStateDto state) =>
+        $"Model {state.Model} — Lot {state.Lot}: thùng kế tiếp gợi ý là số {state.SuggestedNextBoxNo}.";
 
     /// <summary>AC2/AC4/AC9/AC12: cập nhật bộ đếm thùng theo kết quả trả về từ lượt scan Ok vừa lưu; kích hoạt in tự động (AC4) khi thùng vừa hoàn tất.</summary>
     private void ApplyPackingScanResult(ScanResultDto result)
@@ -475,8 +534,19 @@ public partial class AndonBoardViewModel : ObservableObject
             PackingTargetQuantity = targetQuantity;
         }
 
+        if (result.PackingLotPackedQuantity is { } lotPackedQuantity)
+        {
+            PackingLotPackedQuantity = lotPackedQuantity;
+        }
+        if (result.PackingLotFullyPacked)
+        {
+            IsPackingLotFullyPacked = true;
+        }
+
         if (result.PackingBoxCompleted && result.PackingCompletedBoxId is { } completedBoxId)
         {
+            PackingLotCompletedBoxCount++;
+
             _lastCompletedPackingBoxId = completedBoxId;
             PackingHasCompletedBox = true;
 
@@ -560,7 +630,7 @@ public partial class AndonBoardViewModel : ObservableObject
 
     /// <summary>AC7: nút "Sửa số thùng" — yêu cầu đăng nhập Tổ trưởng (re-auth, permission <see cref="PackingBoxUpdatePermission"/>) TRƯỚC khi mở overlay nhập số mới.</summary>
     [RelayCommand]
-    private Task OpenEditBoxNoAsync()
+    private async Task OpenEditBoxNoAsync()
     {
         var dialog = _serviceProvider.GetRequiredService<Views.LoginDialog>();
         dialog.ViewModel.RequiredPermission = PackingBoxUpdatePermission;
@@ -569,20 +639,32 @@ public partial class AndonBoardViewModel : ObservableObject
         var loggedIn = dialog.ShowDialog() == true;
         if (!loggedIn)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _packingSupervisorAccessToken = dialog.ViewModel.NgConfirmationLoginResult?.AccessToken;
         if (string.IsNullOrEmpty(_packingSupervisorAccessToken))
         {
-            return Task.CompletedTask;
+            return;
+        }
+
+        // Lấy gợi ý MỚI NHẤT (thùng kế tiếp của cùng Model + Lot, không tính thùng đang sửa) — lỗi mạng thì vẫn mở
+        // overlay với số hiện tại, server vẫn chặn nếu nhập trùng số đã in.
+        PackingBoxNoInputText = PackingBoxNo.ToString();
+        PackingBoxNoSuggestionText = string.Empty;
+        try
+        {
+            var state = await _packingBoxApiClient.GetStateAsync();
+            PackingBoxNoInputText = state.SuggestedNextBoxNo.ToString();
+            PackingBoxNoSuggestionText = BuildBoxNoSuggestionText(state);
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
         }
 
         IsEditingExistingBoxNo = true;
-        PackingBoxNoInputText = PackingBoxNo.ToString();
         PackingBoxNoOverlayError = string.Empty;
         IsPackingBoxNoOverlayVisible = true;
-        return Task.CompletedTask;
     }
 
     /// <summary>Chỉ áp dụng cho AC7 (sửa số thùng) — AC5 (nhập số thùng bắt đầu) bắt buộc, không cho hủy.</summary>

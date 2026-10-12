@@ -8,6 +8,7 @@
 **Cập nhật 26/08/2026** — (10) phân tích cơ chế insert data vào template in tem (US-24/US-25) theo yêu cầu người giao việc: xác nhận cơ chế token `{{...}}` (`PackingLabelGenerator.cs`) đã hoạt động đúng — vị trí cột/hàng do Admin tự quyết định lúc thiết kế file `.xlsx`, không phải hardcode trong code — nhưng phát hiện gap "token sai/thiếu bị bỏ qua im lặng, không cảnh báo". Người giao việc chốt: (a) bổ sung **US-24/AC10** (cảnh báo token không hợp lệ khi upload template) — US-24 chuyển lại **🟡 Một phần**; (b) xác nhận có nhu cầu barcode/QR trên tem — tách story mới **US-28** (dự thảo, còn điểm mở về loại mã/nội dung mã hoá/thư viện, cần chốt thêm trước khi dev implement).
 **Cập nhật 25/08/2026** — (9) bổ sung story mới **US-27** (Xác nhận Tổ trưởng trước khi lưu lịch sử scan bị từ chối) — đảo ngược 1 phần quy tắc nghiệp vụ nền tảng "mọi lượt scan kể cả bị từ chối đều tự động lưu lịch sử" (SRS FR-10/mục 6 quy tắc 6), theo yêu cầu người giao việc, do agent `ba` phân tích qua 2 vòng làm rõ (xác nhận rõ US-18 Chế độ Scan NG KHÔNG thuộc phạm vi, giữ nguyên 100%; đối tượng thực sự là banner lỗi scan bình thường DuplicateTag/PreviousStageNotPassed/WaitingReworkUnlock và mọi lỗi tương lai). **Supersede US-25/AC8** (tem trùng tại "Đóng thùng" nay dùng chung cơ chế Lưu/Thoát của US-27 thay vì cơ chế audit riêng cũ). Đồng bộ SRS: FR-07 (mục 3.3), FR-27 mới, mục 6 quy tắc 6/16 sửa lại, mục 7 AC-31 sửa lại + AC-37 mới, mục 8.1/8.2.
 **Cập nhật 20/08/2026** — (5) bổ sung 3 story mới **US-24/US-25/US-26** (mục 3.8 "Đóng thùng") — tính năng port lại từ 1 app WinForms cũ độc lập (`PrintLabel`, DB `line_andon_history1`) vào đúng kiến trúc MES hiện tại, do agent `ba` viết theo yêu cầu người dùng (đã đảo ngược quyết định "Đóng thùng ngoài phạm vi SRS" — xem SRS mục 1.2/8.1); đồng bộ SRS FR-24/FR-25/FR-26, mục 6 quy tắc 16, mục 7 AC-29→AC-32, mục 8.2 (5 điểm mở mới). **Cùng ngày, vòng 2** — (6) người giao việc chốt trực tiếp cả 5 điểm mở phát sinh ở (5): Model khớp `ProductionPlan.Model` không phân biệt hoa/thường + tự trim + autocomplete (US-24/AC9), Supervisor xác nhận tem trùng KHÔNG cộng thêm số lượng chỉ audit (US-25/AC8, đảo ngược giả định ban đầu của `ba`), sửa Quy cách đóng gói không hồi tố cho thùng đang dở — snapshot lúc mở thùng (US-25/AC12), lỗi in KHÔNG chặn đóng thùng kế tiếp — luôn có In lại thủ công (US-25/AC13), tiến độ theo Lot không cần trạng thái riêng — dùng lại %/nhãn Đủ-Chưa đủ của US-21/US-21a (US-26/AC2) — đồng bộ SRS mục 6 quy tắc 17-20, mục 7 AC-33→AC-35, mục 8.2 (không còn điểm mở nào cho US-24/25/26). **Vòng 3** — (7) làm rõ US-25/AC14 + SRS AC-36: các chức năng đóng thùng (bộ đếm, tự in tem, Supervisor xác nhận-đã-biết khi trùng tem) CHỈ áp dụng cho trạm cấu hình đúng công đoạn "Đóng thùng" — trạm khác vẫn chạy nguyên luồng scan tiêu chuẩn US-07/US-08, không thay đổi gì.
+**Cập nhật 12/10/2026** — (11) viết lại nhóm **3.4 Giao tiếp máy thông điện** (US-11 → US-14) theo 2 spec mới `Documents/spec-firmware-app-link.md` (giao thức, firmware ESP32 đã code xong) và `Documents/spec-app-wpf-station.md`, theo yêu cầu người giao việc: đảo ngược luồng cũ "scan tem trước → chờ Arduino gửi OK → timeout 45s suy luận NG → Tổ trưởng xác nhận NG" thành **"thông điện TRƯỚC, quét QR SAU"** (BIND → lưu → SAVED), 2 cờ (`UseArduino` + công tắc runtime lưu server, Bypass lưu `Result = Ok` + `TesterMode = Bypass`), heartbeat PING 1s / timeout 5s. **US-13 chuyển ⛔ Hủy** (thay bằng heartbeat ở US-14); US-11/US-12/US-14 viết lại, giữ ⬜ Chưa làm. Bỏ `ArduinoTimeoutSeconds`, bảng `LichSuLenhArduino`; trạm có máy thông điện không dùng hàng đợi offline (ngoại lệ của US-16); không có vai trò "Kỹ thuật". Đồng bộ SRS: FR-11 → FR-14 (FR-13 hủy), mục 5.1, mục 6 quy tắc 10, mục 7 AC-17 → AC-20e, mục 8.1/8.2. Để sau: kiểm tra `PINS` theo Model.
 
 ---
 
@@ -15,7 +16,7 @@
 
 Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi tiến độ backlog") — agent `ba`/`dev` đọc trước khi làm việc và PHẢI tự cập nhật dòng tương ứng khi xong việc, không chờ người khác cập nhật hộ.
 
-**Chú giải trạng thái:** ⬜ Chưa làm · 🔵 Đang làm · 🟡 Một phần (xem Ghi chú) · ✅ Xong
+**Chú giải trạng thái:** ⬜ Chưa làm · 🔵 Đang làm · 🟡 Một phần (xem Ghi chú) · ✅ Xong · ⛔ Hủy (không áp dụng nữa, xem Ghi chú)
 
 | US-ID | Tên | Trạng thái | Ghi chú | Cập nhật |
 |---|---|---|---|---|
@@ -33,10 +34,10 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-08](./backlog/US-08-kiem-tra-hop-le-khi-scan/README.md) | Kiểm tra hợp lệ khi scan | ✅ Xong | — | 2026-08-14 |
 | [US-09](./backlog/US-09-hien-thi-so-luong-chi-so-am-duong/README.md) | Hiển thị số lượng & chỉ số +/- tại trạm | 🟡 Một phần | — | 2026-08-17 |
 | [US-10](./backlog/US-10-luu-tra-cuu-lich-su-scan/README.md) | Lưu & tra cứu lịch sử scan | ✅ Xong | — | 2026-08-19 |
-| [US-11](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md) | Bật/tắt Arduino theo trạm | ⬜ Chưa làm | — | 2026-08-14 |
-| [US-12](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md) | Luồng scan chờ Arduino | ⬜ Chưa làm | — | 2026-08-14 |
-| [US-13](./backlog/US-13-timeout-kiem-tra-arduino/README.md) | Timeout xác định kết quả Arduino | ⬜ Chưa làm | — | 2026-08-14 |
-| [US-14](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md) | Kết nối & phục hồi cổng COM | ⬜ Chưa làm | — | 2026-08-14 |
+| [US-11](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md) | Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) | ⬜ Chưa làm | Viết lại 12/10/2026 theo spec ESP32 | 2026-10-12 |
+| [US-12](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md) | Luồng thông điện trước → quét QR sau (BIND/SAVED) | ⬜ Chưa làm | Viết lại 12/10/2026; bỏ xác nhận NG bởi Tổ trưởng | 2026-10-12 |
+| [US-13](./backlog/US-13-timeout-kiem-tra-arduino/README.md) | ~~Timeout xác định kết quả Arduino~~ | ⛔ Hủy | Không áp dụng từ 12/10/2026 — thay bằng heartbeat ở US-14 | 2026-10-12 |
+| [US-14](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md) | Kết nối COM, heartbeat & đồng bộ lại máy thông điện | ⬜ Chưa làm | Viết lại 12/10/2026 (thay US-13) | 2026-10-12 |
 | [US-15](./backlog/US-15-khoi-phuc-trang-thai-phien-lam-viec/README.md) | Khôi phục trạng thái phiên khi mở lại | ⬜ Chưa làm | — | 2026-08-14 |
 | [US-16](./backlog/US-16-hang-doi-cuc-bo-chong-mat-scan/README.md) | Hàng đợi cục bộ chống mất lượt scan | ⬜ Chưa làm | — | 2026-08-14 |
 | [US-17](./backlog/US-17-hien-thi-trang-thai-dong-bo/README.md) | Hiển thị trạng thái đồng bộ trên UI | ⬜ Chưa làm | — | 2026-08-14 |
@@ -48,11 +49,11 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 | [US-22](./backlog/US-22-quan-ly-nguoi-dung-phan-quyen/README.md) | Quản lý người dùng & phân quyền | ✅ Xong | — | 2026-08-14 |
 | [US-23](./backlog/US-23-xuat-bao-cao-excel/README.md) | Xuất báo cáo Excel | 🟡 Một phần | — | 2026-08-19 |
 | [US-24](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md) | Cấu hình Quy cách đóng gói theo Model (Đóng thùng) | ✅ Xong | AC10 đã code xong (backend + web-admin + Station.Wpf) | 2026-08-26 |
-| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | — | 2026-08-24 |
+| [US-25](./backlog/US-25-quet-tem-dong-thung/README.md) | Quét tem đóng thùng — đếm số lượng, tự động in tem thùng | 🟡 Một phần | AC15-AC17 số thùng theo (Model, Lot), chuyển Line quét tiếp, giới hạn số tem theo Tổng SL Lot; in qua Excel/LibreOffice (US-28); chưa test máy in thật | 2026-10-09 |
 | [US-26](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md) | Theo dõi tiến độ đóng thùng ở mức quản lý | ✅ Xong | — | 2026-08-25 |
 | [BUG-01](./backlog/BUG-01-lech-gio-utc-vn/README.md) | Lệch giờ 7 tiếng (UTC/VN) khi hiển thị trên web-admin | ✅ Xong | — | 2026-08-19 |
 | [US-27](./backlog/US-27-xac-nhan-to-truong-truoc-khi-luu-scan-bi-tu-choi/README.md) | Xác nhận Tổ trưởng trước khi lưu lịch sử scan bị từ chối | ✅ Xong | Supersede US-25/AC8 | 2026-08-26 |
-| [US-28](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md) | Barcode/QR trên tem đóng thùng | ⬜ Chưa làm | Dự thảo, còn điểm mở | 2026-08-26 |
+| [US-28](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md) | Barcode/QR trên tem đóng thùng | 🟡 Một phần | Đã code QR + token mới + in Excel/LibreOffice; chưa in thử trên máy in tem thật | 2026-10-09 |
 
 *(Chi tiết đầy đủ từng story — mô tả, Acceptance Criteria, ghi chú lịch sử triển khai — đã tách sang file riêng trong `Documents/backlog/US-XX-ten-tinh-nang/README.md`, xem quy ước tại `CLAUDE.md` mục "Theo dõi tiến độ backlog". Bảng trên chỉ giữ trạng thái tổng quan.)*
 
@@ -82,12 +83,14 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 - **US-10** — Lưu & tra cứu lịch sử scan (✅ Xong) → [chi tiết](./backlog/US-10-luu-tra-cuu-lich-su-scan/README.md)
 - **US-27** — Xác nhận Tổ trưởng trước khi lưu lịch sử scan bị từ chối (✅ Xong) → [chi tiết](./backlog/US-27-xac-nhan-to-truong-truoc-khi-luu-scan-bi-tu-choi/README.md)
 
-## 3.4 Nhóm chức năng: Giao tiếp Arduino (kiểm tra tự động)
+## 3.4 Nhóm chức năng: Giao tiếp máy thông điện ESP32 (kiểm tra tự động) — viết lại 12/10/2026
 
-- **US-11** — Bật/tắt Arduino theo trạm (⬜ Chưa làm) → [chi tiết](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md)
-- **US-12** — Luồng scan chờ Arduino (⬜ Chưa làm) → [chi tiết](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md)
-- **US-13** — Timeout xác định kết quả Arduino (⬜ Chưa làm) → [chi tiết](./backlog/US-13-timeout-kiem-tra-arduino/README.md)
-- **US-14** — Kết nối & phục hồi cổng COM (⬜ Chưa làm) → [chi tiết](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md)
+Luồng mới: **thông điện TRƯỚC, quét QR SAU** (spec: `Documents/spec-firmware-app-link.md`, `Documents/spec-app-wpf-station.md`).
+
+- **US-11** — Trạm có máy thông điện & công tắc "Đang sử dụng máy" (Bypass) (⬜ Chưa làm) → [chi tiết](./backlog/US-11-cau-hinh-bat-tat-arduino/README.md)
+- **US-12** — Luồng thông điện trước → quét QR sau (BIND/SAVED) (⬜ Chưa làm) → [chi tiết](./backlog/US-12-luong-scan-cho-ket-qua-arduino/README.md)
+- **US-13** — ~~Timeout xác định kết quả Arduino~~ (⛔ Hủy — thay bằng heartbeat ở US-14) → [chi tiết](./backlog/US-13-timeout-kiem-tra-arduino/README.md)
+- **US-14** — Kết nối COM, heartbeat & đồng bộ lại máy thông điện (⬜ Chưa làm) → [chi tiết](./backlog/US-14-ket-noi-phuc-hoi-com-arduino/README.md)
 
 ## 3.5 Nhóm chức năng: Khôi phục trạng thái & chống mất dữ liệu
 
@@ -115,7 +118,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 - **US-24** — Cấu hình Quy cách đóng gói theo Model (Đóng thùng) (✅ Xong) → [chi tiết](./backlog/US-24-cau-hinh-quy-cach-dong-goi-theo-model/README.md)
 - **US-25** — Quét tem đóng thùng — đếm số lượng, tự động in tem thùng (🟡 Một phần) → [chi tiết](./backlog/US-25-quet-tem-dong-thung/README.md)
 - **US-26** — Theo dõi tiến độ đóng thùng ở mức quản lý (⬜ Chưa làm) → [chi tiết](./backlog/US-26-theo-doi-tien-do-dong-thung/README.md)
-- **US-28** — Barcode/QR trên tem đóng thùng (⬜ Chưa làm, dự thảo còn điểm mở) → [chi tiết](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md)
+- **US-28** — Barcode/QR trên tem đóng thùng (🟡 Một phần — chưa in thử trên máy in tem thật) → [chi tiết](./backlog/US-28-barcode-qr-tren-tem-dong-thung/README.md)
 
 ---
 
@@ -134,7 +137,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 10. US-06 (Tính sản lượng chuẩn theo giờ)
 11. US-22 (Quản lý người dùng & phân quyền)
 
-*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. US-01a và US-04a được chèn ngay sau story gốc của chúng (US-01/US-04) vì đây là 2 khoảng trống phát sinh sau khi US-01/US-04 đã code xong (FR-01/FR-09a bổ sung sau; ADR-005 chốt sau) — bắt buộc phải xong trước khi bước vào Giai đoạn 2, nếu không US-07/US-08/US-09 sẽ bị chặn giữa chừng. US-05a/US-05b tương tự được chèn ngay sau US-05/US-03 vì đây là khoảng trống phát sinh sau khi US-05 gốc đã lập (FR-05a bổ sung sau khi phân tích UI 13/08/2026) — US-07 (`Station.Wpf` lấy "kế hoạch active của trạm") cần US-05a đã có khái niệm `Running` theo (Line, Công đoạn) mới hoạt động đúng. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-12 (xác nhận Arduino) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
+*Lý do*: Đây là toàn bộ dữ liệu master mà mọi luồng nghiệp vụ phía sau (scan, Arduino, rework, báo cáo) đều phụ thuộc trực tiếp. US-01a và US-04a được chèn ngay sau story gốc của chúng (US-01/US-04) vì đây là 2 khoảng trống phát sinh sau khi US-01/US-04 đã code xong (FR-01/FR-09a bổ sung sau; ADR-005 chốt sau) — bắt buộc phải xong trước khi bước vào Giai đoạn 2, nếu không US-07/US-08/US-09 sẽ bị chặn giữa chừng. US-05a/US-05b tương tự được chèn ngay sau US-05/US-03 vì đây là khoảng trống phát sinh sau khi US-05 gốc đã lập (FR-05a bổ sung sau khi phân tích UI 13/08/2026) — US-07 (`Station.Wpf` lấy "kế hoạch active của trạm") cần US-05a đã có khái niệm `Running` theo (Line, Công đoạn) mới hoạt động đúng. Phân quyền (US-22) đặt sớm trong giai đoạn này vì US-11 (đổi công tắc máy thông điện), US-12 (Hủy kết quả đang chờ) và US-19 (mở khóa rework) đều cần cơ chế đăng nhập/phân quyền Tổ trưởng để hoạt động đúng ngay từ khi build luồng lõi.
 
 **Giai đoạn 2 — Luồng scan lõi (happy path)**
 12. US-07 (Scan tem tại trạm)
@@ -158,13 +161,13 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 
 *Lý do*: NG là nhánh rẽ có điều kiện của luồng scan (không phải mọi lượt scan đều NG), và có ràng buộc dữ liệu phức tạp hơn (nhiều bản ghi tại cùng công đoạn, thay đổi ràng buộc unique) nên làm sau khi luồng OK cơ bản đã vững. Báo cáo tỷ lệ lỗi (US-20) đặt cuối nhóm này vì cần có dữ liệu NG/OK thực tế để thống kê.
 
-**Giai đoạn 5 — Nhánh phụ: Arduino**
-22. US-11 (Cấu hình bật/tắt Arduino theo trạm)
-23. US-14 (Kết nối & phục hồi cổng COM)
-24. US-13 (Timeout xác định kết quả kiểm tra)
-25. US-12 (Luồng scan-chờ-Arduino đầy đủ, bao gồm nhánh xác nhận NG bởi Tổ trưởng)
+**Giai đoạn 5 — Nhánh phụ: Máy thông điện ESP32** *(viết lại 12/10/2026)*
+22. US-11 (Trạm có máy thông điện & công tắc chế độ/Bypass)
+23. US-14 (Kết nối COM, heartbeat, đồng bộ lại)
+24. ~~US-13 (Timeout xác định kết quả kiểm tra)~~ — ⛔ Hủy, thay bằng heartbeat ở US-14
+25. US-12 (Luồng thông điện trước → quét QR sau: BIND/SAVED, Hủy kết quả)
 
-*Lý do*: Arduino là nhánh phụ thuộc phần cứng đặc thù, chỉ áp dụng cho một số trạm/công đoạn nhất định (chưa xác định rõ theo mục 8.2). Đặt sau NG/Rework vì US-12 (bước 5) tái sử dụng trực tiếp cơ chế xác nhận NG + khóa/mở khóa rework đã xây ở Giai đoạn 4. Nên làm US-11/US-14 (cấu hình, kết nối) trước US-12/US-13 (logic state machine đầy đủ) vì đây là điều kiện kỹ thuật cần có trước khi build luồng nghiệp vụ chờ kết quả.
+*Lý do*: Máy thông điện là nhánh phụ thuộc phần cứng đặc thù, chỉ áp dụng cho trạm Thông điện. Đặt sau NG/Rework vì dây NG dùng lại Chế độ Scan NG + Mở khóa rework (US-18/US-19, Giai đoạn 4) và tem bị từ chối dùng lại banner Lưu/Thoát của US-27; Hủy kết quả và công tắc chế độ dùng permission động của US-22. Nên làm US-11/US-14 (cờ/công tắc, kết nối, heartbeat) trước US-12 (state machine BIND/SAVED) vì đây là điều kiện kỹ thuật cần có trước khi build luồng nghiệp vụ. Trạm có máy thông điện là ngoại lệ không dùng hàng đợi offline của US-16.
 
 **Giai đoạn 6 — Báo cáo tổng hợp & xuất Excel**
 26. US-21 (Báo cáo tổng hợp theo Line)
@@ -186,7 +189,7 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 9 điểm sau đây được gắn cờ cảnh báo tại từng story liên quan ở trên (điểm gạch ngang đã chốt 20/08/2026, xem chi tiết quyết định ngay sau mỗi điểm) — dev cần hỏi lại đúng các điểm CÒN MỞ trước khi triển khai phần liên quan, dù không chặn việc code phần khung/logic chung:
 
 1. **Số lượng Line & danh sách công đoạn cụ thể từng Line** — ảnh hưởng US-01, US-03 (khi cấu hình dữ liệu thật, không ảnh hưởng thiết kế chức năng).
-2. **Danh sách công đoạn cụ thể dùng Arduino** — ảnh hưởng US-02 (gắn cờ), US-04, US-11, US-12 (phạm vi trạm cần triển khai state machine Arduino).
+2. **Danh sách công đoạn cụ thể dùng máy thông điện** (hiện chỉ Thông điện) — ảnh hưởng US-02 (gắn cờ), US-04, US-11, US-12 (phạm vi trạm cần triển khai luồng máy thông điện).
 3. **Model máy scan có đồng nhất Zebra DS2208 hay không** — ảnh hưởng US-04, US-07 (thiết kế giao tiếp HID có áp dụng chung cho mọi trạm hay cần xử lý riêng cho model khác).
 4. **Nội dung cụ thể báo cáo Excel (cột dữ liệu, cách nhóm/tổng hợp)** — ảnh hưởng trực tiếp US-23, cần xác nhận trước khi thiết kế mẫu xuất file.
 5. ~~Model trong cấu hình đóng gói (US-24/FR-24) khớp bằng so chuỗi tuyệt đối với `ProductionPlan.Model`~~ — **Đã chốt 20/08/2026: không phân biệt hoa/thường + tự trim + autocomplete**, chỉ áp dụng riêng bước tra cứu cấu hình đóng gói, giữ nguyên free-text (không tách danh mục Model riêng), không đổi cách dùng Model ở nơi khác trong hệ thống.
@@ -194,3 +197,4 @@ Quy ước cập nhật bảng này nằm ở `CLAUDE.md` (mục "Theo dõi ti�
 7. ~~Máy in gặp lỗi đúng lúc đủ số lượng để in tem thùng (US-25/AC4)~~ — **Đã chốt 20/08/2026: không chặn** đóng thùng kế tiếp, luôn có nút In lại thủ công (chỉ chặn khi chính lệnh gọi in thất bại, không phát hiện được lỗi vật lý sau khi đã gửi lệnh in).
 8. ~~Cấu hình Quy cách đóng gói (US-24) thay đổi khi đang đóng dở 1 thùng~~ — **Đã chốt 20/08/2026: không hồi tố**, thùng đang dở giữ nguyên số lượng mục tiêu đã snapshot lúc mở thùng, quy cách mới chỉ áp dụng cho thùng mở sau.
 9. ~~Có cần 1 trạng thái riêng đánh dấu "đã đóng thùng xong toàn bộ Lot"~~ — **Đã chốt 20/08/2026: không cần**, chỉ hiển thị % hoàn thành/nhãn Đủ-Chưa đủ dùng lại từ US-21/US-21a.
+10. **Máy thông điện — để sau (12/10/2026)**: kiểm tra số pin (`PINS`) từ `HELLO` so với Model đang chạy và chặn quét khi sai máy/firmware — hiện chỉ đọc để hiển thị/ghi log (US-14). Các điểm phụ của US-11 (lý do gợi ý + tự gõ, không đổi công tắc khi đang có kết quả chờ, mặc định BẬT, chặn quét khi không đọc được công tắc) đã chốt 12/10/2026.

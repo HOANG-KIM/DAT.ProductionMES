@@ -37,6 +37,11 @@
   - When thiết kế/triển khai FR-16
   - Then không xây dựng cơ chế cảnh báo theo ngưỡng số bản ghi tồn đọng/thời gian mất kết nối, và không tạo báo cáo đối soát riêng cho giai đoạn mất kết nối
 
+- **AC-ngoại lệ — Trạm có máy thông điện không dùng hàng đợi cục bộ** *(bổ sung 12/10/2026)*
+  - Given trạm có máy thông điện (`UseArduino = true`) và công tắc "Đang sử dụng máy thông điện" BẬT (US-11)
+  - When lưu lượt scan sau `BIND_OK` (US-12)
+  - Then **không** ghi vào hàng đợi SQLite; lưu thẳng lên server, chỉ sau khi server commit mới gửi `SAVED` mở khóa máy; mất server thì máy vẫn khóa, nút "Thử lại" (US-12/AC13–AC14) — có chủ đích, để mọi dây qua trạm đều có bản ghi trên server trước khi máy mở khóa
+
 **Nguồn FR:** FR-16, mục 6 quy tắc 8
 **Phụ thuộc:** US-07, US-08 (cần có luồng scan cơ bản để gắn hàng đợi cục bộ vào)
 **Cờ cảnh báo mục 8.2:** Không trực tiếp (đã rút gọn và chốt phạm vi rõ ràng trong SRS).
@@ -51,3 +56,6 @@
 ## Lịch sử triển khai (ghi chú backlog)
 
 
+
+#### 2026-10-12 (ba, thêm ngoại lệ trạm máy thông điện)
+- **Spec:** thêm AC ngoại lệ — trạm có máy thông điện (công tắc BẬT) không dùng hàng đợi cục bộ (xem US-12/AC14, SRS FR-12 bước 7).
