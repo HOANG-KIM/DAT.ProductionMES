@@ -51,4 +51,10 @@ public enum PermissionAction
     /// trưởng/Admin/Manager đăng nhập xác nhận qua endpoint <c>POST api/v1/scans/reject-confirmations</c>.
     /// </summary>
     ConfirmReject = 12,
+
+    /// <summary>US-11: đổi công tắc máy thông điện — chỉ có ở <see cref="PermissionResource.TesterMode"/>.</summary>
+    Change = 13,
+
+    /// <summary>US-12 AC11: hủy kết quả thông điện đang chờ — chỉ có ở <see cref="PermissionResource.TesterResult"/>.</summary>
+    Discard = 14,
 }

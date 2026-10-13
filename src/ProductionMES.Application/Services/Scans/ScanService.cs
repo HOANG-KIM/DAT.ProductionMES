@@ -90,8 +90,93 @@ public class ScanService : IScanService
 
     public async Task<ScanResultDto> CreateAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default)
     {
-        var workStation = await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
+        var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
+
+        // US-11 AC2/AC6: trạm có máy thông điện (UseArduino) + công tắc BẬT phải đi luồng "thông điện trước, quét QR
+        // sau" (US-12, endpoint scans/tester) — chặn luồng scan thường để không ai lưu OK bỏ qua máy mà không để lại
+        // dấu vết Bypass. Công tắc TẮT -> scan thường vẫn chạy nhưng bản ghi OK mang TesterMode = Bypass.
+        if (workStation.UseArduino && workStation.TesterEnabled)
+        {
+            throw new BusinessRuleException(
+                "Trạm đang dùng máy thông điện (công tắc BẬT): phải thông điện dây trước rồi mới quét QR — không thể scan thường.");
+        }
+
+        var plainScanTesterMode = workStation.UseArduino ? TesterMode.Bypass : TesterMode.None;
+        return await EvaluateAndMaybeSaveAsync(workStation, tagCode, plainScanTesterMode, tester: null, commit: true, cancellationToken);
+    }
+
+    /// <summary>
+    /// US-12 AC3/AC4: kiểm tra tem theo ĐÚNG logic FR-08/US-19/US-25 của <see cref="CreateAsync"/> (dùng chung
+    /// <see cref="EvaluateAndMaybeSaveAsync"/>, KHÔNG nhân bản rule) nhưng KHÔNG ghi bất kỳ dữ liệu nào và không bắn
+    /// sự kiện real-time — <c>Scan</c> chỉ được ghi sau <c>BIND_OK</c> (<see cref="CreateTesterScanAsync"/>).
+    /// </summary>
+    public async Task<ScanResultDto> CheckAsync(int workStationId, string tagCode, CancellationToken cancellationToken = default)
+    {
+        var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
+        return await EvaluateAndMaybeSaveAsync(workStation, tagCode, TesterMode.Tester, tester: null, commit: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// US-12 AC2/AC15: lưu Scan OK gắn với kết quả của máy thông điện (sau BIND_OK). Idempotent theo bộ khóa
+    /// (WorkStationId, TesterBootId, TesterSeq): gửi lại cùng bộ khóa (retry sau mất mạng) trả về bản ghi cũ như thành
+    /// công, không tạo bản ghi thứ hai và không cộng ACTUAL hai lần. Vẫn chạy lại kiểm tra FR-08 vì đã có khoảng thời gian
+    /// giữa bước kiểm tra và bước lưu.
+    /// </summary>
+    public async Task<ScanResultDto> CreateTesterScanAsync(
+        int workStationId, CreateTesterScanRequest request, CancellationToken cancellationToken = default)
+    {
+        var workStation = await GetWorkStationAsync(workStationId, cancellationToken);
+
+        if (!workStation.UseArduino)
+        {
+            throw new BusinessRuleException("Trạm này không có máy thông điện — không thể lưu kết quả theo máy.");
+        }
+
+        if (!workStation.TesterEnabled)
+        {
+            throw new BusinessRuleException(
+                "Công tắc máy thông điện của trạm đang TẮT (Bypass) — không lưu kết quả theo máy. Hãy đồng bộ lại chế độ tại trạm.");
+        }
+
+        // AC15: cùng bộ khóa -> trả bản ghi cũ như thành công. Tra cứu TRƯỚC khi chạy kiểm tra FR-08 (nếu không, retry sẽ bị
+        // từ chối "trùng tem" vì chính bản ghi đã lưu ở lần gọi trước).
+        var existing = (await _unitOfWork.Repository<Scan>().FindAsync(
+                s => s.WorkStationId == workStation.Id && s.TesterBootId == request.TesterBootId && s.TesterSeq == request.TesterSeq,
+                cancellationToken))
+            .FirstOrDefault();
+
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.TagCode, request.TagCode, StringComparison.Ordinal))
+            {
+                throw new BusinessRuleException(
+                    $"Kết quả máy (BOOT {request.TesterBootId}, SEQ {request.TesterSeq}) đã được lưu cho tem khác ('{existing.TagCode}') — không thể gắn cho tem '{request.TagCode}'.");
+            }
+
+            var stage = await _unitOfWork.Repository<Stage>().GetByIdAsync(workStation.StageId, cancellationToken);
+            var duplicateResult = ToDto(existing);
+            duplicateResult.IsPackingStage = stage?.IsPackingStage ?? false;
+            return duplicateResult;
+        }
+
+        return await EvaluateAndMaybeSaveAsync(workStation, request.TagCode, TesterMode.Tester, request, commit: true, cancellationToken);
+    }
+
+    private async Task<WorkStation> GetWorkStationAsync(int workStationId, CancellationToken cancellationToken)
+        => await _unitOfWork.Repository<WorkStation>().GetByIdAsync(workStationId, cancellationToken)
             ?? throw new EntityNotFoundException($"Không tìm thấy trạm làm việc với Id = {workStationId}.");
+
+    /// <summary>
+    /// Lõi dùng chung của scan thường (<see cref="CreateAsync"/>), kiểm tra không lưu (<see cref="CheckAsync"/>) và lưu
+    /// theo máy thông điện (<see cref="CreateTesterScanAsync"/>). <paramref name="commit"/> = false: chạy đủ mọi bước
+    /// kiểm tra nhưng KHÔNG lưu, không bắn real-time, không đổi trạng thái kế hoạch/thùng; kết quả hợp lệ trả về DTO
+    /// Result = Ok.
+    /// </summary>
+    private async Task<ScanResultDto> EvaluateAndMaybeSaveAsync(
+        WorkStation workStation, string tagCode, TesterMode testerMode, CreateTesterScanRequest? tester, bool commit,
+        CancellationToken cancellationToken)
+    {
+        var workStationId = workStation.Id;
 
         // US-05a/mục 6 quy tắc 12: tại 1 thời điểm, 1 cặp (Line, Công đoạn) chỉ có tối đa 1 kế hoạch Running.
         var productionPlanStageRepository = _unitOfWork.Repository<ProductionPlanStage>();
@@ -207,6 +292,24 @@ public class ScanService : IScanService
         // US-26 AC7/AC8: gắn liên kết thùng NGAY tại đây (currentPackingBox đã xác định trước khi lưu Scan, ở
         // trên) — null khi không phải công đoạn Đóng thùng, đúng bất biến đã ghi ở remarks entity Scan.
         okScan.PackingBoxId = currentPackingBox?.Id;
+        okScan.TesterMode = testerMode;
+        if (tester is not null)
+        {
+            okScan.TesterBootId = tester.TesterBootId;
+            okScan.TesterSeq = tester.TesterSeq;
+            okScan.GoldenCrc = tester.GoldenCrc;
+            okScan.FirmwareVersion = tester.FirmwareVersion;
+            okScan.TestedAtUtc = tester.TestedAt;
+        }
+
+        if (!commit)
+        {
+            // US-12 AC4: chỉ kiểm tra — KHÔNG lưu, không đếm thùng, không đổi trạng thái kế hoạch, không bắn real-time.
+            var checkedResult = ToDto(okScan);
+            checkedResult.IsPackingStage = isPackingStage;
+            return checkedResult;
+        }
+
         var result = await SaveAndReturnAsync(okScan, cancellationToken);
         result.IsPackingStage = isPackingStage;
 
@@ -371,6 +474,7 @@ public class ScanService : IScanService
                 (query.Customer == null || s.Customer == query.Customer) &&
                 (query.Revision == null || s.Revision == query.Revision) &&
                 (query.Result == null || s.Result == query.Result) &&
+                (query.TesterMode == null || s.TesterMode == query.TesterMode) &&
                 (query.FromUtc == null || s.ScannedAtUtc >= query.FromUtc) &&
                 (query.ToUtc == null || s.ScannedAtUtc <= query.ToUtc),
             cancellationToken);
@@ -500,6 +604,7 @@ public class ScanService : IScanService
             OperatorNames = scan.OperatorNames,
             ScannedAtUtc = scan.ScannedAtUtc,
             Result = scan.Result,
+            TesterMode = scan.TesterMode,
             RejectionReason = scan.RejectionReason,
             ConfirmedByUserId = scan.ConfirmedByUserId,
             ConfirmedByUserName = scan.ConfirmedByUserName,
@@ -568,6 +673,7 @@ public class ScanService : IScanService
         OperatorNames = scan.OperatorNames,
         ScannedAtUtc = scan.ScannedAtUtc,
         Result = scan.Result,
+        TesterMode = scan.TesterMode,
         RejectionReason = scan.RejectionReason,
         ConfirmedByUserId = scan.ConfirmedByUserId,
         ConfirmedByUserName = scan.ConfirmedByUserName,

@@ -81,9 +81,6 @@ public partial class StationConfigViewModel : ObservableObject
     private bool isPackingStage;
 
     [ObservableProperty]
-    private int arduinoTimeoutSeconds;
-
-    [ObservableProperty]
     private int ngModeTimeoutSeconds;
 
     [ObservableProperty]
@@ -128,7 +125,6 @@ public partial class StationConfigViewModel : ObservableObject
         StageName = options.StageName;
         IsPackingStage = options.IsPackingStage;
         WorkStationName = options.WorkStationName;
-        ArduinoTimeoutSeconds = options.ArduinoTimeoutSeconds;
         NgModeTimeoutSeconds = options.NgModeTimeoutSeconds;
         AndonBoardRefreshIntervalSeconds = options.AndonBoardRefreshIntervalSeconds;
         SupervisorSessionIdleTimeoutSeconds = options.SupervisorSessionIdleTimeoutSeconds;
@@ -210,12 +206,6 @@ public partial class StationConfigViewModel : ObservableObject
             return;
         }
 
-        if (ArduinoTimeoutSeconds <= 0)
-        {
-            StatusMessage = "Thời gian chờ Arduino (giây) phải lớn hơn 0.";
-            return;
-        }
-
         if (NgModeTimeoutSeconds <= 0)
         {
             StatusMessage = "Thời gian chờ chế độ Scan NG (giây) phải lớn hơn 0.";
@@ -249,7 +239,8 @@ public partial class StationConfigViewModel : ObservableObject
             node["StageId"] = stageId;
             node["StageName"] = StageName;
             node["IsPackingStage"] = IsPackingStage;
-            node["ArduinoTimeoutSeconds"] = ArduinoTimeoutSeconds;
+            // US-12 (12/10/2026): ArduinoTimeoutSeconds (timeout suy luận NG 45s) đã bỏ — dọn khỏi file nếu còn.
+            node.Remove("ArduinoTimeoutSeconds");
             node["NgModeTimeoutSeconds"] = NgModeTimeoutSeconds;
             node["AndonBoardRefreshIntervalSeconds"] = AndonBoardRefreshIntervalSeconds;
             node["SupervisorSessionIdleTimeoutSeconds"] = SupervisorSessionIdleTimeoutSeconds;

@@ -38,9 +38,6 @@
                 <CheckBox Content="Là công đoạn Đóng thùng (suy ra tự động)" IsChecked="{Binding IsPackingStage, Mode=OneWay}"
                           IsHitTestVisible="False" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,16"/>
 
-                <TextBlock Text="Thời gian chờ Arduino (giây)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
-                <TextBox Text="{Binding ArduinoTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
-
                 <TextBlock Text="Thời gian chờ chế độ Scan NG (giây)" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
                 <TextBox Text="{Binding NgModeTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,10"/>
 

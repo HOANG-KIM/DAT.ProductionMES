@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using ProductionMES.Station.Tester.Station;
 using ProductionMES.Station.Wpf.Configuration;
 using ProductionMES.Station.Wpf.Models;
 using ProductionMES.Station.Wpf.Services.AndonBoard;
@@ -15,6 +16,7 @@ using ProductionMES.Station.Wpf.Services.Http;
 using ProductionMES.Station.Wpf.Services.PackingBoxes;
 using ProductionMES.Station.Wpf.Services.Realtime;
 using ProductionMES.Station.Wpf.Services.Scans;
+using ProductionMES.Station.Wpf.Services.Tester;
 
 namespace ProductionMES.Station.Wpf.ViewModels;
 
@@ -63,6 +65,10 @@ public partial class AndonBoardViewModel : ObservableObject
     private readonly IPackingLabelPrintService _packingLabelPrintService;
     private readonly IServiceProvider _serviceProvider;
     private readonly StationOptions _options;
+
+    // US-11/US-12/US-14: máy thông điện ESP32 (xem AndonBoardViewModel.Tester.cs).
+    private readonly ITesterApiClient _testerApiClient;
+    private readonly TesterStationController _tester;
 
     /// <summary>
     /// US-27 AC3/AC5: kết quả (chưa lưu) của lượt scan bị hệ thống tự động từ chối đang hiển thị banner Lưu/Thoát
@@ -395,8 +401,11 @@ public partial class AndonBoardViewModel : ObservableObject
     public AndonBoardViewModel(
         IScanApiClient scanApiClient, IScanHubClient scanHubClient, IAndonBoardApiClient andonBoardApiClient,
         IPackingBoxApiClient packingBoxApiClient, IPackingLabelPrintService packingLabelPrintService,
-        IServiceProvider serviceProvider, StationOptions options)
+        IServiceProvider serviceProvider, StationOptions options,
+        ITesterApiClient testerApiClient, TesterStationController tester)
     {
+        _testerApiClient = testerApiClient;
+        _tester = tester;
         _scanApiClient = scanApiClient;
         _scanHubClient = scanHubClient;
         _andonBoardApiClient = andonBoardApiClient;
@@ -437,6 +446,8 @@ public partial class AndonBoardViewModel : ObservableObject
         };
 
         _scanHubClient.ScanRecorded += OnScanRecorded;
+
+        InitializeTester();
     }
 
     /// <summary>Gọi 1 lần khi Window khởi tạo xong (US-09) — tải dữ liệu bảng lần đầu, không chờ tick đầu tiên của <see cref="_boardRefreshTimer"/>. US-25: tải thêm trạng thái đóng thùng nếu trạm gắn với công đoạn "Đóng thùng".</summary>
@@ -456,6 +467,8 @@ public partial class AndonBoardViewModel : ObservableObject
     /// </summary>
     public async Task RefreshAsync()
     {
+        // US-11 AC10/AC11: đọc lại trạng thái máy thông điện (UseArduino + công tắc) từ server — nguồn sự thật duy nhất.
+        await RefreshTesterModeAsync();
         await RefreshBoardAsync();
         if (IsPackingStage && !IsPackingBoxNoOverlayVisible)
         {
@@ -844,7 +857,13 @@ public partial class AndonBoardViewModel : ObservableObject
 
         // US-25 AC5: overlay nhập số thùng bắt đầu/sửa số thùng đang mở -> chặn MỌI lượt scan (kể cả mã "NG") cho
         // tới khi hoàn tất, tránh Operator vô tình quét tem trong lúc chưa đủ điều kiện đóng thùng.
-        if (IsPackingBoxNoOverlayVisible)
+        if (IsPackingBoxNoOverlayVisible || IsTesterModeOverlayVisible)
+        {
+            return;
+        }
+
+        // US-12 AC18: cửa sổ Andon không được chọn (Deactivated) -> KHÔNG xử lý mã quét (banner đỏ đang hiện), tránh lưu nhầm.
+        if (IsWindowInactive)
         {
             return;
         }
@@ -881,6 +900,22 @@ public partial class AndonBoardViewModel : ObservableObject
             {
                 _scanLock.Release();
             }
+            return;
+        }
+
+        // US-11 AC11: chưa xác định được chế độ máy thông điện của trạm (không đọc được trạng thái từ server) -> CHẶN quét,
+        // tránh vô tình chạy nhầm Bypass hoặc ngược lại.
+        if (IsTesterModeUnknown)
+        {
+            ShowErrorBanner(tagCode, "Không xác định được chế độ máy thông điện — chưa nhận mã quét. Đang thử đọc lại trạng thái từ server.");
+            return;
+        }
+
+        // US-12: trạm có máy + công tắc BẬT -> luồng "thông điện trước, quét QR sau". (Mã "NG" và Chế độ Scan NG đã xử lý ở
+        // trên, KHÔNG đi qua máy — AC12.) Công tắc TẮT (Bypass) và trạm không có máy chạy luồng thường bên dưới.
+        if (IsTesterActive)
+        {
+            await HandleTesterScanAsync(tagCode);
             return;
         }
 

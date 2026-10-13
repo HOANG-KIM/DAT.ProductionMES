@@ -146,7 +146,7 @@ Quét QR khi App KHÔNG giữ kết quả OK (Ready) → gửi #BIND,SEQ=0 NGAY,
 
 ## Trạng thái triển khai
 
-- **Trạng thái:** ⬜ Chưa làm
+- **Trạng thái:** 🟡 Một phần (code + test xong, chưa nghiệm thu S1–S15 với máy thật / chưa kiểm tra trực quan đầy đủ)
 - **Cập nhật:** 2026-10-12
 
 ## Lịch sử triển khai (ghi chú backlog)
@@ -159,3 +159,22 @@ Quét QR khi App KHÔNG giữ kết quả OK (Ready) → gửi #BIND,SEQ=0 NGAY,
 
 #### 2026-10-12 (người giao việc chốt, ghi bởi agent chính)
 - Quét QR ở `Ready` (App không giữ kết quả OK): gửi `#BIND,SEQ=0` ngay, **không** gọi server kiểm tra tem trước — người vận hành nhận đúng lý do từ máy (DÂY NG/Chưa thông điện/Đang thông điện), không bị banner trùng tem/Lưu-Thoát. Kiểm tra tem trên server chỉ chạy ở `WaitScan` (AC3/AC4). Sửa luồng tóm tắt, AC3, AC7, AC8 cho khớp.
+
+#### 2026-10-12 (dev, triển khai luồng "thông điện trước → quét QR sau") — commit `86fdfb3` (backend), `90df2ad` (state machine), `102cb15` (Station.Wpf)
+- **Domain:** `Scan` thêm `TesterBootId`, `TesterSeq`, `GoldenCrc`, `FirmwareVersion`, `TestedAtUtc` (nullable; `TesterMode` đã thêm ở US-11).
+- **Application:** `ScanService` tách lõi dùng chung `EvaluateAndMaybeSaveAsync` (đúng 1 đường code FR-08/US-19/US-25 cho scan thường, kiểm tra không lưu và lưu theo máy — không nhân bản rule): `CheckAsync` (KHÔNG ghi `Scan`, KHÔNG bắn real-time — AC4), `CreateTesterScanAsync` (lưu `Result = Ok`, `TesterMode = Tester` + trường máy, idempotent theo `(WorkStationId, TesterBootId, TesterSeq)`: gửi lại cùng bộ khóa trả bản ghi cũ, cùng bộ khóa nhưng khác tem => 409, không cộng ACTUAL hai lần — AC15; chặn khi trạm không có máy / công tắc TẮT). Validator `CheckScanRequest`, `CreateTesterScanRequest`.
+- **Infrastructure:** migration `AddScanTesterResultColumns` (5 cột + unique index `(WorkStationId, TesterBootId, TesterSeq)`; MySQL cho phép nhiều NULL nên bản ghi `None`/`Bypass` không bị ảnh hưởng).
+- **Api:** `POST api/v1/scans/check` (200, StationApiKey), `POST api/v1/scans/tester` (201, StationApiKey).
+- **Thư viện `Station.Tester` — `TesterStationController`** (state machine `Stopped/Disconnected/Ready/WaitScan/Binding/Saving/Discarding`, mọi thay đổi trạng thái trên 1 luồng qua `ITesterDispatcher`, 1 lệnh chờ phản hồi tại 1 thời điểm, timeout `CommandTimeoutMs` gửi lại tối đa 2 lần): `RESULT` => `WaitScan` (AC1); quét ở `WaitScan` => `CheckTag` (FR-08) => hợp lệ `#BIND,SEQ=n` => `BIND_OK` => lưu server => CHỈ SAU commit mới `#SAVED` => `UNLOCKED` => "ĐÃ LƯU <mã tem>" (AC2); tem bị từ chối => KHÔNG BIND, máy vẫn khóa, banner Lưu/Thoát US-27 (AC3); `VOID REMOVED` ở `WaitScan`/`Binding`/`Saving`, `BIND_FAIL NO_PENDING/REMOVED` ở `Binding` => không lưu, log, về `Ready` (AC5/AC6); quét ở `Ready` => `#BIND,SEQ=0` NGAY, KHÔNG gọi server kiểm tra tem: `NG` => "DÂY NG — dùng chế độ Scan NG" + event `ScanOnNg` kèm mã tem, `NO_PENDING` => "Chưa thông điện", `TESTING` => "Đang thông điện — chờ kết quả rồi quét lại", `BAD_SEQ` => event `BindFail` + `#RESULT?` => `WaitScan` + báo quét lại (AC7/AC8/AC9); `BUSY`/`ERR BUSY` ở `Binding` => không gửi trùng, đợi PONG (`BINDING` => `Saving`), "Đang xác nhận lần trước — vui lòng chờ"; không phản hồi => gửi lại tối đa 2 lần rồi `WaitScan` + "Không phản hồi từ máy thông điện" + event `BindFail` (AC10); `DISCARD` (Tổ trưởng) => `VOID DISCARD` => event `VoidDiscard` kèm người duyệt (AC11); lưu lỗi/mất server => KHÔNG SAVED, event `DbError`, nút "Thử lại", Tổ trưởng Hủy được, không hàng đợi offline (AC13/AC14); mất kết nối máy sau khi commit => bản ghi vẫn hợp lệ, đồng bộ lại theo US-14 (AC16).
+- **Station.Wpf:** `HandleScanAsync` định tuyến: Chế độ Scan NG (không BIND — AC12) / chế độ `Active` => `TesterStationController` / còn lại luồng thường. `AndonBoardWindow` giữ nền tối (ADR-007), KHÔNG âm thanh: chữ trạng thái lớn ("Đặt dây và chờ thông điện" / "OK — QUÉT MÃ QR TRÊN DÂY" / "Đang xác nhận…" / "Đang lưu…" / "ĐÃ LƯU …") + thông báo BIND_FAIL (lỗi giữ 12 giây hoặc tới khi bấm OK) + nút "HỦY KẾT QUẢ" (đăng nhập Tổ trưởng, permission `TesterResult.Discard`) + "THỬ LẠI" + công tắc chế độ (US-11) + banner đỏ "APP KHÔNG ĐƯỢC CHỌN — KHÔNG NHẬN MÃ QUÉT" khi `Deactivated` (mọi trạm — AC18; mã quét lúc đó bị bỏ, không xử lý nhầm).
+- **Test:** `ScanServiceTesterModeTests` (check không lưu / lưu đủ trường / retry cùng bộ khóa / khác tem / BOOT khác / chặn khi TẮT), `TesterScanValidatorTests`; `TesterStationControllerTests` (69 kịch bản bám bảng 7.1/7.3/7.5) + `TesterIntegrationTests` (S1, S2, S3b/S3c/S3d, S4, S5, S6, S7, S7b, S8, S11, Hủy kết quả, mất PONG, thiếu mẫu, tắt/bật công tắc) chạy với `MachineSimulator`. Kết quả: `Application.Tests` 424/424, `Station.Tester.Tests` 160/160 pass.
+- **Build:** `dotnet build ProductionMES.sln` 0 lỗi 0 cảnh báo.
+- **Quyết định tự chọn:**
+  - Server chạy lại kiểm tra FR-08 đầy đủ ở bước lưu (có khoảng thời gian giữa kiểm tra và lưu); nếu bị từ chối lúc lưu thì Station.Wpf xử lý như lỗi lưu (máy vẫn khóa, "Thử lại"/"Hủy").
+  - Sau `BIND_OK` mà `SAVED` không nhận `UNLOCKED` sau 3 lần gửi: bản ghi đã commit nên "Thử lại" chỉ gửi lại `SAVED` (không lưu lại), thông báo "Đã lưu nhưng chưa nhận xác nhận mở khóa từ máy".
+  - `BIND_OK` đến muộn (sau khi đã hết lượt gửi lại, App về `WaitScan`) vẫn được chấp nhận miễn đã có tem.
+  - `BUSY` ở `Ready` (App tưởng không giữ kết quả nhưng máy đang chờ SAVED): gửi lại tối đa 2 lần rồi báo "Máy thông điện đang bận".
+  - Hủy kết quả chỉ cho ở `WaitScan` hoặc `Saving` khi lưu lỗi (chưa commit); không cho khi đang lưu dở hoặc đã commit.
+  - Banner mất focus bỏ qua trường hợp `Deactivated` do mở hộp thoại con (đăng nhập Tổ trưởng) của chính cửa sổ.
+  - Nếu trạm Đóng thùng cũng có máy: `ScanSaved` vẫn gọi `ApplyPackingScanResult` để bộ đếm thùng đúng (chưa kiểm thử tổ hợp này).
+- **Còn thiếu / lý do giữ 🟡:** chưa nghiệm thu S1–S15 với máy thật (đặc biệt S2, S3b, S7, S8, S11–S15) và chưa kiểm tra trực quan đầy đủ các trạng thái trên màn hình trạm (đã chụp thử: mất kết nối, công tắc BẬT/TẮT, panel máy với server giả); chưa có kiểm tra PINS theo Model (ngoài phạm vi); US-12 phụ thuộc chạy migration `AddScanTesterResultColumns`/`AddTesterEventLog`/`AddTesterModeSwitchAndScanTesterMode` trên DB thật.

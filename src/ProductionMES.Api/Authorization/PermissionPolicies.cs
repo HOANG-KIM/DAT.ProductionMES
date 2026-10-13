@@ -78,4 +78,12 @@ public static class PermissionPolicies
     // US-25 AC7: thao tác Supervisor tại "Đóng thùng" — Admin + Supervisor (KHÔNG Manager, cùng phạm vi ScanReworkUnlock).
     // PackingBoxConfirmDuplicate (AC8) đã bị XÓA — SUPERSEDED bởi ScanConfirmReject (US-27 AC12, 25/08/2026).
     public const string PackingBoxUpdate = "PackingBox.Update";
+
+    // US-11: đổi công tắc "Đang sử dụng máy thông điện" tại trạm — Supervisor/Admin/Manager.
+    public const string TesterModeChange = "TesterMode.Change";
+
+    // US-12 AC11: Hủy kết quả thông điện đang chờ (DISCARD) — Supervisor/Admin/Manager. Policy này chưa gắn endpoint
+    // nào (quyền được Station.Wpf kiểm tra qua danh sách Permissions của phiên đăng nhập nâng quyền), khai báo để
+    // đồng bộ catalog seed.
+    public const string TesterResultDiscard = "TesterResult.Discard";
 }

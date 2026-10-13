@@ -2,7 +2,7 @@ namespace ProductionMES.Station.Wpf.Configuration;
 
 /// <summary>
 /// Cấu hình cục bộ tại từng trạm, đọc từ <c>appsettings.json</c> của chính trạm đó (Options pattern, không đọc
-/// <c>IConfiguration</c> rải rác) — cùng quy ước với <see cref="ArduinoTimeoutSeconds"/>/<see cref="NgModeTimeoutSeconds"/>
+/// <c>IConfiguration</c> rải rác) — cùng quy ước với <see cref="NgModeTimeoutSeconds"/>
 /// đã có trước đây (xem CLAUDE.md mục "Cấu hình").
 /// </summary>
 public class StationOptions
@@ -12,8 +12,6 @@ public class StationOptions
     public string ApiBaseUrl { get; set; } = string.Empty;
 
     public string SignalRHubUrl { get; set; } = string.Empty;
-
-    public int ArduinoTimeoutSeconds { get; set; } = 45;
 
     public int NgModeTimeoutSeconds { get; set; } = 30;
 
@@ -84,7 +82,7 @@ public class StationOptions
     /// <c>StationConfigPage</c> — ADR-006) trước khi tự động clear session (<c>ISupervisorSessionService.Clear()</c>)
     /// và quay về Trang chủ. Là idle timer thật (reset lại mỗi khi có tương tác, không phải đếm cố định kể từ lúc
     /// đăng nhập) — tránh đá Tổ trưởng ra giữa chừng khi đang nhập dở form. Cấu hình cục bộ theo trạm, cùng nhóm
-    /// với <see cref="ArduinoTimeoutSeconds"/>/<see cref="NgModeTimeoutSeconds"/>. Mặc định 600 giây (10 phút).
+    /// với <see cref="NgModeTimeoutSeconds"/>. Mặc định 600 giây (10 phút).
     /// KHÔNG áp dụng cho <c>ReworkUnlockPage</c> (US-19 AC7 đã bắt buộc đăng nhập lại mỗi lần vào, không dùng
     /// <c>ISupervisorSessionService</c> dùng chung).
     /// </summary>

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Divider, Form, Input, InputNumber, Modal, Select, Switch } from 'antd';
+import { Alert, Divider, Form, Input, Modal, Select, Switch } from 'antd';
 import type { AxiosError } from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -12,42 +12,17 @@ import { useAuthStore } from '../../store/authStore';
 import type { WorkStation } from '../../types/workStation';
 
 /**
- * Đối chiếu FluentValidation `CreateWorkStationRequestValidator`/`UpdateWorkStationRequestValidator`
- * (backend, US-04/AC2/AC3): khi `useArduino = true`, `comPort`/`baudRate`/`commandProtocol` bắt buộc;
- * khi `false`, không bắt buộc. Dùng `superRefine` vì rule phụ thuộc lẫn nhau giữa các field.
+ * Đối chiếu FluentValidation `CreateWorkStationRequestValidator`/`UpdateWorkStationRequestValidator` (backend,
+ * US-04). US-11/AC12 (12/10/2026): `useArduino` ("Trạm có máy thông điện") KHÔNG còn bắt buộc cổng COM/baud rate/giao
+ * thức lệnh — cấu hình kết nối máy nay ở `appsettings.json` cục bộ tại trạm (section `Tester`), nên form không còn
+ * các ô này.
  */
-const workStationSchema = z
-  .object({
-    name: z.string().min(1, 'Tên trạm không được để trống').max(200, 'Tên trạm tối đa 200 ký tự'),
-    lineId: z.number().int().positive('Phải chọn 1 Line hợp lệ'),
-    stageId: z.number().int().positive('Phải chọn 1 công đoạn hợp lệ'),
-    useArduino: z.boolean(),
-    comPort: z.string().max(50, 'Cổng COM tối đa 50 ký tự').optional().nullable(),
-    baudRate: z.number().int().optional().nullable(),
-    commandProtocol: z.string().max(200, 'Giao thức lệnh tối đa 200 ký tự').optional().nullable(),
-  })
-  .superRefine((values, ctx) => {
-    if (!values.useArduino) {
-      return;
-    }
-    if (!values.comPort || values.comPort.trim() === '') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['comPort'],
-        message: 'Cổng COM không được để trống khi trạm sử dụng Arduino.',
-      });
-    }
-    if (values.baudRate == null || values.baudRate <= 0) {
-      ctx.addIssue({ code: 'custom', path: ['baudRate'], message: 'Baud rate phải lớn hơn 0.' });
-    }
-    if (!values.commandProtocol || values.commandProtocol.trim() === '') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['commandProtocol'],
-        message: 'Giao thức lệnh không được để trống khi trạm sử dụng Arduino.',
-      });
-    }
-  });
+const workStationSchema = z.object({
+  name: z.string().min(1, 'Tên trạm không được để trống').max(200, 'Tên trạm tối đa 200 ký tự'),
+  lineId: z.number().int().positive('Phải chọn 1 Line hợp lệ'),
+  stageId: z.number().int().positive('Phải chọn 1 công đoạn hợp lệ'),
+  useArduino: z.boolean(),
+});
 
 type WorkStationFormValues = z.infer<typeof workStationSchema>;
 
@@ -56,9 +31,6 @@ const EMPTY_VALUES: WorkStationFormValues = {
   lineId: 0,
   stageId: 0,
   useArduino: false,
-  comPort: '',
-  baudRate: null,
-  commandProtocol: '',
 };
 
 interface WorkStationFormModalProps {
@@ -82,14 +54,11 @@ export function WorkStationFormModal({ open, editingWorkStation, onClose }: Work
     control,
     handleSubmit,
     reset,
-    watch,
     formState: { errors },
   } = useForm<WorkStationFormValues>({
     resolver: zodResolver(workStationSchema),
     defaultValues: EMPTY_VALUES,
   });
-
-  const useArduino = watch('useArduino');
 
   useEffect(() => {
     if (open) {
@@ -100,9 +69,6 @@ export function WorkStationFormModal({ open, editingWorkStation, onClose }: Work
               lineId: editingWorkStation.lineId,
               stageId: editingWorkStation.stageId,
               useArduino: editingWorkStation.useArduino,
-              comPort: editingWorkStation.comPort ?? '',
-              baudRate: editingWorkStation.baudRate ?? null,
-              commandProtocol: editingWorkStation.commandProtocol ?? '',
             }
           : EMPTY_VALUES,
       );
@@ -143,9 +109,6 @@ export function WorkStationFormModal({ open, editingWorkStation, onClose }: Work
       lineId: values.lineId,
       stageId: values.stageId,
       useArduino: values.useArduino,
-      comPort: values.useArduino ? values.comPort : null,
-      baudRate: values.useArduino ? values.baudRate : null,
-      commandProtocol: values.useArduino ? values.commandProtocol : null,
     };
     try {
       if (editingWorkStation) {
@@ -206,50 +169,16 @@ export function WorkStationFormModal({ open, editingWorkStation, onClose }: Work
             )}
           />
         </Form.Item>
-        <Form.Item label="Sử dụng Arduino">
+        <Form.Item
+          label="Trạm có máy thông điện"
+          extra="Bật cho trạm Thông điện có gắn máy ESP32. Cổng COM cấu hình tại appsettings.json của PC trạm (section Tester); công tắc Bật/Tắt máy do Tổ trưởng đổi tại trạm."
+        >
           <Controller
             name="useArduino"
             control={control}
             render={({ field: { value, onChange } }) => <Switch checked={value} onChange={onChange} />}
           />
         </Form.Item>
-        {useArduino && (
-          <>
-            <Form.Item label="Cổng COM" validateStatus={errors.comPort ? 'error' : ''} help={errors.comPort?.message}>
-              <Controller
-                name="comPort"
-                control={control}
-                render={({ field }) => <Input {...field} value={field.value ?? ''} />}
-              />
-            </Form.Item>
-            <Form.Item label="Baud rate" validateStatus={errors.baudRate ? 'error' : ''} help={errors.baudRate?.message}>
-              <Controller
-                name="baudRate"
-                control={control}
-                render={({ field: { onChange, onBlur, value, name } }) => (
-                  <InputNumber
-                    name={name}
-                    value={value ?? undefined}
-                    onChange={(newValue) => onChange(newValue ?? null)}
-                    onBlur={onBlur}
-                    style={{ width: '100%' }}
-                  />
-                )}
-              />
-            </Form.Item>
-            <Form.Item
-              label="Giao thức lệnh"
-              validateStatus={errors.commandProtocol ? 'error' : ''}
-              help={errors.commandProtocol?.message}
-            >
-              <Controller
-                name="commandProtocol"
-                control={control}
-                render={({ field }) => <Input {...field} value={field.value ?? ''} />}
-              />
-            </Form.Item>
-          </>
-        )}
       </Form>
 
       {/* US-04a: API Key chỉ cấp được khi trạm đã tồn tại (cần workStationId) — không hiển thị lúc tạo mới. */}

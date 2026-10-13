@@ -18,8 +18,13 @@ using ProductionMES.Station.Wpf.Services.Realtime;
 using ProductionMES.Station.Wpf.Services.Reports;
 using ProductionMES.Station.Wpf.Services.ReworkUnlocks;
 using ProductionMES.Station.Wpf.Services.Scans;
+using ProductionMES.Station.Tester;
+using ProductionMES.Station.Tester.Serial;
+using ProductionMES.Station.Tester.Station;
 using ProductionMES.Station.Wpf.Services.Stages;
+using ProductionMES.Station.Wpf.Services.Tester;
 using ProductionMES.Station.Wpf.Services.WorkStations;
+using Serilog;
 using ProductionMES.Station.Wpf.ViewModels;
 using ProductionMES.Station.Wpf.Views;
 using ProductionMES.Station.Wpf.Views.Pages;
@@ -38,6 +43,17 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // US-14 AC11: log serial vào/ra + sự kiện máy thông điện ghi FILE Serilog mức Debug, tách theo ngày (KHÔNG ghi DB —
+        // PING mỗi giây sinh quá nhiều dòng). Thư mục logs cạnh file exe.
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "logs", "station-.log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 30,
+                shared: true)
+            .CreateLogger();
 
         // Lưới an toàn: nếu 1 exception nào đó lọt qua hết mọi try/catch trong ViewModel (vd lỗi ngoài dự kiến,
         // không phải ApiException/HttpRequestException/TaskCanceledException đã xử lý riêng), WPF mặc định sẽ
@@ -91,6 +107,7 @@ public partial class App : Application
         }
 
         _host?.Dispose();
+        Log.CloseAndFlush();
         base.OnExit(e);
     }
 
@@ -191,6 +208,25 @@ public partial class App : Application
         services.AddSingleton<ExcelComLabelPrinter>();
         services.AddSingleton<LibreOfficeLabelPrinter>();
         services.AddSingleton<IPackingLabelPrintService, PackingLabelPrintService>();
+
+        // US-11/US-12/US-14: máy thông điện ESP32. Cấu hình COM cục bộ ở section "Tester" của appsettings.json (Options
+        // pattern). Cổng chỉ được MỞ khi trạm có máy + công tắc BẬT (AndonBoardViewModel gọi TesterStationController.Start).
+        var testerOptions = new TesterOptions();
+        configuration.GetSection(TesterOptions.SectionName).Bind(testerOptions);
+        services.AddSingleton(testerOptions);
+        services.AddSingleton<ITesterLog, SerilogTesterLog>();
+        services.AddSingleton<ISerialPortFactory, SystemSerialPortFactory>();
+        services.AddSingleton<ITesterLink, TesterLink>();
+        services.AddSingleton<ITesterDispatcher, WpfTesterDispatcher>();
+        services.AddSingleton<ITesterScheduler, WpfTesterScheduler>();
+        services.AddSingleton<ITesterServerApi, TesterServerApiAdapter>();
+        services.AddSingleton<TesterStationController>();
+
+        // Đọc trạng thái + ghi event log bằng StationApiKey; đổi công tắc tự gắn Bearer tường minh (xem TesterApiClient).
+        services.AddHttpClient<ITesterApiClient, TesterApiClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<StationOptions>().ApiBaseUrl);
+        }).AddHttpMessageHandler<StationApiKeyHandler>();
 
         services.AddSingleton<AndonBoardWindow>();
         services.AddSingleton<AndonBoardViewModel>();

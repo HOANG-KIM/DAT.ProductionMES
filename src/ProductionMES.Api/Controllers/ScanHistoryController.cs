@@ -40,6 +40,7 @@ public class ScanHistoryController : ControllerBase
     /// <param name="customer">Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Khách hàng.</param>
     /// <param name="revision">Mở rộng 18/08/2026 (US-21 AC6) — lọc theo Revision.</param>
     /// <param name="result">Mở rộng 19/08/2026 (nâng cấp UX drill-down US-21) — lọc theo kết quả scan (Ok/Ng/...).</param>
+    /// <param name="testerMode">US-11 AC6 — lọc theo chế độ máy thông điện (None/Tester/Bypass).</param>
     /// <param name="from">AC3 — cận dưới (bao gồm) của <c>ScannedAtUtc</c>, dạng UTC ISO 8601.</param>
     /// <param name="to">AC3 — cận trên (bao gồm) của <c>ScannedAtUtc</c>, dạng UTC ISO 8601.</param>
     /// <param name="page">Trang hiện tại, bắt đầu từ 1 (mặc định 1 nếu không truyền/không hợp lệ).</param>
@@ -56,6 +57,7 @@ public class ScanHistoryController : ControllerBase
         [FromQuery] string? customer,
         [FromQuery] string? revision,
         [FromQuery] ScanResult? result,
+        [FromQuery] TesterMode? testerMode,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] int page = 1,
@@ -73,6 +75,7 @@ public class ScanHistoryController : ControllerBase
             Customer = customer,
             Revision = revision,
             Result = result,
+            TesterMode = testerMode,
             FromUtc = from,
             ToUtc = to,
             Page = page,
