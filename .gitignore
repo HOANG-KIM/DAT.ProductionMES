@@ -9,6 +9,9 @@ x86/
 [Ll]og/
 [Ll]ogs/
 
+# Bản build deploy (dotnet publish + gói .tar.gz gửi người deploy, xem Documents/GIAI-DOAN-5-may-dev.md)
+/publish/
+
 # Visual Studio / Rider
 .vs/
 .idea/
