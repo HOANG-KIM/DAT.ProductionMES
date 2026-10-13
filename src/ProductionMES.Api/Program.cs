@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authorization;
@@ -97,6 +98,15 @@ try
         options.Cookie.HttpOnly = false;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
+    });
+
+    // Deploy VM Ubuntu (Documents/DEPLOY-ubuntu-vm-hyperv.md): Caddy (reverse proxy cùng VM, gọi vào qua loopback,
+    // đã nằm trong KnownProxies mặc định) kết thúc HTTPS rồi chuyển tiếp HTTP vào Kestrel — phải đọc
+    // X-Forwarded-Proto để API biết request gốc là HTTPS, nếu không cookie Secure (antiforgery ở trên) bị lỗi.
+    // KHÔNG Clear() KnownNetworks/KnownProxies — nếu xoá thì bất kỳ ai cũng giả mạo được header.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     });
 
     // JWT Authentication (placeholder — key/issuer/audience cần thay bằng giá trị thật khi deploy)
@@ -231,6 +241,10 @@ try
         .AddMySql(connectionString, name: "mysql");
 
     var app = builder.Build();
+
+    // Phải đứng TRƯỚC mọi middleware khác (đặc biệt UseHttpsRedirection — nếu đứng sau sẽ redirect vòng lặp
+    // HTTP→HTTPS khi chạy sau Caddy). Chạy local không qua proxy thì không có header X-Forwarded-* → không làm gì.
+    app.UseForwardedHeaders();
 
     if (app.Environment.IsDevelopment())
     {
